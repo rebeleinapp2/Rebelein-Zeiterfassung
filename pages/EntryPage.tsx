@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useTimeEntries, useSettings, useDailyLogs, useAbsences, useInstallers, usePeerReviews, getLocalISOString } from '../services/dataService';
 import { GlassCard, GlassInput, GlassButton } from '../components/GlassCard';
 import GlassDatePicker from '../components/GlassDatePicker';
@@ -84,6 +84,23 @@ const EntryPage: React.FC = () => {
       });
   };
 
+  // Helper to determine optimal start time based on history
+  const getSuggestedStartTime = useCallback(() => {
+      const dayEntries = entries
+        .filter(e => e.date === date)
+        .sort((a, b) => (a.end_time || '').localeCompare(b.end_time || ''));
+
+      if (dayEntries.length > 0) {
+          const lastEntry = dayEntries[dayEntries.length - 1];
+          if (lastEntry.end_time) {
+              return lastEntry.end_time;
+          }
+      }
+
+      const dayIndex = new Date(date).getDay();
+      return settings.work_config?.[dayIndex as keyof typeof settings.work_config] || "07:00";
+  }, [date, entries, settings.work_config]);
+
   // Helper to update fields based on type
   const updateFieldsForType = (nextType: EntryType) => {
       // Auto-fill names
@@ -101,12 +118,19 @@ const EntryPage: React.FC = () => {
           case 'overtime_reduction': setClient('Überstundenabbau'); break;
       }
       
-      // Clear hours for absences as they are usually full day in this quick entry
-      if (['vacation', 'sick', 'holiday', 'unpaid'].includes(nextType)) {
+      const isNextAbsence = ['vacation', 'sick', 'holiday', 'unpaid'].includes(nextType);
+
+      if (isNextAbsence) {
           setHours('0');
           setProjectStartTime('');
           setProjectEndTime('');
       } else {
+           // Restore start time if it was cleared (e.g. by passing through absence types) or is empty
+           if (!projectStartTime) {
+               setProjectStartTime(getSuggestedStartTime());
+           }
+           
+           // Clear hours if coming from absence type (where we set it to '0')
            if (['vacation', 'sick', 'holiday', 'unpaid'].includes(entryType)) {
                setHours('');
            }
@@ -204,30 +228,13 @@ const EntryPage: React.FC = () => {
       return (d2 - d1) / (1000 * 60);
   };
 
-  // 1. When DATE changes, determine default start time
+  // 1. When DATE (or entries/settings) changes, determine default start time
+  // Using useCallback dependency getSuggestedStartTime
   useEffect(() => {
-      const determineStartTime = () => {
-          const dayEntries = entries
-            .filter(e => e.date === date)
-            .sort((a, b) => (a.end_time || '').localeCompare(b.end_time || ''));
-
-          if (dayEntries.length > 0) {
-              const lastEntry = dayEntries[dayEntries.length - 1];
-              if (lastEntry.end_time) {
-                  setProjectStartTime(lastEntry.end_time);
-                  return;
-              }
-          }
-
-          const dayIndex = new Date(date).getDay();
-          const defaultStart = settings.work_config?.[dayIndex as keyof typeof settings.work_config] || "07:00";
-          setProjectStartTime(defaultStart);
-      };
-
-      determineStartTime();
+      setProjectStartTime(getSuggestedStartTime());
       setProjectEndTime('');
       setHours('');
-  }, [date, entries, settings.work_config]);
+  }, [getSuggestedStartTime]);
 
   const handleHoursChange = (val: string) => {
       setHours(val);
@@ -423,6 +430,11 @@ const EntryPage: React.FC = () => {
     setClient('');
     if (isAbsence) {
         setEntryType('work');
+        // Nach Absenden einer Abwesenheit und Reset auf work, 
+        // sollte Startzeit für neuen Eintrag korrekt gesetzt werden (falls leer durch Abwesenheit)
+        if (!projectEndTime) {
+             setProjectStartTime(getSuggestedStartTime());
+        }
     }
     setHours('');
     setNote(''); 
