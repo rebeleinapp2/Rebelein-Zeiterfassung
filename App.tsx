@@ -22,6 +22,7 @@ const ServiceWorkerUpdater: React.FC<{ registration: ServiceWorkerRegistration |
     useEffect(() => {
         if (registration) {
             // Check for updates on every route change
+            console.log('Route changed, checking for PWA updates...');
             registration.update().catch(err => console.error("SW Update check failed:", err));
         }
     }, [location, registration]);
@@ -52,10 +53,12 @@ const App: React.FC = () => {
   useEffect(() => {
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('/sw.js').then((registration) => {
+        console.log('Service Worker registered with scope:', registration.scope);
         setSwRegistration(registration);
 
         // Check if there is already a waiting worker (update ready but not active)
         if (registration.waiting) {
+            console.log('Service Worker: Update waiting immediately on load');
             setWaitingWorker(registration.waiting);
             setShowUpdateParams(true);
         }
@@ -63,10 +66,12 @@ const App: React.FC = () => {
         // Listen for new updates found
         registration.addEventListener('updatefound', () => {
             const newWorker = registration.installing;
+            console.log('Service Worker: Update found, installing...');
             if (newWorker) {
                 newWorker.addEventListener('statechange', () => {
                     if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
                         // New update available
+                        console.log('Service Worker: New version installed and waiting');
                         setWaitingWorker(newWorker);
                         setShowUpdateParams(true);
                     }
@@ -88,6 +93,7 @@ const App: React.FC = () => {
 
   const handleUpdateApp = () => {
       if (waitingWorker) {
+          console.log('User clicked update, skipping waiting...');
           waitingWorker.postMessage({ type: 'SKIP_WAITING' });
       }
   };
