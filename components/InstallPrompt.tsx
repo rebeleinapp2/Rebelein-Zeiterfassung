@@ -7,13 +7,33 @@ export const InstallPrompt: React.FC = () => {
   const [show, setShow] = useState(false);
 
   useEffect(() => {
+    // Check if app is already running in standalone mode (installed)
+    const isStandalone = window.matchMedia('(display-mode: standalone)').matches || 
+                         // @ts-ignore
+                         (window.navigator.standalone === true);
+
+    if (isStandalone) {
+        console.log("App is running in standalone mode. Hiding install prompt.");
+        return;
+    }
+
+    // 1. Check if the event was already captured in index.html script
+    // @ts-ignore
+    if (window.deferredInstallPrompt) {
+        console.log("Found cached install prompt");
+        // @ts-ignore
+        setDeferredPrompt(window.deferredInstallPrompt);
+        setShow(true);
+    }
+
+    // 2. Also listen for the event if it happens later
     const handler = (e: Event) => {
-      // Verhindert, dass der Browser den Standard-Dialog sofort anzeigt
       e.preventDefault();
-      // Speichere das Event für später
       setDeferredPrompt(e);
-      // Zeige unseren eigenen UI-Button
+      // @ts-ignore
+      window.deferredInstallPrompt = e; // Sync global
       setShow(true);
+      console.log("Install prompt event fired in component");
     };
 
     window.addEventListener('beforeinstallprompt', handler);
@@ -40,6 +60,8 @@ export const InstallPrompt: React.FC = () => {
 
     // Event kann nur einmal genutzt werden, daher reset
     setDeferredPrompt(null);
+    // @ts-ignore
+    window.deferredInstallPrompt = null;
     setShow(false);
   };
 

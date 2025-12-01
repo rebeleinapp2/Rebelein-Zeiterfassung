@@ -41,6 +41,17 @@
         border-radius: 10px;
       }
     </style>
+    <!-- CRITICAL: Capture install prompt early -->
+    <script>
+      window.deferredInstallPrompt = null;
+      window.addEventListener('beforeinstallprompt', (e) => {
+        // Prevent Chrome 67 and earlier from automatically showing the prompt
+        e.preventDefault();
+        // Stash the event so it can be triggered later.
+        window.deferredInstallPrompt = e;
+        console.log("Install prompt captured globally");
+      });
+    </script>
 <script type="importmap">
 {
   "imports": {
