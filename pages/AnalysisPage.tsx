@@ -77,7 +77,7 @@ const AnalysisPage: React.FC = () => {
 
         const unpaidDaysSet = new Set<string>();
         if (yearAbsences) {
-            yearAbsences.filter(a => a.type === 'unpaid').forEach(a => {
+            yearAbsences.filter(a => a.type === 'unpaid' || a.type === 'sick_child' || a.type === 'sick_pay').forEach(a => {
                 let aStart = new Date(a.start_date); aStart.setHours(12, 0, 0, 0);
                 const aEnd = new Date(a.end_date); aEnd.setHours(12, 0, 0, 0);
                 while (aStart <= aEnd) {
@@ -86,7 +86,7 @@ const AnalysisPage: React.FC = () => {
                 }
             });
         }
-        entries.filter(e => e.type === 'unpaid').forEach(e => {
+        entries.filter(e => e.type === 'unpaid' || e.type === 'sick_child' || e.type === 'sick_pay').forEach(e => {
             unpaidDaysSet.add(e.date);
         });
 
@@ -160,6 +160,8 @@ const AnalysisPage: React.FC = () => {
     const yearAbsenceStats = useMemo(() => {
         let vacationDays = 0;
         let sickDays = 0;
+        let sickChildDays = 0;
+        let sickPayDays = 0;
         let unpaidDays = 0;
         let unpaidNotes: { date: string, note: string }[] = [];
 
@@ -185,6 +187,8 @@ const AnalysisPage: React.FC = () => {
                     if (dailyTarget > 0) {
                         if (abs.type === 'vacation') vacationDays++;
                         if (abs.type === 'sick') sickDays++;
+                        if (abs.type === 'sick_child') sickChildDays++;
+                        if (abs.type === 'sick_pay') sickPayDays++;
                         if (abs.type === 'unpaid') {
                             unpaidDays++;
                             if (abs.note && !unpaidNotes.some(n => n.note === abs.note)) {
@@ -204,6 +208,8 @@ const AnalysisPage: React.FC = () => {
         return {
             vacationDays,
             sickDays,
+            sickChildDays,
+            sickPayDays,
             unpaidDays,
             uniqueNotes,
             yearlyAllowance,
@@ -376,16 +382,16 @@ const AnalysisPage: React.FC = () => {
             const dailyTarget = getDailyTargetForDate(dateStr, settings.target_hours);
 
             const absence = absences.find(a => dateStr >= a.start_date && dateStr <= a.end_date);
-            const entryAbsence = entries.find(e => e.date === dateStr && ['vacation', 'sick', 'holiday', 'unpaid'].includes(e.type || ''));
+            const entryAbsence = entries.find(e => e.date === dateStr && ['vacation', 'sick', 'holiday', 'unpaid', 'sick_child', 'sick_pay'].includes(e.type || ''));
 
             let isUnpaid = false;
             let isPaidAbsence = false;
 
             if (absence) {
-                if (absence.type === 'unpaid') isUnpaid = true;
+                if (absence.type === 'unpaid' || absence.type === 'sick_child' || absence.type === 'sick_pay') isUnpaid = true;
                 else isPaidAbsence = true;
             } else if (entryAbsence) {
-                if (entryAbsence.type === 'unpaid') isUnpaid = true;
+                if (entryAbsence.type === 'unpaid' || entryAbsence.type === 'sick_child' || entryAbsence.type === 'sick_pay') isUnpaid = true;
                 else isPaidAbsence = true;
             }
 
@@ -404,7 +410,7 @@ const AnalysisPage: React.FC = () => {
                 // EXCLUDE overtime_reduction from "Actuals" so it reduces the balance
                 return e.date >= startStr &&
                     e.date <= cutoffDateStr &&
-                    !['break', 'vacation', 'sick', 'holiday', 'unpaid', 'overtime_reduction'].includes(e.type || '');
+                    !['break', 'vacation', 'sick', 'holiday', 'unpaid', 'overtime_reduction', 'sick_child', 'sick_pay'].includes(e.type || '');
             })
             .reduce((sum, e) => sum + e.hours, 0);
 

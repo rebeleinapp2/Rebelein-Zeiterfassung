@@ -3,8 +3,6 @@ import { useTimeEntries, useSettings, useDailyLogs, useAbsences, getDailyTargetF
 import { GlassCard, GlassButton, GlassInput } from '../components/GlassCard';
 import { Trash2, FileDown, X, Edit2, Save, CalendarDays, Briefcase, Clock, ChevronLeft, ChevronRight, CheckCircle, Calendar, UserCheck, List, FileText, StickyNote, Coffee, Lock, Hourglass, Building2, Building, Warehouse, Car, Palmtree, Stethoscope, Ban, PartyPopper, TrendingDown, AlertTriangle, Check } from 'lucide-react';
 import GlassDatePicker from '../components/GlassDatePicker';
-import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
 import { TimeEntry, DailyLog, UserAbsence } from '../types';
 import { supabase } from '../services/supabaseClient';
 import { formatDuration } from '../services/utils/timeUtils';
@@ -338,330 +336,98 @@ const HistoryPage: React.FC = () => {
 
     // --- PDF: Project Report ---
     const generateProjectPDF = async () => {
-        const start = new Date(startDate);
-        const end = new Date(endDate);
-        start.setHours(0, 0, 0, 0);
-        end.setHours(23, 59, 59, 999);
+        try {
+            const start = new Date(startDate);
+            const end = new Date(endDate);
+            // Ensure full day coverage
+            start.setHours(0, 0, 0, 0);
+            end.setHours(23, 59, 59, 999);
 
-        // 1. Einträge filtern
-        let combinedExportData = entries.filter(e => {
-            const d = new Date(e.date);
-            return d >= start && d <= end;
-        });
+            const startStr = getLocalISOString(start);
+            const endStr = getLocalISOString(end);
 
-        // 2. Abwesenheiten integrieren (damit sie im PDF erscheinen)
-        if (absences && absences.length > 0) {
-            absences.forEach(abs => {
-                let current = new Date(abs.start_date);
-                const absEnd = new Date(abs.end_date);
+            // Verwende den gemeinsamen Export-Service
+            // Wir fetchen die Daten neu, um Konsistenz zu gewährleisten und die Logik an einem Ort zu haben.
+            // (Alternativ könnte man die lokalen Daten mappen, aber fetchExportData ist robuster)
+            const { fetchExportData, generateProjectPdfBlob } = await import('../services/pdfExportService');
 
-                // Zeiten normalisieren
-                current.setHours(0, 0, 0, 0);
-                absEnd.setHours(0, 0, 0, 0);
+            // User ID ist notwendig. Wenn nicht vorhanden (z.B. Fehler), abbrechen.
+            // In HistoryPage sehen wir in der Regel die Daten des aktuellen Users.
+            // Wir müssen die aktuelle User-ID herausfinden.
+            // useTimeEntries liefert 'entries', aber keine user_id direkt.
+            // Wir nehmen an, der aktuelle User ist eingeloggt.
+            const user = await supabase.auth.getUser();
+            const userId = user.data.user?.id;
 
-                while (current <= absEnd) {
-                    if (current >= start && current <= end) {
-                        const dateStr = getLocalISOString(current);
-
-                        // Stunden ermitteln (Target Hours, außer bei unbezahlt)
-                        let targetHours = 0;
-                        if (abs.type !== 'unpaid') {
-                            targetHours = getDailyTargetForDate(dateStr, settings.target_hours);
-                        }
-
-                        const labelMap: Record<string, string> = {
-                            'vacation': 'Urlaub',
-                            'sick': 'Krank',
-                            'holiday': 'Feiertag',
-                            'unpaid': 'Unbezahlt'
-                        };
-
-                        const absenceEntry: TimeEntry = {
-                            id: `abs-export-${abs.id}-${dateStr}`,
-                            user_id: abs.user_id,
-                            date: dateStr,
-                            client_name: labelMap[abs.type] || 'Abwesend',
-                            hours: targetHours,
-                            type: abs.type,
-                            created_at: new Date().toISOString(),
-                            isAbsence: true,
-                            note: abs.note,
-                            start_time: '',
-                            end_time: ''
-                        };
-                        combinedExportData.push(absenceEntry);
-                    }
-                    current.setDate(current.getDate() + 1);
-                }
-            });
-        }
-
-        if (combinedExportData.length === 0) {
-            alert("Keine Daten (Projekte oder Abwesenheiten) im gewählten Zeitraum.");
-            return;
-        }
-
-        const daysMap: Record<string, typeof entries> = {};
-        combinedExportData.forEach(e => {
-            if (!daysMap[e.date]) daysMap[e.date] = [];
-            daysMap[e.date].push(e);
-        });
-
-        // Sortierung innerhalb der Tage: Abwesenheiten zuerst, dann nach Uhrzeit
-        Object.values(daysMap).forEach(list => list.sort((a, b) => {
-            if (a.isAbsence && !b.isAbsence) return -1;
-            if (!a.isAbsence && b.isAbsence) return 1;
-            return (a.start_time || '').localeCompare(b.start_time || '');
-        }));
-
-        const sortedDates = Object.keys(daysMap).sort();
-
-        const doc = new jsPDF('l', 'mm', 'a4');
-        const pageWidth = 297;
-        const pageHeight = 210;
-        const halfWidth = pageWidth / 2;
-
-        const drawDay = (dateStr: string, dayEntries: typeof entries, offsetX: number) => {
-            const dateObj = new Date(dateStr);
-            const formattedDate = dateObj.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
-
-            const marginX = 10;
-            const startY = 20;
-            const contentWidth = halfWidth - (marginX * 2);
-
-            doc.setFontSize(10);
-            doc.setFont("helvetica", "bold");
-            doc.text(`Monteur: ${settings.display_name}`, offsetX + marginX, startY);
-            doc.text(formattedDate, offsetX + halfWidth - marginX, startY, { align: 'right' });
-
-            const tableData = dayEntries.map(e => [
-                e.start_time || '-',
-                e.end_time || '-',
-                e.client_name,
-                e.hours.toFixed(2).replace('.', ',')
-            ]);
-
-            const minRows = 12;
-            for (let i = tableData.length; i < minRows; i++) tableData.push(['', '', '', '']);
-
-            autoTable(doc, {
-                startY: startY + 5,
-                margin: { left: offsetX + marginX, right: pageWidth - (offsetX + contentWidth + marginX) },
-                tableWidth: contentWidth,
-                head: [['Von', 'Bis', 'Baustelle - Tätigkeit', 'Std']],
-                body: tableData,
-                theme: 'grid',
-                styles: { fontSize: 9, lineColor: [0, 0, 0], lineWidth: 0.1, textColor: [0, 0, 0], cellPadding: 1.5 },
-                headStyles: { fillColor: [255, 255, 255], textColor: [0, 0, 0], fontStyle: 'bold', lineWidth: 0.2, lineColor: [0, 0, 0] },
-                columnStyles: {
-                    0: { cellWidth: 15, halign: 'center' },
-                    1: { cellWidth: 15, halign: 'center' },
-                    2: { cellWidth: 'auto' },
-                    3: { cellWidth: 15, halign: 'right' }
-                },
-                didParseCell: function (data) {
-                    const cellText = Array.isArray(data.cell.raw) ? data.cell.raw.join('') : String(data.cell.raw);
-                    if (cellText === 'Pause' && data.section === 'body') {
-                        data.cell.styles.textColor = [150, 150, 150];
-                    }
-                }
-            });
-
-            // @ts-ignore
-            const finalY = doc.lastAutoTable.finalY;
-            const totalHours = dayEntries.reduce((acc, curr) => (curr.type === 'break' ? acc : acc + curr.hours), 0);
-
-            doc.setLineWidth(0.3);
-            doc.rect(offsetX + marginX, finalY, contentWidth, 8);
-            doc.setFont("helvetica", "normal");
-            doc.text("Gesamtstunden (Verrechenbar)", offsetX + marginX + 2, finalY + 5.5);
-            doc.setFont("helvetica", "bold");
-            doc.text(totalHours.toFixed(2).replace('.', ','), offsetX + contentWidth - 2, finalY + 5.5, { align: 'right' });
-        };
-
-        for (let i = 0; i < sortedDates.length; i += 2) {
-            if (i > 0) doc.addPage();
-            drawDay(sortedDates[i], daysMap[sortedDates[i]], 0);
-            doc.setDrawColor(150, 150, 150);
-            doc.setLineDashPattern([1, 1], 0);
-            doc.line(halfWidth, 10, halfWidth, pageHeight - 10);
-            doc.setLineDashPattern([], 0);
-            doc.setDrawColor(0, 0, 0);
-            if (i + 1 < sortedDates.length) {
-                drawDay(sortedDates[i + 1], daysMap[sortedDates[i + 1]], halfWidth);
+            if (!userId) {
+                alert("Kein Benutzer gefunden.");
+                return;
             }
-        }
 
-        doc.save(`stundenzettel_projekte_${startDate}_bis_${endDate}.pdf`);
+            const exportData = await fetchExportData(userId, startStr, endStr);
+            const blob = generateProjectPdfBlob(exportData, startStr, endStr);
 
-        // Nur echte Projekteinträge als "submitted" markieren, Abwesenheiten sind bereits "final"
-        const realEntryIds = combinedExportData.filter(e => !e.isAbsence).map(e => e.id);
-        if (realEntryIds.length > 0) {
-            await markAsSubmitted(realEntryIds);
+            // Download Blob
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `stundenzettel_projekte_${startStr}_bis_${endStr}.pdf`;
+            a.click();
+            window.URL.revokeObjectURL(url);
+
+            // Mark submitted Logic (optional, if we want to keep current behavior)
+            // Die neue Service-Funktion macht das Markieren nicht automatisch.
+            // Wir behalten die lokale Logik bei.
+            // Nur echte Projekteinträge als "submitted" markieren, Abwesenheiten sind bereits "final"
+            const realEntryIds = exportData.entries.filter(e => !e.isAbsence).map(e => e.id);
+            if (realEntryIds.length > 0) {
+                await markAsSubmitted(realEntryIds);
+            }
+
+            setShowPdfModal(false);
+
+        } catch (error) {
+            console.error("PDF Export failed:", error);
+            alert("Fehler beim Exportieren des PDFs.");
         }
-        setShowPdfModal(false);
     };
 
     const generateAttendancePDF = async () => {
-        // 1. Fetch Logs
-        const { data: logsData } = await supabase
-            .from('daily_logs')
-            .select('*')
-            .gte('date', startDate)
-            .lte('date', endDate);
+        try {
+            const start = new Date(startDate);
+            const end = new Date(endDate);
+            start.setHours(0, 0, 0, 0);
+            end.setHours(23, 59, 59, 999);
 
-        // 2. Fetch Absences
-        const { data: absData } = await supabase
-            .from('user_absences')
-            .select('*')
-            .lte('start_date', endDate)
-            .gte('end_date', startDate);
+            const startStr = getLocalISOString(start);
+            const endStr = getLocalISOString(end);
 
-        // 3. Fetch Time Entries (for breaks only)
-        const { data: timeEntriesData } = await supabase
-            .from('time_entries')
-            .select('*')
-            .eq('type', 'break') // Only fetch breaks for the calculation
-            .gte('date', startDate)
-            .lte('date', endDate);
+            const { fetchExportData, generateAttendancePdfBlob } = await import('../services/pdfExportService');
 
-        // Maps
-        const logsMap = new Map<string, DailyLog>(
-            (logsData as any[])?.map((l: any) => [l.date, l as DailyLog]) || []
-        );
-        const absMap = new Map<string, UserAbsence>();
-        if (absData) {
-            absData.forEach((a: any) => {
-                let cur = new Date(a.start_date);
-                const end = new Date(a.end_date);
-                while (cur <= end) {
-                    absMap.set(cur.toISOString().split('T')[0], a as UserAbsence);
-                    cur.setDate(cur.getDate() + 1);
-                }
-            });
-        }
-        const breaksMap = new Map<string, any[]>();
-        if (timeEntriesData) {
-            timeEntriesData.forEach((e: any) => {
-                if (!breaksMap.has(e.date)) breaksMap.set(e.date, []);
-                breaksMap.get(e.date)?.push(e);
-            });
-        }
-
-        const doc = new jsPDF('p', 'mm', 'a4');
-        const margin = 15;
-
-        doc.setFontSize(18);
-        doc.setFont("helvetica", "bold");
-        doc.text("Stundennachweis (Anwesenheit)", margin, 20);
-        doc.setFontSize(11);
-        doc.setFont("helvetica", "normal");
-        doc.text(`Mitarbeiter: ${settings.display_name}`, margin, 30);
-        doc.text(`Zeitraum: ${new Date(startDate).toLocaleDateString('de-DE')} - ${new Date(endDate).toLocaleDateString('de-DE')}`, margin, 36);
-
-        const tableBody = [];
-        let totalTarget = 0;
-        let totalActual = 0;
-
-        let currDate = new Date(startDate);
-        const endObj = new Date(endDate);
-
-        while (currDate <= endObj) {
-            const dateStr = currDate.toISOString().split('T')[0];
-            const dateDisplay = currDate.toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit', year: '2-digit' });
-
-            const log = logsMap.get(dateStr);
-            const abs = absMap.get(dateStr);
-            const dayBreaks = breaksMap.get(dateStr) || [];
-            const target = getDailyTargetForDate(dateStr, settings.target_hours);
-
-            let startEndStr = '-';
-            let pauseStr = '';
-            let actual = 0;
-
-            // Calculate Project Breaks for this day
-            const breakDuration = dayBreaks.reduce((sum: number, e: any) => sum + e.hours, 0);
-
-            if (log) {
-                // Priority: Log
-                actual = calculateDuration(log);
-
-                // Format Description from Segments (Work segments)
-                if (log.segments && log.segments.length > 0) {
-                    const workSegs = log.segments.filter((s: any) => s.type === 'work');
-                    // Format: HH:MM-HH:MM Note
-                    startEndStr = workSegs.map((s: any) => {
-                        let str = `${s.start}-${s.end}`;
-                        if (s.note) str += ` ${s.note}`;
-                        return str;
-                    }).join(', ');
-                } else {
-                    // Fallback Legacy
-                    if (log.start_time && log.end_time) startEndStr = `${log.start_time}-${log.end_time}`;
-                }
-            } else if (abs) {
-                // Absence
-                if (abs.type !== 'unpaid') actual = target;
-                const typeLabel = abs.type === 'vacation' ? 'Urlaub' : abs.type === 'sick' ? 'Krank' : abs.type === 'holiday' ? 'Feiertag' : 'Unbezahlt';
-                startEndStr = typeLabel.toUpperCase();
+            const user = await supabase.auth.getUser();
+            const userId = user.data.user?.id;
+            if (!userId) {
+                alert("Kein Benutzer gefunden.");
+                return;
             }
 
-            // Add Breaks from Project Entries to pause description
-            if (dayBreaks.length > 0) {
-                const breakTimes = dayBreaks.map((e: any) => e.start_time && e.end_time ? `${e.start_time}-${e.end_time}` : `${e.hours}h`).join(', ');
-                pauseStr = pauseStr ? `${pauseStr}, ${breakTimes}` : breakTimes;
-            }
+            const exportData = await fetchExportData(userId, startStr, endStr);
+            const blob = generateAttendancePdfBlob(exportData, startStr, endStr);
 
-            // Subtract Breaks from Actual Duration (Net Working Time)
-            actual = Math.max(0, actual - breakDuration);
+            // Download Blob
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `stundenzettel_anwesenheit_${startStr}_bis_${endStr}.pdf`;
+            a.click();
+            window.URL.revokeObjectURL(url);
 
-            // Only add row if there is something (Target > 0 OR Log exists OR Absence exists)
-            if (target > 0 || log || abs) {
-                totalTarget += target;
-                totalActual += actual;
-                const diff = actual - target;
+            setShowPdfModal(false);
 
-                tableBody.push([
-                    dateDisplay,
-                    formatDuration(target),
-                    startEndStr,
-                    pauseStr || '-',
-                    actual > 0 ? formatDuration(actual) : '-',
-                    diff === 0 ? '0:00' : (diff > 0 ? `+${formatDuration(diff)}` : formatDuration(diff))
-                ]);
-            }
-
-            currDate.setDate(currDate.getDate() + 1);
+        } catch (error) {
+            console.error("Attendance Export failed:", error);
+            alert("Fehler beim Exportieren des Anwesenheits-PDFs.");
         }
-
-        autoTable(doc, {
-            startY: 45,
-            margin: { left: margin, right: margin },
-            head: [['Datum', 'Soll', 'Zeitraum / Bemerkung', 'Pause', 'Ist (Netto)', 'Diff']],
-            body: tableBody,
-            theme: 'grid',
-            headStyles: { fillColor: [20, 184, 166], textColor: [255, 255, 255], fontStyle: 'bold' },
-            columnStyles: {
-                0: { cellWidth: 22 },
-                1: { cellWidth: 12, halign: 'right' },
-                2: { cellWidth: 'auto' },
-                3: { cellWidth: 25 },
-                4: { cellWidth: 20, halign: 'right', fontStyle: 'bold' },
-                5: { cellWidth: 18, halign: 'right' }
-            },
-            foot: [[
-                'Gesamt:',
-                formatDuration(totalTarget),
-                '',
-                '',
-                formatDuration(totalActual),
-                formatDuration(totalActual - totalTarget)
-            ]],
-            footStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: 'bold', halign: 'right' }
-        });
-
-        doc.save(`stundenzettel_anwesenheit_${startDate}_bis_${endDate}.pdf`);
-        setShowPdfModal(false);
     };
 
     const formatDateDisplay = (isoDate: string) => new Date(isoDate).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });

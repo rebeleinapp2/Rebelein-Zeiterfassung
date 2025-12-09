@@ -165,16 +165,16 @@ const OfficeUserPage: React.FC = () => {
             const dailyTarget = getDailyTargetForDate(dateStr, currentTargets);
 
             const absence = absences.find(a => dateStr >= a.start_date && dateStr <= a.end_date);
-            const entryAbsence = entries.find(e => e.date === dateStr && ['vacation', 'sick', 'holiday', 'unpaid'].includes(e.type || ''));
+            const entryAbsence = entries.find(e => e.date === dateStr && ['vacation', 'sick', 'holiday', 'unpaid', 'sick_child', 'sick_pay'].includes(e.type || ''));
 
             let isUnpaid = false;
             let isPaidAbsence = false;
 
             if (absence) {
-                if (absence.type === 'unpaid') isUnpaid = true;
+                if (absence.type === 'unpaid' || absence.type === 'sick_child' || absence.type === 'sick_pay') isUnpaid = true;
                 else isPaidAbsence = true;
             } else if (entryAbsence) {
-                if (entryAbsence.type === 'unpaid') isUnpaid = true;
+                if (entryAbsence.type === 'unpaid' || entryAbsence.type === 'sick_child' || entryAbsence.type === 'sick_pay') isUnpaid = true;
                 else isPaidAbsence = true;
             }
 
@@ -301,7 +301,7 @@ const OfficeUserPage: React.FC = () => {
         if (!absences || absences.length === 0) return [];
         const sorted = [...absences].sort((a, b) => a.start_date.localeCompare(b.start_date));
 
-        const groups: { start: string, end: string, type: 'vacation' | 'sick' | 'holiday' | 'unpaid', note?: string }[] = [];
+        const groups: { start: string, end: string, type: 'vacation' | 'sick' | 'holiday' | 'unpaid' | 'sick_child' | 'sick_pay', note?: string }[] = [];
         if (sorted.length === 0) return [];
         let currentGroup = { start: sorted[0].start_date, end: sorted[0].end_date, type: sorted[0].type, note: sorted[0].note };
 
@@ -398,13 +398,15 @@ const OfficeUserPage: React.FC = () => {
         setUnpaidReason('');
     };
 
-    const handleAddAbsence = async (type: 'vacation' | 'sick' | 'holiday' | 'unpaid') => {
+    const handleAddAbsence = async (type: 'vacation' | 'sick' | 'holiday' | 'unpaid' | 'sick_child' | 'sick_pay') => {
         if (!selectedDay || !userId) return;
         const dateStr = getSelectedDateString();
         let note = '';
         if (type === 'vacation') note = 'Urlaub';
         else if (type === 'sick') note = 'Krank';
         else if (type === 'holiday') note = 'Feiertag';
+        else if (type === 'sick_child') note = 'Kind krank';
+        else if (type === 'sick_pay') note = 'Krankengeld';
         else if (type === 'unpaid') {
             if (!unpaidReason) {
                 alert("Bitte eine Begründung für den unbezahlten Tag angeben.");
@@ -719,9 +721,12 @@ const OfficeUserPage: React.FC = () => {
                                 const isRange = group.start !== group.end;
                                 let typeColor = 'text-white';
                                 let typeLabel = '';
+
                                 if (group.type === 'vacation') { typeColor = 'text-purple-300'; typeLabel = 'Urlaub'; }
                                 else if (group.type === 'sick') { typeColor = 'text-red-300'; typeLabel = 'Krank'; }
                                 else if (group.type === 'holiday') { typeColor = 'text-blue-300'; typeLabel = 'Feiertag'; }
+                                else if (group.type === 'sick_child') { typeColor = 'text-orange-300'; typeLabel = 'Kind krank'; }
+                                else if (group.type === 'sick_pay') { typeColor = 'text-rose-300'; typeLabel = 'Krankengeld'; }
                                 else if (group.type === 'unpaid') { typeColor = 'text-gray-400'; typeLabel = 'Unbezahlt'; }
                                 return (
                                     <div key={idx} className="flex justify-between items-center text-xs bg-white/5 px-2 py-1 rounded">
@@ -800,6 +805,9 @@ const OfficeUserPage: React.FC = () => {
                     else if (status === 'holiday') { bg = 'bg-blue-500/20 border-blue-500/40'; text = 'text-blue-200'; icon = <CalendarHeart size={12} className="text-blue-300 mt-1" />; }
                     else if (status === 'unpaid') { bg = 'bg-gray-700/40 border-gray-500/40'; text = 'text-gray-300'; icon = <Ban size={12} className="text-gray-400 mt-1" />; }
                     else if (status === 'full') { bg = 'bg-emerald-500/20 border-emerald-500/40'; text = 'text-emerald-200'; }
+                    else if (status === 'full') { bg = 'bg-emerald-500/20 border-emerald-500/40'; text = 'text-emerald-200'; }
+                    else if (status === 'sick_child') { bg = 'bg-orange-500/20 border-orange-500/40'; text = 'text-orange-200'; icon = <UserCheck size={12} className="text-orange-300 mt-1" />; }
+                    else if (status === 'sick_pay') { bg = 'bg-rose-500/20 border-rose-500/40'; text = 'text-rose-200'; icon = <Stethoscope size={12} className="text-rose-300 mt-1" />; }
                     else if (status === 'partial') { bg = 'bg-yellow-500/20 border-yellow-500/40'; text = 'text-yellow-200'; }
 
                     return (
@@ -830,24 +838,32 @@ const OfficeUserPage: React.FC = () => {
                                 <div className={`rounded-xl border p-4 flex flex-col gap-2 ${currentAbsence.type === 'vacation' ? 'bg-purple-900/20 border-purple-500/30' :
                                     currentAbsence.type === 'sick' ? 'bg-red-900/20 border-red-500/30' :
                                         currentAbsence.type === 'holiday' ? 'bg-blue-900/20 border-blue-500/30' :
-                                            'bg-gray-800/40 border-gray-500/30'
+                                            currentAbsence.type === 'sick_child' ? 'bg-orange-900/20 border-orange-500/30' :
+                                                currentAbsence.type === 'sick_pay' ? 'bg-rose-900/20 border-rose-500/30' :
+                                                    'bg-gray-800/40 border-gray-500/30'
                                     }`}>
                                     <div className="flex items-center justify-between">
                                         <div className="flex items-center gap-3">
                                             {currentAbsence.type === 'vacation' ? <Palmtree size={24} className="text-purple-300" /> :
                                                 currentAbsence.type === 'sick' ? <Stethoscope size={24} className="text-red-300" /> :
                                                     currentAbsence.type === 'holiday' ? <CalendarHeart size={24} className="text-blue-300" /> :
-                                                        <Ban size={24} className="text-gray-300" />}
+                                                        currentAbsence.type === 'sick_child' ? <UserCheck size={24} className="text-orange-300" /> :
+                                                            currentAbsence.type === 'sick_pay' ? <Stethoscope size={24} className="text-rose-300" /> :
+                                                                <Ban size={24} className="text-gray-300" />}
                                             <div>
                                                 <h4 className={`font-bold ${currentAbsence.type === 'vacation' ? 'text-purple-100' :
                                                     currentAbsence.type === 'sick' ? 'text-red-100' :
                                                         currentAbsence.type === 'holiday' ? 'text-blue-100' :
-                                                            'text-gray-100'
+                                                            currentAbsence.type === 'sick_child' ? 'text-orange-100' :
+                                                                currentAbsence.type === 'sick_pay' ? 'text-rose-100' :
+                                                                    'text-gray-100'
                                                     }`}>
                                                     {currentAbsence.type === 'vacation' ? 'Urlaub' :
                                                         currentAbsence.type === 'sick' ? 'Krank' :
                                                             currentAbsence.type === 'holiday' ? 'Feiertag' :
-                                                                'Unbezahlt'}
+                                                                currentAbsence.type === 'sick_child' ? 'Kind krank' :
+                                                                    currentAbsence.type === 'sick_pay' ? 'Krankengeld' :
+                                                                        'Unbezahlt'}
                                                 </h4>
                                             </div>
                                         </div>
@@ -863,9 +879,9 @@ const OfficeUserPage: React.FC = () => {
                                 <button onClick={() => handleAddAbsence('vacation')} className="flex flex-col items-center justify-center gap-2 p-4 rounded-xl border border-purple-500/30 bg-purple-900/20 hover:bg-purple-900/40 transition-all text-purple-100 font-bold text-xs"><Palmtree size={20} /> Urlaub</button>
                                 <button onClick={() => handleAddAbsence('sick')} className="flex flex-col items-center justify-center gap-2 p-4 rounded-xl border border-red-500/30 bg-red-900/20 hover:bg-red-900/40 transition-all text-red-100 font-bold text-xs"><Stethoscope size={20} /> Krank</button>
                                 <button onClick={() => handleAddAbsence('holiday')} className="flex flex-col items-center justify-center gap-2 p-4 rounded-xl border border-blue-500/30 bg-blue-900/20 hover:bg-blue-900/40 transition-all text-blue-100 font-bold text-xs"><CalendarHeart size={20} /> Feiertag</button>
-                                <div className="relative group">
-                                    <button onClick={() => { if (!unpaidReason) return; handleAddAbsence('unpaid'); }} disabled={!unpaidReason} className="w-full h-full flex flex-col items-center justify-center gap-2 p-4 rounded-xl border border-gray-500/30 bg-gray-800/40 hover:bg-gray-800/60 transition-all text-gray-200 font-bold text-xs disabled:opacity-50"><Ban size={20} /> Unbezahlt</button>
-                                </div>
+                                <button onClick={() => { if (!unpaidReason) return; handleAddAbsence('unpaid'); }} disabled={!unpaidReason} className="w-full h-full flex flex-col items-center justify-center gap-2 p-4 rounded-xl border border-gray-500/30 bg-gray-800/40 hover:bg-gray-800/60 transition-all text-gray-200 font-bold text-xs disabled:opacity-50"><Ban size={20} /> Unbezahlt</button>
+                                <button onClick={() => handleAddAbsence('sick_child')} className="flex flex-col items-center justify-center gap-2 p-4 rounded-xl border border-orange-500/30 bg-orange-900/20 hover:bg-orange-900/40 transition-all text-orange-100 font-bold text-xs"><UserCheck size={20} /> Kind krank</button>
+                                <button onClick={() => handleAddAbsence('sick_pay')} className="flex flex-col items-center justify-center gap-2 p-4 rounded-xl border border-rose-500/30 bg-rose-900/20 hover:bg-rose-900/40 transition-all text-rose-100 font-bold text-xs"><Stethoscope size={20} /> Krankengeld</button>
                                 {/* NEW Overtime Reduction Button */}
                                 <button onClick={() => {
                                     setNewEntryForm({
@@ -1006,13 +1022,13 @@ const OfficeUserPage: React.FC = () => {
                             </div>
                         </div>
                     </GlassCard>
-                </div>
+                </div >
             )}
 
             {/* Date Pickers */}
             {showAnalysisStartPicker && <GlassDatePicker value={analysisStart} onChange={setAnalysisStart} onClose={() => setShowAnalysisStartPicker(false)} />}
             {showAnalysisEndPicker && <GlassDatePicker value={analysisEnd} onChange={setAnalysisEnd} onClose={() => setShowAnalysisEndPicker(false)} />}
-        </div>
+        </div >
     );
 };
 

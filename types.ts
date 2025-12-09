@@ -9,7 +9,7 @@ export interface TimeEntry {
   start_time?: string; // "HH:MM"
   end_time?: string;   // "HH:MM"
   note?: string;       // Projekt-Notiz
-  type?: 'work' | 'break' | 'company' | 'office' | 'warehouse' | 'car' | 'vacation' | 'sick' | 'holiday' | 'unpaid' | 'overtime_reduction'; // Erweitert um Abwesenheiten
+  type?: 'work' | 'break' | 'company' | 'office' | 'warehouse' | 'car' | 'vacation' | 'sick' | 'holiday' | 'unpaid' | 'overtime_reduction' | 'sick_child' | 'sick_pay'; // Erweitert um Abwesenheiten
   created_at: string;
   submitted?: boolean;
   confirmed_by?: string; // ID des Bestätigers
@@ -77,24 +77,24 @@ export interface UserSettings {
 }
 
 export interface UserAbsence {
-    id: string;
-    user_id: string;
-    start_date: string;
-    end_date: string;
-    type: 'vacation' | 'sick' | 'holiday' | 'unpaid';
-    note?: string;
+  id: string;
+  user_id: string;
+  start_date: string;
+  end_date: string;
+  type: 'vacation' | 'sick' | 'holiday' | 'unpaid' | 'sick_child' | 'sick_pay';
+  note?: string;
 }
 
 export interface VacationRequest {
-    id: string;
-    user_id: string;
-    start_date: string;
-    end_date: string;
-    note?: string;
-    status: 'pending' | 'approved' | 'rejected';
-    created_at: string;
-    approved_by?: string;
-    approved_by_name?: string;
+  id: string;
+  user_id: string;
+  start_date: string;
+  end_date: string;
+  note?: string;
+  status: 'pending' | 'approved' | 'rejected';
+  created_at: string;
+  approved_by?: string;
+  approved_by_name?: string;
 }
 
 export interface LockedDay {

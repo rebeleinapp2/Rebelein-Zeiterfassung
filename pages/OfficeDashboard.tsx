@@ -3,22 +3,24 @@ import { useOfficeService } from '../services/dataService';
 import { supabase } from '../services/supabaseClient';
 import { GlassCard, GlassInput } from '../components/GlassCard';
 import { useNavigate } from 'react-router-dom';
-import { ChevronLeft, ChevronRight, CheckCircle, AlertTriangle, CalendarClock, Shield, X, Save, Edit2, Clock, StickyNote, Briefcase } from 'lucide-react';
+import { ChevronLeft, ChevronRight, CheckCircle, AlertTriangle, CalendarClock, Shield, X, Save, Edit2, Clock, StickyNote, Briefcase, FileDown } from 'lucide-react';
 import { TimeEntry, UserSettings, UserAbsence } from '../types';
+import BatchExportModal from '../components/BatchExportModal';
 
 const OfficeDashboard: React.FC = () => {
     const { users, fetchAllUsers } = useOfficeService();
     const navigate = useNavigate();
-    
+
     const [selectedDate, setSelectedDate] = useState(new Date());
     const [monthlyEntries, setMonthlyEntries] = useState<TimeEntry[]>([]);
-    const [monthlyAbsences, setMonthlyAbsences] = useState<UserAbsence[]>([]); 
+    const [monthlyAbsences, setMonthlyAbsences] = useState<UserAbsence[]>([]);
     const [loadingStats, setLoadingStats] = useState(false);
+    const [showExportModal, setShowExportModal] = useState(false);
 
     // Review Modal State
     const [reviewingUser, setReviewingUser] = useState<UserSettings | null>(null);
     const [entriesToReview, setEntriesToReview] = useState<TimeEntry[]>([]);
-    
+
     // Inline Edit State inside Modal
     const [editingEntryId, setEditingEntryId] = useState<string | null>(null);
     const [editForm, setEditForm] = useState<{ hours: string, note: string, start: string, end: string }>({ hours: '', note: '', start: '', end: '' });
@@ -33,7 +35,7 @@ const OfficeDashboard: React.FC = () => {
         setLoadingStats(true);
         const year = selectedDate.getFullYear();
         const month = selectedDate.getMonth();
-        
+
         // First day of month
         const startDate = new Date(year, month, 1);
         // Last day of month
@@ -62,9 +64,9 @@ const OfficeDashboard: React.FC = () => {
             .select('*');
 
         if (absencesError) {
-             console.error("Error fetching absences:", absencesError);
+            console.error("Error fetching absences:", absencesError);
         } else {
-             setMonthlyAbsences(absencesData as UserAbsence[]);
+            setMonthlyAbsences(absencesData as UserAbsence[]);
         }
 
         setLoadingStats(false);
@@ -116,7 +118,7 @@ const OfficeDashboard: React.FC = () => {
             // Update Local State (also handled by realtime, but this makes UI snappy)
             setMonthlyEntries(prev => prev.map(e => e.id === entryId ? { ...e, confirmed_at: new Date().toISOString() } : e));
             setEntriesToReview(prev => prev.filter(e => e.id !== entryId));
-            
+
             // Close modal if empty
             if (entriesToReview.length <= 1) {
                 setReviewingUser(null);
@@ -143,16 +145,16 @@ const OfficeDashboard: React.FC = () => {
         }).eq('id', entryId);
 
         if (!error) {
-            setMonthlyEntries(prev => prev.map(e => e.id === entryId ? { 
-                ...e, 
+            setMonthlyEntries(prev => prev.map(e => e.id === entryId ? {
+                ...e,
                 hours: parseFloat(editForm.hours.replace(',', '.')),
                 note: editForm.note || undefined,
                 start_time: editForm.start || undefined,
                 end_time: editForm.end || undefined
             } : e));
-            
+
             setEntriesToReview(prev => prev.map(e => e.id === entryId ? {
-                 ...e, 
+                ...e,
                 hours: parseFloat(editForm.hours.replace(',', '.')),
                 note: editForm.note || undefined,
                 start_time: editForm.start || undefined,
@@ -176,12 +178,12 @@ const OfficeDashboard: React.FC = () => {
 
         // 1. Actual Hours (Ist) - Exclude Breaks
         let actualHours = userEntries.reduce((sum, e) => (e.type === 'break' ? sum : sum + e.hours), 0);
-        
+
         // Helper to check absence for a specific date
         const getAbsenceForDate = (dateStr: string) => {
-             return monthlyAbsences.find(a => 
+            return monthlyAbsences.find(a =>
                 a.user_id === user.user_id &&
-                dateStr >= a.start_date && 
+                dateStr >= a.start_date &&
                 dateStr <= a.end_date
             );
         };
@@ -189,11 +191,11 @@ const OfficeDashboard: React.FC = () => {
         // 2. Target Hours (Soll) calculation with Unpaid Logic
         let targetHours = 0;
         const daysInMonth = getDaysInMonth(selectedDate);
-        
+
         for (let d = 1; d <= daysInMonth; d++) {
             const tempDate = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), d);
             const dateStr = new Date(tempDate.getTime() - (tempDate.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
-            
+
             const dayOfWeek = tempDate.getDay(); // 0 = Sun
             const dailyTarget = user.target_hours[dayOfWeek as keyof typeof user.target_hours] || 0;
 
@@ -202,24 +204,24 @@ const OfficeDashboard: React.FC = () => {
             // Logic:
             // If Unpaid -> Target does NOT increase. Actual does NOT increase.
             // If Vacation/Sick/Holiday -> Target INCREASES. Actual INCREASES (to fill the bar).
-            
+
             if (absence && absence.type === 'unpaid') {
                 // Do nothing (Target stays same, effectively reduced for the month)
             } else {
                 targetHours += dailyTarget;
-                
+
                 // If it's a paid absence, we credit the hours to "Actuals" so the bar fills up
                 if (absence && (absence.type === 'vacation' || absence.type === 'sick' || absence.type === 'holiday')) {
-                     if (dailyTarget > 0) {
+                    if (dailyTarget > 0) {
                         actualHours += dailyTarget;
-                     }
+                    }
                 }
             }
         }
 
         // 3. Pending Confirmations (including Overtime Reduction)
         const confirmationTypes = ['company', 'office', 'warehouse', 'car', 'overtime_reduction'];
-        const pendingEntries = userEntries.filter(e => 
+        const pendingEntries = userEntries.filter(e =>
             confirmationTypes.includes(e.type || '') && !e.confirmed_at
         );
         const pendingCount = pendingEntries.length;
@@ -228,9 +230,9 @@ const OfficeDashboard: React.FC = () => {
         const lastSubmittedEntry = userEntries
             .filter(e => e.submitted)
             .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
-        
-        const lastSubmittedDate = lastSubmittedEntry 
-            ? new Date(lastSubmittedEntry.date).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' }) 
+
+        const lastSubmittedDate = lastSubmittedEntry
+            ? new Date(lastSubmittedEntry.date).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' })
             : null;
 
         return { actualHours, targetHours, pendingCount, pendingEntries, lastSubmittedDate };
@@ -246,11 +248,11 @@ const OfficeDashboard: React.FC = () => {
             }
             return a.display_name.localeCompare(b.display_name);
         });
-    }, [users, monthlyEntries, monthlyAbsences]); 
+    }, [users, monthlyEntries, monthlyAbsences]);
 
     return (
         <div className="p-6 h-full overflow-y-auto md:max-w-7xl md:mx-auto w-full pb-24">
-            
+
             {/* Header Area */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
                 <div>
@@ -260,17 +262,29 @@ const OfficeDashboard: React.FC = () => {
                     <p className="text-white/50 text-sm mt-1">Übersicht aller Mitarbeiter & Leistungen</p>
                 </div>
 
-                {/* Month Selector */}
-                <div className="flex items-center justify-between bg-white/5 border border-white/10 rounded-xl p-1 backdrop-blur-md w-full md:w-auto min-w-[250px]">
-                    <button onClick={prevMonth} className="p-2 hover:bg-white/10 rounded-lg text-white transition-colors">
-                        <ChevronLeft size={20}/>
+                {/* Controls Group */}
+                <div className="flex flex-col md:flex-row gap-4 w-full md:w-auto">
+                    {/* Export Button */}
+                    <button
+                        onClick={() => setShowExportModal(true)}
+                        className="flex items-center justify-center gap-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl px-4 py-2 text-white font-medium transition-colors"
+                    >
+                        <FileDown size={20} className="text-teal-400" />
+                        <span>Export</span>
                     </button>
-                    <span className="font-bold text-white text-lg">
-                        {selectedDate.toLocaleDateString('de-DE', { month: 'long', year: 'numeric' })}
-                    </span>
-                    <button onClick={nextMonth} className="p-2 hover:bg-white/10 rounded-lg text-white transition-colors">
-                        <ChevronRight size={20}/>
-                    </button>
+
+                    {/* Month Selector */}
+                    <div className="flex items-center justify-between bg-white/5 border border-white/10 rounded-xl p-1 backdrop-blur-md w-full md:w-auto min-w-[250px]">
+                        <button onClick={prevMonth} className="p-2 hover:bg-white/10 rounded-lg text-white transition-colors">
+                            <ChevronLeft size={20} />
+                        </button>
+                        <span className="font-bold text-white text-lg">
+                            {selectedDate.toLocaleDateString('de-DE', { month: 'long', year: 'numeric' })}
+                        </span>
+                        <button onClick={nextMonth} className="p-2 hover:bg-white/10 rounded-lg text-white transition-colors">
+                            <ChevronRight size={20} />
+                        </button>
+                    </div>
                 </div>
             </div>
 
@@ -287,8 +301,8 @@ const OfficeDashboard: React.FC = () => {
                         const isInstaller = user.role === 'installer';
 
                         return (
-                            <GlassCard 
-                                key={user.user_id} 
+                            <GlassCard
+                                key={user.user_id}
                                 onClick={() => navigate(`/office/user/${user.user_id}`)}
                                 className="group cursor-pointer hover:border-teal-500/30 transition-all duration-300 relative overflow-hidden flex flex-col"
                             >
@@ -335,10 +349,9 @@ const OfficeDashboard: React.FC = () => {
                                         </div>
                                     </div>
                                     <div className="h-2 w-full bg-white/5 rounded-full overflow-hidden">
-                                        <div 
-                                            className={`h-full rounded-full transition-all duration-1000 ease-out ${
-                                                progressPercent >= 100 ? 'bg-gradient-to-r from-emerald-500 to-teal-400' : 'bg-gradient-to-r from-blue-500 to-cyan-400'
-                                            }`}
+                                        <div
+                                            className={`h-full rounded-full transition-all duration-1000 ease-out ${progressPercent >= 100 ? 'bg-gradient-to-r from-emerald-500 to-teal-400' : 'bg-gradient-to-r from-blue-500 to-cyan-400'
+                                                }`}
                                             style={{ width: `${progressPercent}%` }}
                                         />
                                     </div>
@@ -347,7 +360,7 @@ const OfficeDashboard: React.FC = () => {
                                 {/* Footer Stats / Alerts */}
                                 <div className="flex items-center justify-between border-t border-white/5 pt-4 mt-auto">
                                     {stats.pendingCount > 0 ? (
-                                        <button 
+                                        <button
                                             onClick={(e) => handleOpenReview(e, user, stats.pendingEntries)}
                                             className="flex items-center gap-2 text-orange-400 hover:text-orange-300 transition-colors bg-orange-500/10 px-3 py-1.5 rounded-lg border border-orange-500/20 hover:bg-orange-500/20 animate-pulse hover:animate-none"
                                         >
@@ -360,7 +373,7 @@ const OfficeDashboard: React.FC = () => {
                                             <span className="text-sm">Alles erledigt</span>
                                         </div>
                                     )}
-                                    
+
                                     <div className="text-xs text-teal-400 font-bold uppercase tracking-wider group-hover:underline">
                                         Details &rarr;
                                     </div>
@@ -398,7 +411,7 @@ const OfficeDashboard: React.FC = () => {
                             {entriesToReview.map(entry => {
                                 const isEditing = editingEntryId === entry.id;
                                 const dateObj = new Date(entry.date);
-                                
+
                                 return (
                                     <div key={entry.id} className="bg-white/5 border border-white/10 rounded-xl p-3 hover:bg-white/10 transition-colors">
                                         {isEditing ? (
@@ -410,24 +423,24 @@ const OfficeDashboard: React.FC = () => {
                                                 <div className="grid grid-cols-3 gap-2">
                                                     <div>
                                                         <label className="text-[10px] uppercase font-bold text-white/40 block mb-1">Von</label>
-                                                        <GlassInput type="time" value={editForm.start} onChange={e => setEditForm({...editForm, start: e.target.value})} className="!py-1.5 !text-sm text-center"/>
+                                                        <GlassInput type="time" value={editForm.start} onChange={e => setEditForm({ ...editForm, start: e.target.value })} className="!py-1.5 !text-sm text-center" />
                                                     </div>
                                                     <div>
                                                         <label className="text-[10px] uppercase font-bold text-white/40 block mb-1">Bis</label>
-                                                        <GlassInput type="time" value={editForm.end} onChange={e => setEditForm({...editForm, end: e.target.value})} className="!py-1.5 !text-sm text-center"/>
+                                                        <GlassInput type="time" value={editForm.end} onChange={e => setEditForm({ ...editForm, end: e.target.value })} className="!py-1.5 !text-sm text-center" />
                                                     </div>
                                                     <div>
                                                         <label className="text-[10px] uppercase font-bold text-white/40 block mb-1">Stunden</label>
-                                                        <GlassInput type="number" value={editForm.hours} onChange={e => setEditForm({...editForm, hours: e.target.value})} className="!py-1.5 !text-sm text-center"/>
+                                                        <GlassInput type="number" value={editForm.hours} onChange={e => setEditForm({ ...editForm, hours: e.target.value })} className="!py-1.5 !text-sm text-center" />
                                                     </div>
                                                 </div>
                                                 <div>
                                                     <label className="text-[10px] uppercase font-bold text-white/40 block mb-1">Notiz</label>
-                                                    <GlassInput type="text" value={editForm.note} onChange={e => setEditForm({...editForm, note: e.target.value})} className="!py-1.5 !text-sm"/>
+                                                    <GlassInput type="text" value={editForm.note} onChange={e => setEditForm({ ...editForm, note: e.target.value })} className="!py-1.5 !text-sm" />
                                                 </div>
                                                 <div className="flex justify-end gap-2 pt-1">
                                                     <button onClick={() => setEditingEntryId(null)} className="px-3 py-1.5 rounded text-xs font-bold text-white/50 hover:text-white hover:bg-white/10">Abbrechen</button>
-                                                    <button onClick={() => handleSaveEdit(entry.id)} className="px-3 py-1.5 rounded bg-teal-500 text-white text-xs font-bold flex items-center gap-1 hover:bg-teal-400"><Save size={14}/> Speichern</button>
+                                                    <button onClick={() => handleSaveEdit(entry.id)} className="px-3 py-1.5 rounded bg-teal-500 text-white text-xs font-bold flex items-center gap-1 hover:bg-teal-400"><Save size={14} /> Speichern</button>
                                                 </div>
                                             </div>
                                         ) : (
@@ -438,25 +451,25 @@ const OfficeDashboard: React.FC = () => {
                                                         <span className="text-[10px] bg-white/10 px-1.5 py-0.5 rounded text-white/60 uppercase font-bold">{entry.type === 'company' ? 'Firma' : entry.type === 'car' ? 'Auto' : entry.type === 'office' ? 'Büro' : entry.type === 'overtime_reduction' ? 'Abbau' : 'Lager'}</span>
                                                     </div>
                                                     <div className="flex items-center gap-3 text-xs text-white/50">
-                                                        {entry.type !== 'overtime_reduction' && <span className="flex items-center gap-1 font-mono"><Clock size={12}/> {entry.start_time || '--:--'} - {entry.end_time || '--:--'}</span>}
-                                                        <span className="flex items-center gap-1 font-mono text-white/80 font-bold"><Briefcase size={12}/> {entry.hours.toFixed(2)} h</span>
+                                                        {entry.type !== 'overtime_reduction' && <span className="flex items-center gap-1 font-mono"><Clock size={12} /> {entry.start_time || '--:--'} - {entry.end_time || '--:--'}</span>}
+                                                        <span className="flex items-center gap-1 font-mono text-white/80 font-bold"><Briefcase size={12} /> {entry.hours.toFixed(2)} h</span>
                                                     </div>
                                                     {entry.note && (
                                                         <div className="mt-1 flex items-start gap-1 text-xs text-white/40 italic truncate">
-                                                            <StickyNote size={10} className="mt-0.5 shrink-0"/> {entry.note}
+                                                            <StickyNote size={10} className="mt-0.5 shrink-0" /> {entry.note}
                                                         </div>
                                                     )}
                                                 </div>
-                                                
+
                                                 <div className="flex items-center gap-2 shrink-0">
-                                                    <button 
+                                                    <button
                                                         onClick={() => handleEditClick(entry)}
                                                         className="p-2 rounded-lg bg-white/5 text-white/40 hover:text-white hover:bg-white/10 transition-colors"
                                                         title="Bearbeiten"
                                                     >
                                                         <Edit2 size={16} />
                                                     </button>
-                                                    <button 
+                                                    <button
                                                         onClick={() => handleConfirmEntry(entry.id)}
                                                         className="flex items-center gap-2 px-3 py-2 rounded-lg bg-orange-500/10 border border-orange-500/30 text-orange-400 hover:bg-emerald-500/20 hover:text-emerald-300 hover:border-emerald-500/30 transition-all font-bold text-xs"
                                                     >
@@ -472,6 +485,8 @@ const OfficeDashboard: React.FC = () => {
                     </GlassCard>
                 </div>
             )}
+            {/* Batch Export Modal */}
+            <BatchExportModal isOpen={showExportModal} onClose={() => setShowExportModal(false)} />
         </div>
     );
 };

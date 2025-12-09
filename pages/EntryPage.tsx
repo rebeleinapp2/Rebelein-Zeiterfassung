@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useTimeEntries, useSettings, useDailyLogs, useAbsences, useInstallers, usePeerReviews, getLocalISOString } from '../services/dataService';
 import { GlassCard, GlassInput, GlassButton } from '../components/GlassCard';
 import GlassDatePicker from '../components/GlassDatePicker';
-import { Clock, Briefcase, CalendarDays, Coffee, Plus, Trash2, ChevronDown, ChevronUp, ArrowRight, MessageSquareText, StickyNote, Building2, Warehouse, Car, Building, Palmtree, Stethoscope, PartyPopper, Ban, X, TrendingDown, Play, Square, AlertCircle, UserCheck, Check, UserPlus, RefreshCw, User, ArrowLeftRight } from 'lucide-react';
+import { Clock, Briefcase, CalendarDays, Coffee, Plus, Trash2, ChevronDown, ChevronUp, ArrowRight, MessageSquareText, StickyNote, Building2, Warehouse, Car, Building, Palmtree, Stethoscope, PartyPopper, Ban, X, TrendingDown, Play, Square, AlertCircle, UserCheck, Check, UserPlus, RefreshCw, User, ArrowLeftRight, Baby, Coins } from 'lucide-react';
 import { TimeSegment } from '../types';
 
 // Zentrale Konfiguration für das Modal (Icons & Farben)
@@ -17,11 +17,13 @@ const ENTRY_TYPES_CONFIG = {
     sick: { label: 'Krank', icon: Stethoscope, color: 'text-red-300' },
     holiday: { label: 'Feiertag', icon: PartyPopper, color: 'text-blue-300' },
     unpaid: { label: 'Unbezahlt', icon: Ban, color: 'text-gray-300' },
+    sick_child: { label: 'Kind krank', icon: Baby, color: 'text-rose-300' },
+    sick_pay: { label: 'Krankengeld', icon: Coins, color: 'text-yellow-300' },
     overtime_reduction: { label: 'Überstundenabbau', icon: TrendingDown, color: 'text-pink-300' }
 };
 
 type EntryType = keyof typeof ENTRY_TYPES_CONFIG;
-const ENTRY_TYPE_ORDER: EntryType[] = ['work', 'break', 'company', 'office', 'warehouse', 'car', 'vacation', 'sick', 'holiday', 'unpaid', 'overtime_reduction'];
+const ENTRY_TYPE_ORDER: EntryType[] = ['work', 'break', 'company', 'office', 'warehouse', 'car', 'vacation', 'sick', 'holiday', 'unpaid', 'sick_child', 'sick_pay', 'overtime_reduction'];
 
 const EntryPage: React.FC = () => {
     const { addEntry, entries } = useTimeEntries();
@@ -114,10 +116,12 @@ const EntryPage: React.FC = () => {
             case 'sick': setClient('Krank'); break;
             case 'holiday': setClient('Feiertag'); break;
             case 'unpaid': setClient('Unbezahlt'); break;
+            case 'sick_child': setClient('Kind krank'); break;
+            case 'sick_pay': setClient('Krankengeld'); break;
             case 'overtime_reduction': setClient('Überstundenabbau'); break;
         }
 
-        const isNextAbsence = ['vacation', 'sick', 'holiday', 'unpaid'].includes(nextType);
+        const isNextAbsence = ['vacation', 'sick', 'holiday', 'unpaid', 'sick_child', 'sick_pay'].includes(nextType);
 
         if (isNextAbsence) {
             setHours('0');
@@ -130,7 +134,7 @@ const EntryPage: React.FC = () => {
             }
 
             // Clear hours if coming from absence type (where we set it to '0')
-            if (['vacation', 'sick', 'holiday', 'unpaid'].includes(entryType)) {
+            if (['vacation', 'sick', 'holiday', 'unpaid', 'sick_child', 'sick_pay'].includes(entryType)) {
                 setHours('');
             }
         }
@@ -705,8 +709,8 @@ const EntryPage: React.FC = () => {
                                                         type="button"
                                                         onClick={() => handleTypeSelect(t)}
                                                         className={`flex items-center gap-2 p-2 rounded-lg text-left transition-colors ${entryType === t
-                                                                ? 'bg-white/10 text-white'
-                                                                : 'hover:bg-white/5 text-white/60 hover:text-white'
+                                                            ? 'bg-white/10 text-white'
+                                                            : 'hover:bg-white/5 text-white/60 hover:text-white'
                                                             }`}
                                                     >
                                                         <Icon size={16} className={conf.color} />
@@ -813,8 +817,8 @@ const EntryPage: React.FC = () => {
                                 <button
                                     onClick={handleToggleTimer}
                                     className={`w-full py-4 rounded-xl flex items-center justify-center gap-3 font-bold text-lg shadow-lg transition-all active:scale-95 ${activeTimerSegment
-                                            ? 'bg-red-500/20 text-red-200 border border-red-500/30 hover:bg-red-500/30 animate-pulse'
-                                            : 'bg-emerald-500/20 text-emerald-200 border border-emerald-500/30 hover:bg-emerald-500/30'
+                                        ? 'bg-red-500/20 text-red-200 border border-red-500/30 hover:bg-red-500/30 animate-pulse'
+                                        : 'bg-emerald-500/20 text-emerald-200 border border-emerald-500/30 hover:bg-emerald-500/30'
                                         }`}
                                 >
                                     {activeTimerSegment ? (
