@@ -25,8 +25,59 @@ const ENTRY_TYPES_CONFIG = {
 type EntryType = keyof typeof ENTRY_TYPES_CONFIG;
 const ENTRY_TYPE_ORDER: EntryType[] = ['work', 'break', 'company', 'office', 'warehouse', 'car', 'vacation', 'sick', 'holiday', 'unpaid', 'sick_child', 'sick_pay', 'overtime_reduction'];
 
+// --- Sub-Component for Debounced Note Input ---
+const DebouncedSegmentNote: React.FC<{
+    initialValue: string,
+    onSave: (val: string) => void
+}> = ({ initialValue, onSave }) => {
+    const [value, setValue] = useState(initialValue);
+    const [status, setStatus] = useState<'idle' | 'typing' | 'saved'>('idle');
+
+    useEffect(() => {
+        // Sync local state if prop changes remotely (rare, but good practice)
+        // But only if we are not typing to avoid overwriting user input
+        if (status === 'idle' && initialValue !== value) {
+            setValue(initialValue);
+        }
+    }, [initialValue]);
+
+    useEffect(() => {
+        if (status !== 'typing') return;
+
+        const timer = setTimeout(() => {
+            onSave(value);
+            setStatus('saved');
+            setTimeout(() => setStatus('idle'), 1500); // Back to idle after showing checkmark
+        }, 2000); // 2 seconds debounce
+
+        return () => clearTimeout(timer);
+    }, [value, status, onSave]);
+
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        setValue(e.target.value);
+        setStatus('typing');
+    };
+
+    return (
+        <div className="flex items-center gap-2 pt-1 border-t border-white/5 w-full relative">
+            <MessageSquareText size={14} className="text-white/30 shrink-0" />
+            <input
+                type="text"
+                value={value}
+                onChange={handleChange}
+                placeholder="Bemerkung..."
+                className="w-full bg-transparent text-xs text-white/70 focus:outline-none placeholder-white/20 py-1 pr-6"
+            />
+            <div className="absolute right-0 top-1/2 -translate-y-1/2 text-white/50">
+                {status === 'typing' && <RefreshCw size={12} className="animate-spin text-teal-400" />}
+                {status === 'saved' && <Check size={12} className="text-emerald-400 animate-in zoom-in" />}
+            </div>
+        </div>
+    );
+};
+
 const EntryPage: React.FC = () => {
-    const { addEntry, entries } = useTimeEntries();
+    const { addEntry, entries, updateEntry } = useTimeEntries();
     const { addAbsence } = useAbsences();
     const { settings, updateSettings } = useSettings();
     const { getLogForDate, saveDailyLog } = useDailyLogs();
@@ -57,6 +108,13 @@ const EntryPage: React.FC = () => {
 
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [showDatePicker, setShowDatePicker] = useState(false);
+
+    // --- OVERLAP DETECTION STATE ---
+    const [overlapWarning, setOverlapWarning] = useState<{
+        isOpen: boolean;
+        overlappedEntries: { entry: any; overlapMinutes: number }[];
+        newEntryData: any; // To store what we wanted to add
+    }>({ isOpen: false, overlappedEntries: [], newEntryData: null });
 
     // Card Collapsed State
     const [isTimeCardCollapsed, setIsTimeCardCollapsed] = useState(false);
@@ -398,11 +456,127 @@ const EntryPage: React.FC = () => {
         }
     };
 
+    // --- OVERLAP LOGIC ---
+    const calculateOverlap = (start1: string, end1: string, start2: string, end2: string) => {
+        if (!start1 || !end1 || !start2 || !end2) return 0;
+
+        const toMinutes = (s: string) => {
+            const [h, m] = s.split(':').map(Number);
+            return h * 60 + m;
+        };
+
+        const s1 = toMinutes(start1);
+        const e1 = toMinutes(end1);
+        const s2 = toMinutes(start2);
+        const e2 = toMinutes(end2);
+
+        const start = Math.max(s1, s2);
+        const end = Math.min(e1, e2);
+
+        return Math.max(0, end - start);
+    };
+
+    const confirmOverlap = async () => {
+        const { overlappedEntries, newEntryData } = overlapWarning;
+        setIsSubmitting(true);
+
+        try {
+            // 1. Update overlapped entries (reduce hours)
+            for (const { entry, overlapMinutes } of overlappedEntries) {
+                const overlapHours = overlapMinutes / 60;
+                // Ensure we don't go negative, though logic shouldn't allow it if calculated correctly
+                const newHours = Math.max(0, parseFloat((entry.hours - overlapHours).toFixed(2)));
+
+                // Use the service hook instead of direct supabase call
+                await updateEntry(entry.id, { hours: newHours });
+            }
+
+            // 2. Add the new entry (The Break)
+            if (newEntryData) {
+                await addEntry(newEntryData);
+            }
+
+            // Reset
+            setOverlapWarning({ isOpen: false, overlappedEntries: [], newEntryData: null });
+            finishSubmit();
+
+        } catch (err) {
+            console.error("Fehler beim Speichern der Überlappung:", err);
+            // Optional: Show user feedback
+            setIsSubmitting(false);
+            alert("Fehler beim Speichern. Bitte Konsole prüfen.");
+        }
+    };
+
+    const finishSubmit = () => {
+        const isAbsence = ['vacation', 'sick', 'holiday', 'unpaid'].includes(entryType);
+
+        if (projectEndTime && !isAbsence) {
+            setProjectStartTime(projectEndTime);
+        }
+
+        setClient('');
+        if (isAbsence) {
+            setEntryType('work');
+            if (!projectEndTime) {
+                setProjectStartTime(getSuggestedStartTime());
+            }
+        }
+        setHours('');
+        setNote('');
+        setProjectEndTime('');
+        setResponsibleUserId('');
+        setIsSubmitting(false);
+    };
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         const isAbsence = ['vacation', 'sick', 'holiday', 'unpaid'].includes(entryType);
 
         if (!client || (!isAbsence && !hours)) return;
+
+        // Prepare Data
+        const entryData = {
+            date: date,
+            client_name: client,
+            hours: parseFloat(hours.replace(',', '.')),
+            start_time: projectStartTime || undefined,
+            end_time: projectEndTime || undefined,
+            note: note || undefined,
+            type: entryType as any,
+            responsible_user_id: responsibleUserId || undefined
+        };
+
+        // --- CHECK OVERLAP IF ADDING BREAK ---
+        if (entryType === 'break' && projectStartTime && projectEndTime) {
+            // Check against existing WORK entries
+            const workEntries = entries.filter(ent =>
+                ent.date === date &&
+                ent.type === 'work' &&
+                ent.start_time && ent.end_time
+            );
+
+            const overlaps = workEntries.map(work => {
+                const mins = calculateOverlap(projectStartTime, projectEndTime, work.start_time!, work.end_time!);
+                return { entry: work, overlapMinutes: mins };
+            }).filter(o => o.overlapMinutes > 0);
+
+            if (overlaps.length > 0) {
+                setOverlapWarning({
+                    isOpen: true,
+                    overlappedEntries: overlaps,
+                    newEntryData: entryData
+                });
+                return; // STOP HERE, wait for confirmation
+            }
+        }
+
+        // --- CHECK OVERLAP IF ADDING WORK (OVER EXISTING BREAK) ---
+        // (Optional/Inverse case: User adds Work over existing Break -> should we reduce Work hours?
+        // Requirement says: "wenn eine Pause über einen weiteren Projekt eintrag drüber gelegt wird"
+        // This implies Action = Adding Break.
+        // It doesn't explicitly mention adding Work over Break, but good UX might handle it.
+        // For now, let's stick to the EXPLICIT requirement: Adding Break reduces Project.
 
         setIsSubmitting(true);
 
@@ -414,36 +588,10 @@ const EntryPage: React.FC = () => {
                 note: note || undefined
             });
         } else {
-            await addEntry({
-                date: date,
-                client_name: client,
-                hours: parseFloat(hours.replace(',', '.')),
-                start_time: projectStartTime || undefined,
-                end_time: projectEndTime || undefined,
-                note: note || undefined,
-                type: entryType as any,
-                responsible_user_id: responsibleUserId || undefined // Sende Monteur ID mit
-            });
+            await addEntry(entryData);
         }
 
-        if (projectEndTime && !isAbsence) {
-            setProjectStartTime(projectEndTime);
-        }
-
-        setClient('');
-        if (isAbsence) {
-            setEntryType('work');
-            // Nach Absenden einer Abwesenheit und Reset auf work, 
-            // sollte Startzeit für neuen Eintrag korrekt gesetzt werden (falls leer durch Abwesenheit)
-            if (!projectEndTime) {
-                setProjectStartTime(getSuggestedStartTime());
-            }
-        }
-        setHours('');
-        setNote('');
-        setProjectEndTime('');
-        setResponsibleUserId(''); // Reset
-        setIsSubmitting(false);
+        finishSubmit();
     };
 
     const setToday = () => setDate(getLocalISOString());
@@ -513,6 +661,53 @@ const EntryPage: React.FC = () => {
                 </h1>
                 <p className="text-white/50 text-sm md:text-lg mt-1">Erfasse deine Arbeitszeit schnell und einfach.</p>
             </header>
+
+            {/* --- OVERLAP WARNING MODAL --- */}
+            {overlapWarning.isOpen && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+                    <GlassCard className="w-full max-w-lg border-orange-500/50 shadow-2xl relative bg-gray-900/90">
+                        <div className="p-4 border-b border-white/10 flex items-center gap-3">
+                            <AlertCircle className="text-orange-400" size={24} />
+                            <h2 className="text-lg font-bold text-white">Pause überschneidet Projekt</h2>
+                        </div>
+                        <div className="p-4 space-y-4">
+                            <p className="text-white/80">
+                                Die eingetragene Pause überschneidet sich mit folgenden Projekteinträgen:
+                            </p>
+                            <div className="space-y-2">
+                                {overlapWarning.overlappedEntries.map((o, idx) => (
+                                    <div key={idx} className="bg-white/5 border border-white/10 p-3 rounded-lg flex justify-between items-center">
+                                        <div>
+                                            <div className="text-white font-bold">{o.entry.client_name}</div>
+                                            <div className="text-xs text-white/50">{o.entry.start_time} - {o.entry.end_time}</div>
+                                        </div>
+                                        <div className="text-orange-300 font-mono font-bold">
+                                            -{(o.overlapMinutes / 60).toFixed(2)}h
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                            <div className="bg-orange-900/20 border border-orange-500/20 p-3 rounded-lg text-sm text-orange-200">
+                                Soll die Arbeitszeit dieser Projekte automatisch um die Pausenzeit gekürzt werden?
+                            </div>
+                        </div>
+                        <div className="p-4 border-t border-white/10 flex gap-3">
+                            <button
+                                onClick={() => setOverlapWarning({ isOpen: false, overlappedEntries: [], newEntryData: null })}
+                                className="flex-1 py-2 rounded-lg border border-white/10 text-white/60 hover:bg-white/5"
+                            >
+                                Abbrechen
+                            </button>
+                            <button
+                                onClick={confirmOverlap}
+                                className="flex-1 py-2 rounded-lg bg-orange-500 hover:bg-orange-600 text-white font-bold shadow-lg shadow-orange-900/20"
+                            >
+                                Ja, kürzen & Speichern
+                            </button>
+                        </div>
+                    </GlassCard>
+                </div>
+            )}
 
             {/* --- NEU: EINGEHENDE BESTÄTIGUNGEN --- */}
             {pendingReviews.length > 0 && (
@@ -861,16 +1056,10 @@ const EntryPage: React.FC = () => {
                                                 />
                                             </div>
                                         </div>
-                                        <div className="flex items-center gap-2 pt-1 border-t border-white/5">
-                                            <MessageSquareText size={14} className="text-white/30 shrink-0" />
-                                            <input
-                                                type="text"
-                                                value={segment.note || ''}
-                                                onChange={(e) => updateSegment(segment.id, 'note', e.target.value)}
-                                                placeholder="Bemerkung..."
-                                                className="w-full bg-transparent text-xs text-white/70 focus:outline-none placeholder-white/20 py-1"
-                                            />
-                                        </div>
+                                        <DebouncedSegmentNote
+                                            initialValue={segment.note || ''}
+                                            onSave={(val) => updateSegment(segment.id, 'note', val)}
+                                        />
                                     </div>
                                 ))}
                                 <div className="grid grid-cols-1 gap-3 pt-3 border-t border-white/5">
