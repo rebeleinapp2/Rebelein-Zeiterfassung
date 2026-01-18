@@ -1,10 +1,11 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { useTimeEntries, useSettings, useDailyLogs, useAbsences, useVacationRequests, getDailyTargetForDate, getLocalISOString } from '../services/dataService';
+import { useTimeEntries, useSettings, useDailyLogs, useAbsences, useVacationRequests, getDailyTargetForDate, getLocalISOString, getYearlyQuota } from '../services/dataService';
 import { formatDuration } from '../services/utils/timeUtils';
 import { GlassCard, GlassButton, GlassInput } from '../components/GlassCard';
 import { ChevronLeft, ChevronRight, TrendingUp, TrendingDown, Clock, UserCheck, Palmtree, Stethoscope, Ban, PartyPopper, CalendarHeart, X, CheckCircle, Calendar, CalendarDays, BarChart3, List, Grid3X3, ArrowRight, AlertTriangle, Scale } from 'lucide-react';
 import GlassDatePicker from '../components/GlassDatePicker';
+import { YearlyVacationQuota } from '../types';
 
 type ViewMode = 'month' | 'year' | 'overtime';
 
@@ -21,6 +22,25 @@ const AnalysisPage: React.FC = () => {
     const [currentDate, setCurrentDate] = useState(new Date());
     const [viewMode, setViewMode] = useState<ViewMode>('month');
 
+    // Quota State
+    const [currentYearQuota, setCurrentYearQuota] = useState<YearlyVacationQuota | null>(null);
+
+    const year = currentDate.getFullYear();
+    const month = currentDate.getMonth();
+
+    // Fetch Quota on Year Change
+    useEffect(() => {
+        const loadQuota = async () => {
+            // Fallback to fetchUser if settings.user_id missing? Usually useSettings provides it.
+            // We can proceed if settings.user_id is available.
+            if (settings.user_id) {
+                const q = await getYearlyQuota(settings.user_id, year);
+                setCurrentYearQuota(q);
+            }
+        };
+        loadQuota();
+    }, [year, settings.user_id]);
+
     const [showRequestModal, setShowRequestModal] = useState(false);
     const [reqStart, setReqStart] = useState('');
     const [reqEnd, setReqEnd] = useState('');
@@ -31,7 +51,6 @@ const AnalysisPage: React.FC = () => {
     useEffect(() => {
         fetchDailyLogs();
     }, [fetchDailyLogs]);
-
     // --- Start Date Logic ---
     const effectiveStartDate = useMemo(() => {
         if (settings.employment_start_date) return settings.employment_start_date;
@@ -63,9 +82,6 @@ const AnalysisPage: React.FC = () => {
             setCurrentDate(new Date(currentDate.getFullYear() - 1, 0, 1));
         }
     };
-
-    const year = currentDate.getFullYear();
-    const month = currentDate.getMonth();
 
     // --- CALCULATION LOGIC ---
 
@@ -205,8 +221,18 @@ const AnalysisPage: React.FC = () => {
         }
 
         const uniqueNotes = Array.from(new Set(unpaidNotes.map(n => n.note)));
-        const yearlyAllowance = settings.vacation_days_yearly || 30;
-        const remainingVacation = yearlyAllowance - vacationDays;
+
+        // NEW LOGIC: Use Quota Table if available, else settings
+        let yearlyAllowance = settings.vacation_days_yearly || 30;
+        let carryover = settings.vacation_days_carryover || 0; // Legacy
+
+        if (currentYearQuota) {
+            yearlyAllowance = currentYearQuota.total_days;
+            carryover = currentYearQuota.manual_carryover || 0;
+        }
+
+        const totalAllowance = yearlyAllowance + carryover; // Total available
+        const remainingVacation = totalAllowance - vacationDays;
 
         return {
             vacationDays,
@@ -215,10 +241,10 @@ const AnalysisPage: React.FC = () => {
             sickPayDays,
             unpaidDays,
             uniqueNotes,
-            yearlyAllowance,
+            yearlyAllowance: totalAllowance, // Show TOTAL
             remainingVacation
         };
-    }, [absences, year, settings.target_hours, settings.vacation_days_yearly]);
+    }, [absences, year, settings.target_hours, settings.vacation_days_yearly, settings.vacation_days_carryover, currentYearQuota]);
 
 
     // --- STATISTICS: MONTH VIEW ---
@@ -473,13 +499,21 @@ const AnalysisPage: React.FC = () => {
 
             const absence = absences.find(a => dateStr >= a.start_date && dateStr <= a.end_date);
             if (absence) {
-                grid.push({ day: d, type: 'absence', absenceType: absence.type });
+                const target = getDailyTargetForDate(dateStr, settings.target_hours);
+                // Only credit hours for paid absences
+                const isPaid = ['vacation', 'sick', 'holiday', 'special_holiday'].includes(absence.type);
+                const hours = isPaid ? target : 0;
+                grid.push({ day: d, type: 'absence', absenceType: absence.type, hours });
                 continue;
             }
 
             const entryAbsence = entries.find(e => e.date === dateStr && ['vacation', 'sick', 'holiday', 'unpaid', 'special_holiday'].includes(e.type || ''));
             if (entryAbsence) {
-                grid.push({ day: d, type: 'absence', absenceType: entryAbsence.type as any });
+                const target = getDailyTargetForDate(dateStr, settings.target_hours);
+                // Only credit hours for paid absences
+                const isPaid = ['vacation', 'sick', 'holiday', 'special_holiday'].includes(entryAbsence.type as string);
+                const hours = isPaid ? target : 0;
+                grid.push({ day: d, type: 'absence', absenceType: entryAbsence.type as any, hours });
                 continue;
             }
 
@@ -817,7 +851,10 @@ const AnalysisPage: React.FC = () => {
                                             )}
                                             {item.type === 'work' && (item as any).status === 'overtime_reduction' && <div className="mt-1"><TrendingDown size={10} className="opacity-70" /></div>}
                                             {item.type === 'absence' && (
-                                                <div className="mt-1">
+                                                <div className="flex flex-col items-center mt-0.5">
+                                                    {(item as any).hours > 0 && (
+                                                        <span className="text-[9px] opacity-70 mb-0.5 font-mono">{(item as any).hours.toFixed(2).replace('.', ',')}</span>
+                                                    )}
                                                     {item.absenceType === 'vacation' ? <Palmtree size={10} className="opacity-70" /> :
                                                         item.absenceType === 'sick' ? <Stethoscope size={10} className="opacity-70" /> :
                                                             item.absenceType === 'holiday' ? <PartyPopper size={10} className="opacity-70" /> :

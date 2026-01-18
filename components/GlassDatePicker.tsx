@@ -6,9 +6,10 @@ interface GlassDatePickerProps {
   value: string; // YYYY-MM-DD
   onChange: (date: string) => void;
   onClose: () => void;
+  gracePeriodCutoff?: Date;
 }
 
-const GlassDatePicker: React.FC<GlassDatePickerProps> = ({ value, onChange, onClose }) => {
+const GlassDatePicker: React.FC<GlassDatePickerProps> = ({ value, onChange, onClose, gracePeriodCutoff }) => {
   // Initialisiere mit dem übergebenen Datum oder heute
   const [currentViewDate, setCurrentViewDate] = useState(() => {
     return value ? new Date(value) : new Date();
@@ -52,6 +53,15 @@ const GlassDatePicker: React.FC<GlassDatePickerProps> = ({ value, onChange, onCl
     return today.getDate() === day && today.getMonth() === month && today.getFullYear() === year;
   };
 
+  // Überprüfen, ob ein Tag in der "Vergangenheit" liegt (Grace Period)
+  const isLate = (day: number) => {
+    if (!gracePeriodCutoff) return false;
+    const dateToCheck = new Date(year, month, day);
+    dateToCheck.setHours(23, 59, 59, 999); // End of day to be generous or start? Cutoff is usually midnight.
+    // Cutoff is the first VALID day. Date < Cutoff is LATE.
+    return dateToCheck < gracePeriodCutoff;
+  };
+
   const days = Array.from({ length: daysInMonth }, (_, i) => i + 1);
   const blanks = Array.from({ length: startDayIndex }, (_, i) => i);
   const weekDays = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
@@ -86,20 +96,23 @@ const GlassDatePicker: React.FC<GlassDatePickerProps> = ({ value, onChange, onCl
           {/* Kalender Grid */}
           <div className="grid grid-cols-7 gap-2">
             {blanks.map((_, i) => <div key={`blank-${i}`} />)}
-            
+
             {days.map(day => {
               const selected = isSelected(day);
               const today = isToday(day);
-              
+              const late = isLate(day);
+
               return (
                 <button
                   key={day}
                   onClick={() => handleDayClick(day)}
                   className={`
                     aspect-square flex items-center justify-center rounded-full text-sm font-medium transition-all duration-200
-                    ${selected 
-                      ? 'bg-gradient-to-tr from-emerald-500 to-teal-400 text-white shadow-[0_0_15px_rgba(20,184,166,0.5)] scale-105' 
-                      : 'hover:bg-white/10 text-white'
+                    ${selected
+                      ? 'bg-gradient-to-tr from-emerald-500 to-teal-400 text-white shadow-[0_0_15px_rgba(20,184,166,0.5)] scale-105'
+                      : late
+                        ? 'bg-orange-500/10 text-orange-200 hover:bg-orange-500/20 border border-orange-500/30' // LATE Days
+                        : 'hover:bg-white/10 text-white' // Normal Days
                     }
                     ${!selected && today ? 'border border-teal-400 text-teal-300' : ''}
                   `}
@@ -112,11 +125,11 @@ const GlassDatePicker: React.FC<GlassDatePickerProps> = ({ value, onChange, onCl
         </div>
 
         {/* Footer / Close */}
-        <button 
-            onClick={onClose}
-            className="w-full py-3 bg-white/5 hover:bg-white/10 border-t border-white/10 text-sm text-white/50 uppercase tracking-wider font-bold transition-colors"
+        <button
+          onClick={onClose}
+          className="w-full py-3 bg-white/5 hover:bg-white/10 border-t border-white/10 text-sm text-white/50 uppercase tracking-wider font-bold transition-colors"
         >
-            Abbrechen
+          Abbrechen
         </button>
       </GlassCard>
     </div>

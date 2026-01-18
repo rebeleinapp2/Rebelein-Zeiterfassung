@@ -12,11 +12,31 @@ export interface TimeEntry {
   type?: 'work' | 'break' | 'company' | 'office' | 'warehouse' | 'car' | 'vacation' | 'sick' | 'holiday' | 'unpaid' | 'overtime_reduction' | 'sick_child' | 'sick_pay' | 'special_holiday' | 'emergency_service'; // Erweitert um Abwesenheiten & Notdienst
   surcharge?: number; // Zuschlag in % (25, 50, 100)
   created_at: string;
+  updated_at?: string; // Hinzugefügt
   submitted?: boolean;
   confirmed_by?: string; // ID des Bestätigers
   confirmed_at?: string;
   responsible_user_id?: string; // NEU: Für Peer-Reviews (Kollege bestätigt)
   isAbsence?: boolean; // Frontend-Flag zur Unterscheidung
+  late_reason?: string; // Begründung für verspäteten Eintrag
+  rejection_reason?: string; // Begründung für Ablehnung
+  rejected_by?: string; // ID des Ablehners
+  rejected_at?: string; // Zeitpunkt der Ablehnung
+  // Soft Delete
+  is_deleted?: boolean;
+  deleted_at?: string;
+  deleted_by?: string;
+  deletion_reason?: string;
+  deletion_confirmed_by_user?: boolean;
+  // Deletion Request Fields
+  deletion_requested_at?: string | null;
+  deletion_requested_by?: string | null;
+  deletion_request_reason?: string | null;
+  // Modification Tracking
+  last_changed_by?: string;
+  change_reason?: string;
+  change_confirmed_by_user?: boolean; // New: If false, user needs to confirm change
+  has_history?: boolean; // New: If true, entry has history records
 }
 
 export interface TimeSegment {
@@ -60,9 +80,10 @@ export interface WorkConfig {
 
 export interface UserPreferences {
   timeCardCollapsed?: boolean;
+  visible_dashboard_groups?: string[]; // IDs of open groups
 }
 
-export type UserRole = 'admin' | 'office' | 'installer';
+export type UserRole = 'admin' | 'office' | 'installer' | 'azubi';
 
 export interface UserSettings {
   user_id?: string; // Optional, da beim Laden oft implizit
@@ -73,9 +94,14 @@ export interface UserSettings {
   work_config_locked?: boolean; // Neu: Sperrt die Bearbeitung für den Benutzer
   preferences?: UserPreferences;
   vacation_days_yearly?: number; // Neu
+  vacation_days_carryover?: number; // Neu: Übertrag aus Vorjahr
+  last_carryover_calc_year?: number; // Neu: Letztes Jahr der Übertrag-Berechnung
   employment_start_date?: string; // Neu: Eintrittsdatum (ISO YYYY-MM-DD)
   initial_overtime_balance?: number; // Neu: Startsaldo / Übertrag
   require_confirmation?: boolean; // Neu: Bestätigungspflicht
+  is_active?: boolean; // Neu: Konto aktiv/deaktiviert
+  is_visible_to_others?: boolean; // Neu: Sichtbar für Azubi/Installer
+  department_id?: string; // Neu: Zugehörige Abteilung
 }
 
 export interface UserAbsence {
@@ -85,6 +111,7 @@ export interface UserAbsence {
   end_date: string;
   type: 'vacation' | 'sick' | 'holiday' | 'unpaid' | 'sick_child' | 'sick_pay';
   note?: string;
+  submitted?: boolean;
 }
 
 export interface VacationRequest {
@@ -97,6 +124,73 @@ export interface VacationRequest {
   created_at: string;
   approved_by?: string;
   approved_by_name?: string;
+}
+
+export interface YearlyVacationQuota {
+  id: string; // Added ID
+  user_id: string;
+  year: number;
+  total_days: number;
+  manual_carryover?: number; // New
+  is_locked?: boolean;      // New
+  updated_by?: string;      // New
+  updated_at?: string;      // New
+}
+
+export interface VacationAuditLog {
+  id: string;
+  quota_id: string;
+  changed_by: string;
+  previous_value: { base: number; carryover: number };
+  new_value: { base: number; carryover: number };
+  created_at: string;
+  changer_name?: string; // Virtual, joined
+}
+
+export interface Department {
+  id: string; // 'office', 'service', 'site', 'apprentice', 'misc', 'archive'
+  label: string;
+  responsible_user_id?: string;
+  substitute_user_id?: string;
+  is_substitute_active?: boolean;
+  retro_responsible_user_id?: string; // NEU: Für rückwirkende Einträge
+  retro_substitute_user_id?: string; // NEU: Vertretung für rückwirkende Einträge
+  additional_responsible_ids?: string[]; // NEU: Weitere Zuständige (z.B. Stellvertreter)
+}
+
+export interface QuotaChangeNotification {
+  id: string;
+  user_id: string;
+  changed_by: string;
+  year: number;
+  previous_value: { base: number; carryover: number; total: number };
+  new_value: { base: number; carryover: number; total: number };
+  status: 'pending' | 'confirmed' | 'rejected';
+  rejection_reason?: string;
+  created_at: string;
+}
+
+export interface OvertimeBalanceEntry {
+  id: string;
+  user_id: string;
+  hours: number;
+  reason: string;
+  created_by?: string;
+  created_at?: string;
+}
+
+export interface EntryChangeHistory {
+  id: string;
+  entry_id: string;
+  changed_at: string;
+  changed_by: string; // UUID
+  old_values: Partial<TimeEntry>; // JSONB
+  new_values: Partial<TimeEntry>; // JSONB
+  reason?: string;
+  status: 'pending' | 'confirmed' | 'rejected';
+  user_response_at?: string;
+  user_response_note?: string;
+  changer_name?: string; // Virtual (joined)
 }
 
 export interface LockedDay {
@@ -133,5 +227,6 @@ export const DEFAULT_SETTINGS: UserSettings = {
   },
   vacation_days_yearly: 30,
   initial_overtime_balance: 0,
-  require_confirmation: true
+  require_confirmation: true,
+  is_visible_to_others: true
 };

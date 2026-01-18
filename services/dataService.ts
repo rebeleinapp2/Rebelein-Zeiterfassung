@@ -1,7 +1,8 @@
 
 import { useState, useEffect, useCallback } from 'react';
-import { TimeEntry, UserSettings, DEFAULT_SETTINGS, DailyLog, LockedDay, UserAbsence, VacationRequest, DailyTarget } from '../types';
+import { TimeEntry, UserSettings, DEFAULT_SETTINGS, DailyLog, LockedDay, UserAbsence, VacationRequest, DailyTarget, EntryChangeHistory, Department, OvertimeBalanceEntry } from '../types';
 import { supabase } from './supabaseClient';
+import { calculateWorkingDays, calculateWorkingDaysWithHolidays } from './utils/timeUtils';
 
 // --- Helper Functions ---
 
@@ -40,6 +41,22 @@ export const getLocalISOString = (dateObj: Date = new Date()): string => {
   return `${year}-${month}-${day}`;
 };
 
+/**
+ * Fetches the vacation quota for a specific user and year.
+ * Returns null if not found.
+ */
+export const getYearlyQuota = async (userId: string, year: number) => {
+  const { data, error } = await supabase
+    .from('yearly_vacation_quotas')
+    .select('*')
+    .eq('user_id', userId)
+    .eq('year', year)
+    .maybeSingle();
+
+  if (error || !data) return null;
+  return data;
+};
+
 // --- Hooks ---
 
 export const useInstallers = () => {
@@ -75,6 +92,7 @@ export const usePeerReviews = () => {
       .select('*')
       .eq('responsible_user_id', user.id)
       .is('confirmed_at', null)
+      .is('rejected_at', null) // Don't show entries I rejected until they are fixed
       .order('date', { ascending: false });
 
     if (error) console.error("Error fetching reviews", error);
@@ -104,13 +122,16 @@ export const usePeerReviews = () => {
       }).eq('id', entryId);
     } else {
       // Ablehnen: Verantwortlichkeit entfernen (zurück an Ersteller) und Notiz ergänzen
-      const { data: currentEntry } = await supabase.from('time_entries').select('note').eq('id', entryId).single();
-      const newNote = currentEntry?.note ? `${currentEntry.note} | Abgelehnt: ${reason}` : `Abgelehnt: ${reason}`;
+      // Use RPC "reject_peer_review" to bypass RLS restrictions on setting responsible_user_id to null
+      const { error } = await supabase.rpc('reject_peer_review', {
+        entry_id: entryId,
+        reason: reason || ''
+      });
 
-      await supabase.from('time_entries').update({
-        responsible_user_id: null, // Entferne mich als Verantwortlichen
-        note: newNote
-      }).eq('id', entryId);
+      if (error) {
+        console.error("Error rejecting review:", error);
+        alert("Fehler beim Ablehnen: " + error.message);
+      }
     }
     await fetchReviews();
   };
@@ -159,8 +180,26 @@ export const useTimeEntries = (customUserId?: string) => {
     if (error) {
       console.error('Error fetching entries:', error.message || JSON.stringify(error));
     } else if (data) {
+      let fetchedEntries = data as TimeEntry[];
+
+      // Fetch history existence
+      if (fetchedEntries.length > 0) {
+        const entryIds = fetchedEntries.map(e => e.id);
+        const { data: historyData } = await supabase
+          .from('entry_change_history')
+          .select('entry_id')
+          .in('entry_id', entryIds);
+
+        if (historyData && historyData.length > 0) {
+          const historySet = new Set(historyData.map(h => h.entry_id));
+          fetchedEntries = fetchedEntries.map(e => ({
+            ...e,
+            has_history: historySet.has(e.id)
+          }));
+        }
+      }
+
       setEntries(prev => {
-        let fetchedEntries = data as TimeEntry[];
 
         // --- SONDERURLAUB INJECTION (24.12. / 31.12.) ---
         const years = new Set(fetchedEntries.map(e => new Date(e.date).getFullYear()));
@@ -228,26 +267,69 @@ export const useTimeEntries = (customUserId?: string) => {
     }
 
     // Auto-Confirm Check
-    let autoConfirmData = {};
-    if (user?.id) {
-      const { data: settings } = await supabase
+    let autoConfirmData: Partial<TimeEntry> = {};
+
+    // Check settings of the TARGET user (the one receiving the entry)
+    if (targetUserId) {
+      const { data: targetSettings } = await supabase
         .from('user_settings')
-        .select('role')
-        .eq('user_id', user.id)
+        .select('require_confirmation, role')
+        .eq('user_id', targetUserId)
         .single();
 
-      if (settings?.role === 'office' || settings?.role === 'admin') {
+      // Also get current user role for Late-Entry Exception (Chef/Admin check)
+      // If I am the user, specificSettings covers it. If I am admin editing user, I need my role too.
+      let currentUserRole = targetSettings?.role;
+      if (user?.id && user.id !== targetUserId) {
+        const { data: mySettings } = await supabase.from('user_settings').select('role').eq('user_id', user.id).single();
+        currentUserRole = mySettings?.role;
+      }
+
+      const autoConfirmTypes = ['company', 'office', 'warehouse', 'car'];
+      const isAutoConfirmType = entry.type && autoConfirmTypes.includes(entry.type);
+
+      // LOGIC: 
+      // 1. If require_confirmation is FALSE (Inactive) AND it is one of the special types -> Auto Confirm.
+      // 2. Peer Review overrides this (if responsible_user_id is set -> NO Auto Confirm).
+
+      const shouldAutoConfirm = targetSettings &&
+        targetSettings.require_confirmation === false &&
+        isAutoConfirmType &&
+        !entry.responsible_user_id;
+
+      if (shouldAutoConfirm) {
         autoConfirmData = {
           submitted: true,
-          confirmed_by: user.id,
+          confirmed_by: user?.id || targetUserId, // If system/auto, usually actor. 
           confirmed_at: new Date().toISOString()
         };
+      } else {
+        // Default: Draft (User must submit manually via 'Abgeben')
+        autoConfirmData = {
+          submitted: false
+        };
+      }
+
+      // EXCEPTION: Late entries can ONLY be confirmed by 'admin' (Chef).
+      // Update logic: If it was auto-confirmed above, but has late_reason, we might need to revoke if user is not admin.
+      // However, if require_confirmation is FALSE, maybe late checks are also skipped?
+      // User said "einzige Ausnahme", let's assume Late Check is still dominant for safety.
+      // If current user is NOT admin, revoke confirmation.
+      if (entry.late_reason && currentUserRole !== 'admin') {
+        delete autoConfirmData.confirmed_by;
+        delete autoConfirmData.confirmed_at;
+        autoConfirmData.submitted = false; // Stay draft
       }
     }
 
-    // New: Auto-Confirm based on Target User Settings
-    // REMOVED: Entries should NOT be auto-submitted on creation. 
-    // Submitting is always a manual action. Verification logic moved to markAsSubmitted.
+    // --- LATE ENTRY LOGIC ---
+    // Double check: If manual late reason provided and we haven't confirmed it yet
+    // Strict Rule: Late entries start as UNCONFIRMED DRAFTS.
+    if (entry.late_reason) {
+      autoConfirmData.submitted = false;
+      delete autoConfirmData.confirmed_at;
+      delete autoConfirmData.confirmed_by;
+    }
 
     const { error } = await supabase.from('time_entries').insert([{
       ...entry,
@@ -263,9 +345,13 @@ export const useTimeEntries = (customUserId?: string) => {
     }
   };
 
-  const updateEntry = async (id: string, updates: Partial<TimeEntry>) => {
+  // UPDATE LOGIC END
+
+  const updateEntry = async (id: string, updates: Partial<TimeEntry>, reason?: string) => {
     const entry = entries.find(e => e.id === id);
-    if (entry && lockedDays.includes(entry.date)) {
+    if (!entry) return;
+
+    if (lockedDays.includes(entry.date)) {
       alert("Dieser Tag ist gesperrt.");
       return;
     }
@@ -276,20 +362,77 @@ export const useTimeEntries = (customUserId?: string) => {
 
     const { data: { user } } = await supabase.auth.getUser();
 
+    // Modification Tracking
+    let changeTrackingData: Partial<TimeEntry> = {};
+    const isOwner = user?.id === entry.user_id;
+
+    if (!isOwner) {
+      // Modification by Admin/Office -> Require Reason & Track
+      // If no reason provided, we might want to throw error or handled in UI. 
+      // Assuming UI ensures reason is passed.
+      changeTrackingData = {
+        last_changed_by: user?.id,
+        change_reason: reason || 'Kein Grund angegeben',
+        change_confirmed_by_user: false,
+        updated_at: new Date().toISOString() // Assuming we want to track update time too
+      };
+    } else {
+      // Modification by Owner -> Reset tracking flags?
+      // Usually if owner edits again, they confirm their own change implicitly.
+      changeTrackingData = {
+        change_confirmed_by_user: true,
+        change_reason: undefined
+      };
+    }
+
     // Auto-Confirm Check on Update
     let autoConfirmData = {};
-    if (user?.id) {
-      const { data: settings } = await supabase
+
+    // Determine Target User ID (Entry Owner)
+    // We might need to fetch the entry first if we don't know the owner, but usually we just update.
+    // However, to check settings, we need the owner ID. 
+    // The hook has 'entries' in state.
+    const targetEntry = entries.find(e => e.id === id);
+    const targetUserId = targetEntry?.user_id || user?.id; // Fallback
+
+    if (targetUserId) {
+      const { data: targetSettings } = await supabase
         .from('user_settings')
-        .select('role')
-        .eq('user_id', user.id)
+        .select('require_confirmation, role')
+        .eq('user_id', targetUserId)
         .single();
 
-      if (settings?.role === 'office' || settings?.role === 'admin') {
+      const currentType = updates.type || targetEntry?.type;
+      const currentResponsible = updates.responsible_user_id !== undefined ? updates.responsible_user_id : targetEntry?.responsible_user_id;
+
+      const autoConfirmTypes = ['company', 'office', 'warehouse', 'car'];
+      const isAutoConfirmType = currentType && autoConfirmTypes.includes(currentType as any);
+
+      const shouldAutoConfirm = targetSettings &&
+        targetSettings.require_confirmation === false &&
+        isAutoConfirmType &&
+        !currentResponsible &&
+        !targetEntry?.rejected_at; // CRITICAL: Never auto-confirm a rejection correction, it must be re-reviewed
+
+      if (shouldAutoConfirm) {
         autoConfirmData = {
           submitted: true,
-          confirmed_by: user.id,
+          confirmed_by: user?.id,
           confirmed_at: new Date().toISOString()
+        };
+      } else {
+        // If we update, we don't necessarily want to UN-confirm if it was already confirmed?
+        // But if we change type to something requiring confirmation, we might.
+        // For now, let's Stick to the requested logic:
+        // If inactive -> Auto Confirm. 
+        // If Active -> Do nothing (retain status? or set submitted?)
+        // Logic says: "bei inaktiv ... automatisch bestätigt"
+        // Just setting data if satisfied.
+
+        // If NOT satisfying condition, we typically leave it alone OR if it was a type change, we might need to reset?
+        // Default: Draft (User must submit manually via 'Abgeben')
+        autoConfirmData = {
+          submitted: false
         };
       }
     }
@@ -301,7 +444,15 @@ export const useTimeEntries = (customUserId?: string) => {
       .from('time_entries')
       .update({
         ...updates,
-        ...autoConfirmData
+        ...autoConfirmData,
+        ...changeTrackingData,
+        // Reset rejection status on update (User is fixing it)
+        rejected_by: null,
+        rejected_at: null,
+        rejection_reason: null,
+        // Hybrid Fix: If responsible_user_id was kept (New RPC), this is no-op.
+        // If it was lost (Old RPC), we restore it from rejected_by.
+        ...(entry.rejected_by && !updates.responsible_user_id && !entry.responsible_user_id ? { responsible_user_id: entry.rejected_by } : {})
       })
       .eq('id', id);
 
@@ -309,23 +460,73 @@ export const useTimeEntries = (customUserId?: string) => {
       console.error("Update Error:", error);
       alert("Fehler beim Aktualisieren: " + (error.message || JSON.stringify(error)));
     } else {
+      // --- HISTORY LOGGING ---
+      const historyStatus = isOwner ? 'confirmed' : 'pending';
+      // Cleanup old_values to reduce size: optional, but here we keep "entry" as snaphot.
+      // Actually, let's keep it simple: "entry" is old state, "updates" is change.
+
+      const { error: historyError } = await supabase.from('entry_change_history').insert([{
+        entry_id: id,
+        changed_by: user?.id,
+        reason: reason || (isOwner ? 'Eigenbearbeitung' : 'Kein Grund angegeben'),
+        old_values: entry,
+        new_values: updates,
+        status: historyStatus
+      }]);
+      if (historyError) console.error("History Log Error:", historyError);
+      // --- HISTORY LOGGING END ---
+
       await fetchEntries();
     }
   };
 
-  const deleteEntry = async (id: string) => {
+  const deleteEntry = async (id: string, reason?: string) => {
     const entry = entries.find(e => e.id === id);
-    if (entry && lockedDays.includes(entry.date)) {
+    if (!entry) return;
+
+    if (lockedDays.includes(entry.date)) {
       alert("Dieser Tag ist gesperrt.");
       return;
     }
 
-    const { error } = await supabase.from('time_entries').delete().eq('id', id);
-    if (error) {
-      console.error("Delete Error:", error.message || JSON.stringify(error));
-      alert("Löschen fehlgeschlagen: " + (error.message || "Unbekannter Fehler"));
+    const { data: { user } } = await supabase.auth.getUser();
+
+    // Check Handling: Hard vs Soft Delete
+    // Hard Delete allowed if: Entry is NOT submitted AND Current User is Owner
+    const isDraft = !entry.submitted; // Assuming submitted is set to true on first save usually, wait. 
+    // Actually submitted flag is explicit.
+    const isOwner = user?.id === entry.user_id;
+
+    if (isDraft && isOwner) {
+      // HARD DELETE
+      const { error } = await supabase.from('time_entries').delete().eq('id', id);
+      if (error) {
+        console.error("Delete Error:", error.message || JSON.stringify(error));
+        alert("Löschen fehlgeschlagen: " + (error.message || "Unbekannter Fehler"));
+      } else {
+        await fetchEntries();
+      }
     } else {
-      await fetchEntries();
+      // SOFT DELETE
+      if (!reason) {
+        alert("Löschung erfordert eine Begründung."); // Should be caught by UI ideally
+        return;
+      }
+
+      const { error } = await supabase.from('time_entries').update({
+        is_deleted: true,
+        deleted_at: new Date().toISOString(),
+        deleted_by: user?.id,
+        deletion_reason: reason,
+        deletion_confirmed_by_user: isOwner // If owner deletes it, they know it. If admin deletes, false.
+      }).eq('id', id);
+
+      if (error) {
+        console.error("Soft Delete Error:", error.message || JSON.stringify(error));
+        alert("Löschen fehlgeschlagen: " + (error.message || "Unbekannter Fehler"));
+      } else {
+        await fetchEntries();
+      }
     }
   }
 
@@ -333,9 +534,26 @@ export const useTimeEntries = (customUserId?: string) => {
     if (ids.length === 0) return;
 
     // Validate UUIDs to prevent 400 errors
+    // Validate UUIDs to prevent 400 errors AND Filter out Unconfirmed Late Entries
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    const validIds = ids.filter(id => uuidRegex.test(id));
-    if (validIds.length === 0) return;
+    const validIds = ids.filter(id => {
+      if (!uuidRegex.test(id)) return false;
+
+      const entry = entries.find(e => e.id === id);
+      if (!entry) return false;
+
+      // Strict Rule: Unconfirmed Late Entries cannot be submitted manually.
+      if (entry.late_reason && !entry.confirmed_at) return false;
+
+      return true;
+    });
+
+    if (validIds.length === 0) {
+      // Optional: Give feedback if all were filtered out?
+      // Assuming caller handles empty list or UI disables button.
+      // But if we silently fail, it's okay for now.
+      return;
+    }
 
     let autoConfirmUpdate = {};
 
@@ -374,12 +592,49 @@ export const useTimeEntries = (customUserId?: string) => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
+    // Check if it's a Late Entry to apply Auto-Submit rule
+    const entryToConfirm = entries.find(e => e.id === entryId);
+    let extraUpdates = {};
+    if (entryToConfirm?.late_reason) {
+      extraUpdates = { submitted: true };
+    }
+
     const { error } = await supabase.from('time_entries').update({
       confirmed_by: user.id,
-      confirmed_at: new Date().toISOString()
+      confirmed_at: new Date().toISOString(),
+      ...extraUpdates,
+      // Reset rejection fields if confirmed
+      rejected_by: null,
+      rejected_at: null,
+      rejection_reason: null
     }).eq('id', entryId);
 
     if (!error) await fetchEntries();
+  };
+
+  const rejectEntry = async (entryId: string, reason: string) => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    const { error } = await supabase.from('time_entries').update({
+      rejected_by: user.id,
+      rejected_at: new Date().toISOString(),
+      rejection_reason: reason,
+      // Ensure confirmation is cleared
+      confirmed_by: null,
+      confirmed_at: null,
+      // Also clear any pending deletion requests (Deletion Rejected)
+      deletion_requested_at: null,
+      deletion_requested_by: null,
+      deletion_request_reason: null
+    }).eq('id', entryId);
+
+    if (error) {
+      console.error("Reject Error:", error);
+      alert("Fehler beim Ablehnen: " + error.message);
+    } else {
+      await fetchEntries();
+    }
   };
 
   useEffect(() => {
@@ -397,7 +652,46 @@ export const useTimeEntries = (customUserId?: string) => {
     };
   }, [fetchEntries]);
 
-  return { entries, loading, addEntry, updateEntry, deleteEntry, markAsSubmitted, confirmEntry, lockedDays };
+  // --- HISTORY FETCHING ---
+  const [entryHistory, setEntryHistory] = useState<EntryChangeHistory[]>([]);
+
+  const fetchEntryHistory = useCallback(async (entryId: string) => {
+    // 1. Fetch History Raw
+    const { data, error } = await supabase
+      .from('entry_change_history')
+      .select('*')
+      .eq('entry_id', entryId)
+      .order('changed_at', { ascending: false });
+
+    if (error) {
+      console.error("Error fetching history:", error);
+    } else if (data) {
+      // 2. Fetch User Names Manually (to avoid FK issues with auth schema)
+      const userIds = Array.from(new Set(data.map(h => h.changed_by).filter(Boolean)));
+
+      let userMap = new Map<string, string>();
+
+      if (userIds.length > 0) {
+        const { data: usersData } = await supabase
+          .from('user_settings')
+          .select('user_id, display_name')
+          .in('user_id', userIds);
+
+        if (usersData) {
+          usersData.forEach(u => userMap.set(u.user_id, u.display_name));
+        }
+      }
+
+      // 3. Map to Result
+      const mapped = data.map((h: any) => ({
+        ...h,
+        changer_name: h.changed_by ? (userMap.get(h.changed_by) || 'Unbekannt') : 'System'
+      }));
+      setEntryHistory(mapped);
+    }
+  }, []);
+
+  return { entries, loading, addEntry, updateEntry, deleteEntry, markAsSubmitted, confirmEntry, rejectEntry, lockedDays, entryHistory, fetchEntryHistory };
 };
 
 export const useDailyLogs = (customUserId?: string) => {
@@ -827,6 +1121,54 @@ export const useVacationRequests = (customUserId?: string) => {
   return { requests, createRequest, deleteRequest, approveRequest, rejectRequest, loading };
 };
 
+export const useDepartments = () => {
+  const [departments, setDepartments] = useState<Department[]>([]);
+
+  const fetchDepartments = useCallback(async () => {
+    const { data, error } = await supabase
+      .from('departments')
+      .select('*')
+      // Custom sort order: Office, Service, Site, Apprentice, Misc, Archive
+      .order('id');
+
+    if (data) {
+      // Manually sort to ensure correct order if ID sort isn't enough (ids are alpha: apprentice, archive, misc, office, service, site)
+      // Wanted: Office, Service, Site, Apprentice, Misc, Archive
+      const order = ['office', 'service', 'site', 'apprentice', 'misc', 'archive'];
+      const sorted = (data as Department[]).sort((a, b) => {
+        return order.indexOf(a.id) - order.indexOf(b.id);
+      });
+      setDepartments(sorted);
+    }
+  }, []);
+
+  const updateDepartment = async (id: string, updates: Partial<Department>) => {
+    const { error } = await supabase
+      .from('departments')
+      .update(updates)
+      .eq('id', id);
+
+    if (error) {
+      alert("Fehler beim Aktualisieren der Abteilung: " + error.message);
+    } else {
+      await fetchDepartments();
+    }
+  };
+
+  useEffect(() => {
+    fetchDepartments();
+    const channel = supabase
+      .channel('realtime_departments')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'departments' }, () => {
+        fetchDepartments();
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [fetchDepartments]);
+
+  return { departments, fetchDepartments, updateDepartment };
+};
+
 export const useOfficeService = () => {
   const [users, setUsers] = useState<UserSettings[]>([]);
 
@@ -866,5 +1208,262 @@ export const useOfficeService = () => {
     }
   };
 
-  return { users, fetchAllUsers, updateOfficeUserSettings };
+  const checkAndApplyVacationCarryover = async (userId: string, currentSettings: UserSettings) => {
+    const currentYear = new Date().getFullYear();
+    const lastCalcYear = currentSettings.last_carryover_calc_year;
+
+    // If already updated for this year, skip
+    if (lastCalcYear === currentYear) return;
+
+    // Target is PREVIOUS year
+    const targetYear = currentYear - 1;
+    const startOfTarget = `${targetYear}-01-01`;
+    const endOfTarget = `${targetYear}-12-31`;
+
+    console.log(`Checking Vacation Carryover for ${userId} (Target: ${targetYear})...`);
+
+    // Fetch requests for target year
+    const { data: requests, error } = await supabase
+      .from('vacation_requests')
+      .select('*')
+      .eq('user_id', userId)
+      .neq('status', 'rejected')
+      .gte('start_date', startOfTarget)
+      .lte('start_date', endOfTarget);
+
+    if (error || !requests) return;
+
+    // Calculate Used
+    let usedDays = 0;
+    requests.forEach(r => {
+      usedDays += calculateWorkingDaysWithHolidays(r.start_date, r.end_date);
+    });
+
+    // Calculate Remaining
+    let quota = currentSettings.vacation_days_yearly || 30;
+
+    // Fetch specific year quota (async)
+    const { data: qData } = await supabase.from('yearly_vacation_quotas').select('total_days').eq('user_id', userId).eq('year', targetYear).maybeSingle();
+    if (qData) quota = qData.total_days;
+
+    const oldCarryover = currentSettings.vacation_days_carryover || 0;
+
+    // Formula: (Quota + OldCarryover) - Used
+    const remaining = Math.max(0, (quota + oldCarryover) - usedDays);
+
+    console.log(`Used in ${targetYear}: ${usedDays}. Remaining: ${remaining}. Updating...`);
+
+    // Update
+    await updateOfficeUserSettings(userId, {
+      vacation_days_carryover: remaining,
+      last_carryover_calc_year: currentYear
+    });
+  };
+
+  const fetchYearlyQuota = useCallback(async (userId: string, year: number) => {
+    const { data, error } = await supabase
+      .from('yearly_vacation_quotas')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('year', year)
+      .maybeSingle();
+
+    if (error || !data) return null;
+    return data; // Returns full YearlyVacationQuota object
+  }, []);
+
+  const updateYearlyQuota = async (
+    userId: string,
+    year: number,
+    data: { total_days: number, manual_carryover: number, is_locked: boolean }
+  ) => {
+    const { data: { user } } = await supabase.auth.getUser();
+    const changerId = user?.id;
+
+    // 1. Get previous value for Comparison
+    const { data: prev } = await supabase.from('yearly_vacation_quotas').select('*').eq('user_id', userId).eq('year', year).maybeSingle();
+    const prevVal = prev ? { base: prev.total_days, carryover: prev.manual_carryover || 0 } : { base: 0, carryover: 0 };
+    const newVal = { base: data.total_days, carryover: data.manual_carryover };
+
+    // 2. Check if locked & changing for someone else -> Create NOTIFICATION (Proposal)
+    if (data.is_locked && userId !== changerId) {
+      const prevTotal = (prevVal.base || 0) + (prevVal.carryover || 0);
+      const newTotal = (newVal.base || 0) + (newVal.carryover || 0);
+
+      const { error } = await supabase.from('quota_change_notifications').insert({
+        user_id: userId,
+        changed_by: changerId,
+        year: year,
+        previous_value: { ...prevVal, total: prevTotal },
+        new_value: { ...newVal, total: newTotal },
+        status: 'pending' // Force Pending
+      });
+
+      if (error) {
+        alert("Fehler beim Erstellen des Vorschlags: " + error.message);
+        console.error(error);
+      } else {
+        alert("Änderungsvorschlag gesendet! Der Mitarbeiter muss bestätigen.");
+      }
+      return; // STOP HERE - Do not write to quota table yet
+    }
+
+    // 3. Direct Update (Only if self-update or unlocked - unlikely case for admin workflow, but fallback)
+    const { data: updatedQuota, error } = await supabase
+      .from('yearly_vacation_quotas')
+      .upsert({
+        user_id: userId,
+        year: year,
+        total_days: data.total_days,
+        manual_carryover: data.manual_carryover,
+        is_locked: data.is_locked,
+        updated_by: changerId,
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'user_id, year' })
+      .select()
+      .single();
+
+    if (error) {
+      console.error("Quota update error:", error);
+      alert("Fehler beim Speichern des Jahresanspruchs: " + error.message);
+      return;
+    }
+
+    // 4. Create Audit Log if changed (Direct Update)
+    if (JSON.stringify(prevVal) !== JSON.stringify(newVal) && updatedQuota) {
+      await supabase.from('vacation_audit_log').insert({
+        quota_id: updatedQuota.id,
+        changed_by: changerId,
+        previous_value: prevVal,
+        new_value: newVal,
+        change_reason: 'Direkte Änderung (nicht gesperrt oder eigene)'
+      });
+    }
+  };
+
+  const fetchVacationAuditLog = useCallback(async (quotaId: string) => {
+    const { data, error } = await supabase
+      .from('vacation_audit_log')
+      .select('*')
+      .eq('quota_id', quotaId)
+      .order('created_at', { ascending: false });
+
+    if (error) return [];
+    // Return raw data, name resolution happens in frontend
+    return data;
+  }, []);
+
+  const fetchQuotaNotifications = useCallback(async (userId: string) => {
+    const { data, error } = await supabase
+      .from('quota_change_notifications')
+      .select('*')
+      .eq('user_id', userId)
+      .in('status', ['pending', 'rejected']) // Fetch rejected too for admin view
+      .order('created_at', { ascending: false });
+
+    if (error) return [];
+    return data;
+  }, []);
+
+  const respondToQuotaNotification = async (notificationId: string, status: 'confirmed' | 'rejected', reason?: string) => {
+    // 1. Fetch Notification details FIRST
+    const { data: notification, error: fetchError } = await supabase
+      .from('quota_change_notifications')
+      .select('*')
+      .eq('id', notificationId)
+      .single();
+
+    if (fetchError || !notification) throw new Error("Benachrichtigung nicht gefunden");
+
+    // 2. Update Status
+    const { error: updateError } = await supabase
+      .from('quota_change_notifications')
+      .update({ status, rejection_reason: reason })
+      .eq('id', notificationId);
+
+    if (updateError) throw updateError;
+
+    // 3. IF CONFIRMED: Apply to Yearly Quota Table
+    if (status === 'confirmed') {
+      const { new_value, user_id, year, changed_by } = notification;
+
+      const { data: updatedQuota, error: quotaError } = await supabase
+        .from('yearly_vacation_quotas')
+        .upsert({
+          user_id: user_id,
+          year: year,
+          total_days: new_value.base,
+          manual_carryover: new_value.carryover,
+          is_locked: true, // Auto-lock
+          updated_by: changed_by,
+          updated_at: new Date().toISOString()
+        }, { onConflict: 'user_id, year' })
+        .select()
+        .single();
+
+      if (quotaError) {
+        alert("Fehler beim Anwenden der Quote: " + quotaError.message);
+        return;
+      }
+
+      // 4. Audit Log
+      await supabase.from('vacation_audit_log').insert({
+        quota_id: updatedQuota.id,
+        changed_by: changed_by, // The original admin who proposed it
+        previous_value: notification.previous_value,
+        new_value: notification.new_value,
+        change_reason: 'Bestätigt durch Benutzer'
+      });
+    } else {
+      // REJECTED
+      // We do typically NOT update the quota table, so it remains old value.
+      // But we might want to log this? Maybe not strictly necessary in audit log if no data changed.
+    }
+  };
+
+  return { users, fetchAllUsers, updateOfficeUserSettings, checkAndApplyVacationCarryover, fetchYearlyQuota, updateYearlyQuota, fetchVacationAuditLog, fetchQuotaNotifications, respondToQuotaNotification };
+};
+// --- OVERTIME BALANCE HOOK ---
+export const useOvertimeBalance = (userId: string) => {
+  const [entries, setEntries] = useState<OvertimeBalanceEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const fetchEntries = useCallback(async () => {
+    setLoading(true);
+    const { data, error } = await supabase
+      .from('overtime_balance_entries')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false });
+
+    if (!error && data) {
+      setEntries(data as OvertimeBalanceEntry[]);
+    }
+    setLoading(false);
+  }, [userId]);
+
+  const addEntry = async (hours: number, reason: string) => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { error: 'Not authenticated' };
+
+    const { error } = await supabase
+      .from('overtime_balance_entries')
+      .insert({
+        user_id: userId,
+        hours,
+        reason,
+        created_by: user.id
+      });
+
+    if (!error) {
+      await fetchEntries();
+    }
+    return { error };
+  };
+
+  useEffect(() => {
+    if (userId) fetchEntries();
+  }, [userId, fetchEntries]);
+
+  return { entries, loading, addEntry, refresh: fetchEntries };
 };

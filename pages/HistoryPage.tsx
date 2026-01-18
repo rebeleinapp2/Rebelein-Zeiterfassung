@@ -1,17 +1,17 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { useTimeEntries, useSettings, useDailyLogs, useAbsences, getDailyTargetForDate, getLocalISOString } from '../services/dataService';
 import { GlassCard, GlassButton, GlassInput } from '../components/GlassCard';
-import { Trash2, FileDown, X, Edit2, Save, CalendarDays, Briefcase, Clock, ChevronLeft, ChevronRight, CheckCircle, Calendar, UserCheck, List, FileText, StickyNote, Coffee, Lock, Hourglass, Building2, Building, Warehouse, Car, Palmtree, Stethoscope, Ban, PartyPopper, TrendingDown, AlertTriangle, Check, Siren } from 'lucide-react';
+import { Trash2, FileDown, X, Edit2, Save, CalendarDays, Briefcase, Clock, ChevronLeft, ChevronRight, CheckCircle, Calendar, UserCheck, List, FileText, StickyNote, Coffee, Lock, Hourglass, Building2, Building, Warehouse, Car, Palmtree, Stethoscope, Ban, PartyPopper, TrendingDown, AlertTriangle, Check, Siren, History as HistoryIcon, ThumbsUp, ThumbsDown, RefreshCw, ShieldAlert } from 'lucide-react';
 import GlassDatePicker from '../components/GlassDatePicker';
 import { TimeEntry, DailyLog, UserAbsence } from '../types';
 import { supabase } from '../services/supabaseClient';
 import { formatDuration } from '../services/utils/timeUtils';
 
 const HistoryPage: React.FC = () => {
-    const { entries, deleteEntry, updateEntry, markAsSubmitted, loading, lockedDays } = useTimeEntries();
+    const { entries, deleteEntry, updateEntry, markAsSubmitted, loading, lockedDays, entryHistory, fetchEntryHistory } = useTimeEntries();
     const { settings } = useSettings();
     const { dailyLogs, fetchDailyLogs } = useDailyLogs();
-    const { absences, deleteAbsenceDay } = useAbsences();
+    const { absences, deleteAbsenceDay, fetchAbsences } = useAbsences();
 
     const [viewDate, setViewDate] = useState(new Date());
     const [viewMode, setViewMode] = useState<'projects' | 'attendance'>('projects');
@@ -30,6 +30,47 @@ const HistoryPage: React.FC = () => {
 
     // NEU: State für das Löschen-Modal (statt window.confirm)
     const [entryToDelete, setEntryToDelete] = useState<TimeEntry | null>(null);
+
+    // History Modal State
+    const [historyModal, setHistoryModal] = useState<{ isOpen: boolean; entryId: string | null }>({ isOpen: false, entryId: null });
+    const [rejectionNote, setRejectionNote] = useState('');
+    const [rejectingHistoryId, setRejectingHistoryId] = useState<string | null>(null);
+
+    const handleConfirmChange = async (historyId: string, entryId: string) => {
+        const { error } = await supabase.rpc('handle_entry_history_response', {
+            p_entry_id: entryId,
+            p_action: 'confirm'
+        });
+
+        if (error) alert("Fehler beim Bestätigen: " + error.message);
+        else {
+            fetchEntryHistory(entryId);
+        }
+    };
+
+    const handleRejectChange = async (historyId: string) => {
+        // historyId lookup to get entryId? 
+        // We have entryId in historyModal state!
+        if (!historyModal.entryId) return;
+
+        if (!rejectionNote.trim()) {
+            alert("Bitte Begründung angeben.");
+            return;
+        }
+
+        const { error } = await supabase.rpc('handle_entry_history_response', {
+            p_entry_id: historyModal.entryId,
+            p_action: 'reject',
+            p_note: rejectionNote
+        });
+
+        if (error) alert("Fehler beim Ablehnen: " + error.message);
+        else {
+            setRejectingHistoryId(null);
+            setRejectionNote('');
+            if (historyModal.entryId) fetchEntryHistory(historyModal.entryId);
+        }
+    };
 
     useEffect(() => {
         fetchDailyLogs();
@@ -93,7 +134,8 @@ const HistoryPage: React.FC = () => {
                             type: abs.type,
                             created_at: new Date().toISOString(),
                             isAbsence: true,
-                            note: abs.note
+                            note: abs.note,
+                            submitted: abs.submitted
                         };
                         combinedEntries.push(absenceEntry);
                     }
@@ -244,6 +286,24 @@ const HistoryPage: React.FC = () => {
         });
     };
 
+    const handleHoursChange = (value: string) => {
+        let updates: any = { hours: value };
+        const hours = parseFloat(value.replace(',', '.'));
+
+        if (!isNaN(hours) && editForm.start_time) {
+            const [h, m] = editForm.start_time.split(':').map(Number);
+            const startMins = h * 60 + m;
+            const endMins = startMins + Math.round(hours * 60);
+            const endH = Math.floor(endMins / 60) % 24;
+            const endM = endMins % 60;
+            const endTime = `${String(endH).padStart(2, '0')}:${String(endM).padStart(2, '0')}`;
+
+            updates.end_time = endTime;
+        }
+
+        setEditForm(prev => ({ ...prev, ...updates }));
+    };
+
     const handleSaveEdit = async () => {
         if (!editingEntry) return;
 
@@ -295,14 +355,23 @@ const HistoryPage: React.FC = () => {
     const getEntryStyle = (entry: TimeEntry) => {
         if (entry.isAbsence) {
             switch (entry.type) {
-                case 'vacation': return 'border-purple-500/20 bg-purple-900/10 text-purple-200';
-                case 'sick': return 'border-red-500/20 bg-red-900/10 text-red-200';
-                case 'holiday': return 'border-blue-500/20 bg-blue-900/10 text-blue-200';
-                case 'unpaid': return 'border-gray-500/20 bg-gray-800/30 text-gray-300';
-                default: return 'border-white/10 bg-white/5';
+                case 'vacation': return `border-purple-500/20 bg-purple-900/10 text-purple-200 ${entry.submitted ? 'ring-1 ring-emerald-500/50' : ''}`;
+                case 'sick': return `border-red-500/20 bg-red-900/10 text-red-200 ${entry.submitted ? 'ring-1 ring-emerald-500/50' : ''}`;
+                case 'holiday': return `border-blue-500/20 bg-blue-900/10 text-blue-200 ${entry.submitted ? 'ring-1 ring-emerald-500/50' : ''}`;
+                case 'unpaid': return `border-gray-500/20 bg-gray-800/30 text-gray-300 ${entry.submitted ? 'ring-1 ring-emerald-500/50' : ''}`;
+                default: return `border-white/10 bg-white/5 ${entry.submitted ? 'ring-1 ring-emerald-500/50' : ''}`;
             }
         }
         if (entry.type === 'emergency_service') return 'border-rose-500/20 bg-rose-900/10 text-rose-200';
+        if (entry.rejected_at) return 'border-red-500/50 bg-red-900/20 text-red-200 ring-2 ring-red-500/30';
+
+        // Fix: Confirmed takes precedence over Pending Review
+        if (entry.confirmed_at) return 'border-emerald-500/20 bg-emerald-900/10 ring-1 ring-emerald-500/50';
+
+        // ALL Pending Reviews (Responsible User OR Late Entry)
+        if ((entry.responsible_user_id || entry.late_reason) && !entry.confirmed_at && !entry.rejected_at) {
+            return 'border-orange-500/30 bg-orange-900/10 text-orange-200 ring-1 ring-dashed ring-orange-500/50';
+        }
         if (entry.submitted) return 'border-emerald-500/20 bg-emerald-900/10';
         switch (entry.type) {
             case 'break': return 'border-orange-500/20 bg-orange-900/10 text-orange-200';
@@ -331,10 +400,38 @@ const HistoryPage: React.FC = () => {
             return;
         }
 
+        // Check if there are rejected or pending items that would be blocked
+        const blockedCount = filteredEntries.filter(e => !e.isAbsence && (e.rejected_at || e.responsible_user_id)).length;
+        if (blockedCount > 0) {
+            alert(`${blockedCount} Einträge sind abgelehnt oder noch in Prüfung und werden NICHT als abgegeben markiert.`);
+        }
+
         const idsToMark = filteredEntries
             .filter(e => !e.isAbsence && !e.id.startsWith('virtual-'))
+            // NEU: Nur EInträge markieren, die NICHT abgelehnt sind und NICHT in Prüfung sind
+            .filter(e => !e.rejected_at && !e.responsible_user_id)
             .map(e => e.id);
-        await markAsSubmitted(idsToMark);
+
+        if (idsToMark.length > 0) {
+            await markAsSubmitted(idsToMark);
+        }
+
+        // Handle Absences
+        const absenceIds = filteredEntries
+            .filter(e => e.isAbsence && e.id.startsWith('abs-'))
+            .map(e => e.id.split('-')[1])
+            .filter((value, index, self) => self.indexOf(value) === index);
+
+        if (absenceIds.length > 0) {
+            const { error } = await supabase
+                .from('user_absences')
+                .update({ submitted: true })
+                .in('id', absenceIds);
+
+            if (error) console.error("Error submitting absences:", error);
+            else await fetchAbsences();
+        }
+
         setShowPdfModal(false);
     };
 
@@ -507,6 +604,8 @@ const HistoryPage: React.FC = () => {
                                             </span>
                                             {isLocked && <span title="Tag gesperrt"><Lock size={14} className="text-red-400" /></span>}
                                             {allSubmitted && !dayEntries.every(e => e.isAbsence) && <div className="flex items-center gap-1 text-xs bg-emerald-500/20 px-2 py-0.5 rounded-full border border-emerald-500/30"><CheckCircle size={12} /> <span>Abgegeben</span></div>}
+                                            {dayEntries.some(e => e.rejected_at) && <div className="flex items-center gap-1 text-xs bg-red-500/20 px-2 py-0.5 rounded-full border border-red-500/30 text-red-300"><AlertTriangle size={12} /> <span>Abgelehnt</span></div>}
+                                            {dayEntries.some(e => (e.responsible_user_id || e.late_reason) && !e.rejected_at && !e.confirmed_at) && <div className="flex items-center gap-1 text-xs bg-orange-500/20 px-2 py-0.5 rounded-full border border-orange-500/30 text-orange-300"><Hourglass size={12} /> <span>In Prüfung</span></div>}
                                         </div>
                                         <span className="text-xs font-mono bg-white/5 px-2 py-1 rounded text-white/50 md:text-sm md:bg-white/10">{dayTotal.toFixed(2)} h</span>
                                     </div>
@@ -517,23 +616,26 @@ const HistoryPage: React.FC = () => {
                                                 {editingEntry?.id === entry.id && !entry.isAbsence ? (
                                                     <div className="w-full space-y-2">
                                                         <GlassInput type="text" value={editForm.client_name} onChange={e => setEditForm({ ...editForm, client_name: e.target.value })} className="!py-1 !text-sm h-8" />
-                                                        <div className="flex gap-1">
-                                                            <GlassInput type="time" value={editForm.start_time} onChange={e => setEditForm({ ...editForm, start_time: e.target.value })} className="!py-1 !text-sm h-8 text-center" />
+                                                        <div className="flex gap-1 items-center">
+                                                            <GlassInput type="time" value={editForm.start_time} onChange={e => setEditForm({ ...editForm, start_time: e.target.value })} className="!py-1 !text-sm h-8 text-center flex-1" />
                                                             <span className="text-white/50">-</span>
-                                                            <GlassInput type="time" value={editForm.end_time} onChange={e => setEditForm({ ...editForm, end_time: e.target.value })} className="!py-1 !text-sm h-8 text-center" />
-                                                        </div>
-                                                        <GlassInput type="number" value={editForm.hours} onChange={e => setEditForm({ ...editForm, hours: e.target.value })} className="!py-1 !text-sm h-8" />
-
-                                                        <div className="flex items-center gap-2">
-                                                            <StickyNote size={12} className="text-white/30" />
-                                                            <input
+                                                            <GlassInput type="time" value={editForm.end_time} onChange={e => setEditForm({ ...editForm, end_time: e.target.value })} className="!py-1 !text-sm h-8 text-center flex-1" />
+                                                            <div className="mx-1 w-px h-6 bg-white/10"></div>
+                                                            <GlassInput
                                                                 type="text"
-                                                                value={editForm.note}
-                                                                onChange={e => setEditForm({ ...editForm, note: e.target.value })}
-                                                                placeholder="Notiz..."
-                                                                className="w-full bg-white/5 border border-white/10 rounded px-2 py-1 text-xs text-white focus:outline-none"
+                                                                value={editForm.hours}
+                                                                onChange={e => handleHoursChange(e.target.value)}
+                                                                className="!py-1 !text-sm h-8 w-16 text-center font-bold text-teal-300"
+                                                                placeholder="h"
                                                             />
                                                         </div>
+                                                        <input
+                                                            type="text"
+                                                            value={editForm.note}
+                                                            onChange={e => setEditForm({ ...editForm, note: e.target.value })}
+                                                            placeholder="Notiz..."
+                                                            className="w-full bg-white/5 border border-white/10 rounded px-2 py-1 text-xs text-white focus:outline-none"
+                                                        />
 
                                                         <div className="flex gap-2 justify-end mt-1">
                                                             <button onClick={() => setEditingEntry(null)} className="p-1.5 bg-white/10 rounded text-white"><X size={16} /></button>
@@ -553,6 +655,11 @@ const HistoryPage: React.FC = () => {
                                                                 }`}>
                                                                 {getEntryIcon(entry.type)}
                                                                 {entry.client_name}
+                                                                {entry.has_history && (
+                                                                    <span title="Bearbeitungsverlauf vorhanden" className="ml-2 inline-flex">
+                                                                        <HistoryIcon size={14} className="text-purple-300" />
+                                                                    </span>
+                                                                )}
                                                             </p>
                                                             {(entry.start_time || entry.end_time) && !entry.isAbsence && (
                                                                 <span className="text-[10px] text-white/40 font-mono bg-white/5 px-1.5 py-0.5 rounded ml-2 whitespace-nowrap">
@@ -568,12 +675,23 @@ const HistoryPage: React.FC = () => {
                                                             </div>
                                                         )}
 
-                                                        {['company', 'office', 'warehouse', 'car'].includes(entry.type || '') && (
+                                                        {entry.late_reason && (
+                                                            <div className="flex items-start gap-1 mt-1 mb-1 bg-orange-900/20 p-1.5 rounded border border-orange-500/20">
+                                                                <ShieldAlert size={10} className="text-orange-400 mt-0.5 shrink-0" />
+                                                                <p className="text-xs text-orange-200 italic">"Grund: {entry.late_reason}"</p>
+                                                            </div>
+                                                        )}
+
+                                                        {/* Modification: Show Pending/Confirmed status for ALL types if relevant (e.g. late entry) or if it's a specific type requiring confirmation */}
+                                                        {(['company', 'office', 'warehouse', 'car'].includes(entry.type || '') || entry.late_reason || entry.responsible_user_id) && (
                                                             <div className="mt-2 text-[10px] flex items-center gap-1 border-t border-white/5 pt-1">
                                                                 {entry.confirmed_at ? (
                                                                     <span className="text-emerald-400 flex items-center gap-1"><CheckCircle size={10} /> Bestätigt</span>
                                                                 ) : (
-                                                                    <span className="text-orange-400 flex items-center gap-1"><Hourglass size={10} /> Bestätigung ausstehend</span>
+                                                                    <span className="text-orange-400 flex items-center gap-1">
+                                                                        {entry.late_reason ? <ShieldAlert size={10} /> : <Hourglass size={10} />}
+                                                                        {entry.late_reason ? 'Admin-Freigabe erforderlich' : 'Bestätigung ausstehend'}
+                                                                    </span>
                                                                 )}
                                                             </div>
                                                         )}
@@ -591,11 +709,24 @@ const HistoryPage: React.FC = () => {
                                                                 )}
                                                             </div>
 
-                                                            {!isLocked && !entry.submitted && (
+                                                            {!isLocked && (!entry.submitted || entry.rejected_at) && settings?.is_active !== false && (
                                                                 <div className="flex items-center gap-2 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                                                                     {!entry.isAbsence && (
-                                                                        <button onClick={() => handleEditClick(entry)} className="p-1.5 text-white/30 hover:text-white hover:bg-white/10 rounded-lg transition-colors"><Edit2 size={14} /></button>
+                                                                        <button onClick={() => handleEditClick(entry)} className={`p-1.5 rounded-lg transition-colors ${entry.rejected_at ? 'text-teal-300 bg-teal-500/10 hover:bg-teal-500/20' : 'text-white/30 hover:text-white hover:bg-white/10'}`}>
+                                                                            {entry.rejected_at ? <RefreshCw size={14} /> : <Edit2 size={14} />}
+                                                                        </button>
                                                                     )}
+
+                                                                    <button
+                                                                        onClick={() => {
+                                                                            setHistoryModal({ isOpen: true, entryId: entry.id });
+                                                                            fetchEntryHistory(entry.id);
+                                                                        }}
+                                                                        title="Verlauf anzeigen"
+                                                                        className="p-1.5 text-white/30 hover:text-teal-300 hover:bg-teal-500/10 rounded-lg transition-colors"
+                                                                    >
+                                                                        <HistoryIcon size={14} />
+                                                                    </button>
                                                                     {/* HIER: Aufruf der neuen Lösch-Funktion statt confirm() */}
                                                                     <button
                                                                         onClick={() => handleDeleteClick(entry)}
@@ -720,60 +851,173 @@ const HistoryPage: React.FC = () => {
             </div>
 
             {/* CONFIRMATION MODAL FOR DELETE */}
-            {entryToDelete && (
-                <div className="fixed inset-0 z-[200] flex items-center justify-center p-6 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
-                    <GlassCard className="w-full max-w-sm relative shadow-2xl border-red-500/30">
-                        <div className="flex items-center gap-3 text-red-400 mb-4">
-                            <AlertTriangle size={28} />
-                            <h3 className="text-xl font-bold">Löschen bestätigen</h3>
-                        </div>
-                        <p className="text-white/80 mb-6">
-                            Möchtest du den Eintrag <strong>{entryToDelete.client_name}</strong> wirklich endgültig löschen?
-                        </p>
-                        <div className="flex gap-3">
-                            <GlassButton
-                                onClick={() => setEntryToDelete(null)}
-                                className="bg-white/10 hover:bg-white/20 border-white/10 text-white"
-                            >
-                                Abbrechen
-                            </GlassButton>
-                            <GlassButton
-                                onClick={confirmDelete}
-                                variant="danger"
-                                className="bg-red-500 hover:bg-red-600 border-red-500 text-white"
-                            >
-                                Löschen
-                            </GlassButton>
-                        </div>
-                    </GlassCard>
-                </div>
-            )}
+            {
+                entryToDelete && (
+                    <div className="fixed inset-0 z-[200] flex items-center justify-center p-6 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
+                        <GlassCard className="w-full max-w-sm relative shadow-2xl border-red-500/30">
+                            <div className="flex items-center gap-3 text-red-400 mb-4">
+                                <AlertTriangle size={28} />
+                                <h3 className="text-xl font-bold">Löschen bestätigen</h3>
+                            </div>
+                            <p className="text-white/80 mb-6">
+                                Möchtest du den Eintrag <strong>{entryToDelete.client_name}</strong> wirklich endgültig löschen?
+                            </p>
+                            <div className="flex gap-3">
+                                <GlassButton
+                                    onClick={() => setEntryToDelete(null)}
+                                    className="bg-white/10 hover:bg-white/20 border-white/10 text-white"
+                                >
+                                    Abbrechen
+                                </GlassButton>
+                                <GlassButton
+                                    onClick={confirmDelete}
+                                    variant="danger"
+                                    className="bg-red-500 hover:bg-red-600 border-red-500 text-white"
+                                >
+                                    Löschen
+                                </GlassButton>
+                            </div>
+                        </GlassCard>
+                    </div>
+                )
+            }
 
-            {showPdfModal && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/80 backdrop-blur-sm">
-                    <GlassCard className="w-full max-w-sm relative shadow-2xl border-teal-500/30">
-                        <button onClick={() => setShowPdfModal(false)} className="absolute top-4 right-4 text-white/50 hover:text-white"><X size={20} /></button>
-                        <div className="flex items-center gap-3 text-teal-300 mb-6"><FileDown size={24} /><h3 className="text-xl font-bold">PDF Exportieren</h3></div>
-                        <div className="space-y-4">
-                            <div>
-                                <label className="text-xs uppercase font-bold text-white/50 mb-1 block">Von Datum</label>
-                                <div onClick={() => setActivePdfDatePicker('start')} className="flex items-center justify-between w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white cursor-pointer hover:bg-white/10"><span>{formatDateDisplay(startDate)}</span><Calendar size={18} className="text-white/50" /></div>
+
+
+            {/* HISTORY MODAL */}
+            {
+                historyModal.isOpen && (
+                    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
+                        <GlassCard className="w-full max-w-lg max-h-[80vh] overflow-y-auto relative shadow-2xl border-white/20">
+                            <button onClick={() => setHistoryModal({ isOpen: false, entryId: null })} className="absolute top-4 right-4 p-2 bg-white/10 hover:bg-white/20 rounded-full text-white transition-colors"><X size={20} /></button>
+                            <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2"><HistoryIcon size={20} /> Änderungsverlauf</h3>
+
+                            <div className="space-y-4">
+                                {entryHistory.length === 0 ? (
+                                    <p className="text-white/40 italic text-center py-4">Keine Änderungen protokolliert.</p>
+                                ) : (
+                                    entryHistory.map(h => (
+                                        <div key={h.id} className="bg-white/5 p-3 rounded-lg border border-white/10 text-sm">
+                                            <div className="flex justify-between items-start mb-2">
+                                                <span className="text-white font-bold">{h.changer_name || 'Unbekannt'}</span>
+                                                <span className="text-white/40 text-xs">{new Date(h.changed_at).toLocaleString('de-DE')}</span>
+                                            </div>
+                                            <div className="bg-black/20 p-2 rounded mb-2 font-mono text-xs text-orange-200">
+                                                {h.reason ? `Grund: ${h.reason}` : 'Kein Grund angegeben'}
+                                            </div>
+                                            <div className="space-y-1 text-xs mb-3">
+                                                {Object.keys(h.new_values).map(key => {
+                                                    if (key === 'updated_at' || key === 'last_changed_by' || key === 'change_reason' || key === 'change_confirmed_by_user') return null;
+
+                                                    const fieldLabels: Record<string, string> = {
+                                                        client_name: 'Kunde/Projekt',
+                                                        hours: 'Stunden',
+                                                        start_time: 'Von',
+                                                        end_time: 'Bis',
+                                                        note: 'Notiz',
+                                                        date: 'Datum',
+                                                        type: 'Typ',
+                                                    };
+
+                                                    const label = fieldLabels[key] || key;
+                                                    const oldVal = (h.old_values as any)?.[key];
+                                                    const newVal = (h.new_values as any)?.[key];
+
+                                                    return (
+                                                        <div key={key} className="grid grid-cols-[100px_1fr] gap-2 items-center bg-white/5 p-1.5 rounded">
+                                                            <span className="text-white/40 uppercase font-bold text-[10px]">{label}</span>
+                                                            <div className="flex items-center gap-1.5 flex-wrap">
+                                                                <span className="text-red-300 line-through decoration-red-500/50">{oldVal !== undefined && oldVal !== null ? String(oldVal) : '(leer)'}</span>
+                                                                <span className="text-white/30">→</span>
+                                                                <span className="text-emerald-300 font-bold">{newVal !== undefined && newVal !== null ? String(newVal) : '(gelöscht)'}</span>
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+
+                                            {h.status === 'pending' && (
+                                                <div className="flex gap-2 justify-end border-t border-white/5 pt-2">
+                                                    {rejectingHistoryId === h.id ? (
+                                                        <div className="flex-1 flex gap-2">
+                                                            <input
+                                                                autoFocus
+                                                                type="text"
+                                                                value={rejectionNote}
+                                                                onChange={e => setRejectionNote(e.target.value)}
+                                                                placeholder="Grund für Ablehnung..."
+                                                                className="flex-1 bg-black/20 border border-white/10 rounded px-2 text-xs text-white"
+                                                            />
+                                                            <button onClick={() => handleRejectChange(h.id)} className="bg-red-500 hover:bg-red-600 text-white px-2 py-1 rounded text-xs font-bold">Senden</button>
+                                                            <button onClick={() => setRejectingHistoryId(null)} className="text-white/40 hover:text-white"><X size={14} /></button>
+                                                        </div>
+                                                    ) : (
+                                                        <>
+                                                            <button onClick={() => setRejectingHistoryId(h.id)} className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-red-500/10 text-red-300 hover:bg-red-500/20 text-xs font-bold transition-colors">
+                                                                <ThumbsDown size={12} /> Ablehnen
+                                                            </button>
+                                                            <button onClick={() => handleConfirmChange(h.id, h.entry_id)} className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20 text-xs font-bold transition-colors">
+                                                                <ThumbsUp size={12} /> Bestätigen
+                                                            </button>
+                                                        </>
+                                                    )}
+                                                </div>
+                                            )}
+                                            {h.status === 'confirmed' && (
+                                                <div className="mt-2 text-emerald-300 text-xs font-bold border border-emerald-500/30 bg-emerald-500/10 px-2 py-1 rounded inline-block">
+                                                    <div className="flex items-center gap-1">
+                                                        <CheckCircle size={12} />
+                                                        <span>Bestätigt am {h.user_response_at ? new Date(h.user_response_at).toLocaleString('de-DE') : 'Unbekannt'}</span>
+                                                    </div>
+                                                </div>
+                                            )}
+                                            {h.status === 'rejected' && (
+                                                <div className="mt-2 text-red-300 text-xs font-bold border border-red-500/30 bg-red-500/10 px-2 py-1 rounded inline-block">
+                                                    <div className="flex flex-col gap-1">
+                                                        <div className="flex items-center gap-1">
+                                                            <X size={12} />
+                                                            <span>Abgelehnt am {h.user_response_at ? new Date(h.user_response_at).toLocaleString('de-DE') : 'Unbekannt'}</span>
+                                                        </div>
+                                                        {h.user_response_note && <span className="text-white/60 font-normal">"{h.user_response_note}"</span>}
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    ))
+                                )}
                             </div>
-                            <div>
-                                <label className="text-xs uppercase font-bold text-white/50 mb-1 block">Bis Datum</label>
-                                <div onClick={() => setActivePdfDatePicker('end')} className="flex items-center justify-between w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white cursor-pointer hover:bg-white/10"><span>{formatDateDisplay(endDate)}</span><Calendar size={18} className="text-white/50" /></div>
+                        </GlassCard>
+                    </div>
+                )
+            }
+
+            {
+                showPdfModal && (
+                    <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/80 backdrop-blur-sm">
+                        <GlassCard className="w-full max-w-sm relative shadow-2xl border-teal-500/30">
+                            <button onClick={() => setShowPdfModal(false)} className="absolute top-4 right-4 text-white/50 hover:text-white"><X size={20} /></button>
+                            <div className="flex items-center gap-3 text-teal-300 mb-6"><FileDown size={24} /><h3 className="text-xl font-bold">PDF Exportieren</h3></div>
+                            <div className="space-y-4">
+                                <div>
+                                    <label className="text-xs uppercase font-bold text-white/50 mb-1 block">Von Datum</label>
+                                    <div onClick={() => setActivePdfDatePicker('start')} className="flex items-center justify-between w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white cursor-pointer hover:bg-white/10"><span>{formatDateDisplay(startDate)}</span><Calendar size={18} className="text-white/50" /></div>
+                                </div>
+                                <div>
+                                    <label className="text-xs uppercase font-bold text-white/50 mb-1 block">Bis Datum</label>
+                                    <div onClick={() => setActivePdfDatePicker('end')} className="flex items-center justify-between w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white cursor-pointer hover:bg-white/10"><span>{formatDateDisplay(endDate)}</span><Calendar size={18} className="text-white/50" /></div>
+                                </div>
+                                <div className="bg-white/5 rounded-lg p-3 space-y-3">
+                                    <button onClick={generateProjectPDF} className="w-full flex items-center gap-3 p-3 rounded-lg bg-teal-600/20 border border-teal-500/30 hover:bg-teal-600/40 group"><FileText className="text-teal-300" size={20} /><div className="text-left"><div className="text-sm font-bold text-teal-100">Projekte Exportieren</div><div className="text-[10px] text-teal-200/60">Querformat • Mit Start/Ende</div><div className="text-[10px] text-emerald-300 mt-0.5">Markiert Einträge als abgegeben</div></div></button>
+                                    <button onClick={generateAttendancePDF} className="w-full flex items-center gap-3 p-3 rounded-lg bg-blue-600/20 border border-blue-500/30 hover:bg-blue-600/40 group"><UserCheck className="text-blue-300" size={20} /><div className="text-left"><div className="text-sm font-bold text-blue-100">Anwesenheit Exportieren</div><div className="text-[10px] text-blue-200/60">Hochformat • Detailübersicht</div></div></button>
+                                    <button onClick={handleMarkSubmittedOnly} className="w-full flex items-center gap-3 p-3 rounded-lg bg-emerald-600/20 border border-emerald-500/30 hover:bg-emerald-600/40 group"><CheckCircle className="text-emerald-300" size={20} /><div className="text-left"><div className="text-sm font-bold text-emerald-100">Zeitraum abschließen</div><div className="text-[10px] text-emerald-200/60">Nur als "Abgegeben" markieren</div></div></button>
+                                </div>
                             </div>
-                            <div className="bg-white/5 rounded-lg p-3 space-y-3">
-                                <button onClick={generateProjectPDF} className="w-full flex items-center gap-3 p-3 rounded-lg bg-teal-600/20 border border-teal-500/30 hover:bg-teal-600/40 group"><FileText className="text-teal-300" size={20} /><div className="text-left"><div className="text-sm font-bold text-teal-100">Projekte Exportieren</div><div className="text-[10px] text-teal-200/60">Querformat • Mit Start/Ende</div><div className="text-[10px] text-emerald-300 mt-0.5">Markiert Einträge als abgegeben</div></div></button>
-                                <button onClick={generateAttendancePDF} className="w-full flex items-center gap-3 p-3 rounded-lg bg-blue-600/20 border border-blue-500/30 hover:bg-blue-600/40 group"><UserCheck className="text-blue-300" size={20} /><div className="text-left"><div className="text-sm font-bold text-blue-100">Anwesenheit Exportieren</div><div className="text-[10px] text-blue-200/60">Hochformat • Detailübersicht</div></div></button>
-                                <button onClick={handleMarkSubmittedOnly} className="w-full flex items-center gap-3 p-3 rounded-lg bg-emerald-600/20 border border-emerald-500/30 hover:bg-emerald-600/40 group"><CheckCircle className="text-emerald-300" size={20} /><div className="text-left"><div className="text-sm font-bold text-emerald-100">Zeitraum abschließen</div><div className="text-[10px] text-emerald-200/60">Nur als "Abgegeben" markieren</div></div></button>
-                            </div>
-                        </div>
-                    </GlassCard>
-                </div>
-            )}
+                        </GlassCard>
+                    </div>
+                )
+            }
             {activePdfDatePicker && <GlassDatePicker value={activePdfDatePicker === 'start' ? startDate : endDate} onChange={(newDate) => { if (activePdfDatePicker === 'start') setStartDate(newDate); else setEndDate(newDate); setActivePdfDatePicker(null); }} onClose={() => setActivePdfDatePicker(null)} />}
-        </div>
+        </div >
     );
 };
 

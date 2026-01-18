@@ -28,11 +28,32 @@ const GlassLayout: React.FC<GlassLayoutProps> = ({ children }) => {
       {/* Main Content Container 
           REMOVED: transition-all duration-300 to fix fixed positioning context bugs on mobile
       */}
-      <div className="relative z-10 w-full h-full min-h-screen flex flex-col md:pl-24">
+      <SidebarAwareContainer>
         <div className="w-full md:max-w-7xl mx-auto h-full flex flex-col relative">
           {children}
         </div>
-      </div>
+      </SidebarAwareContainer>
+    </div>
+  );
+};
+
+// Internal component to handle sidebar state to avoid re-rendering the whole layout unecessarily
+const SidebarAwareContainer: React.FC<{ children: ReactNode }> = ({ children }) => {
+  const [isExpanded, setIsExpanded] = React.useState(() => {
+    return typeof window !== 'undefined' ? localStorage.getItem('sidebarExpanded') === 'true' : false;
+  });
+
+  React.useEffect(() => {
+    const handleToggle = () => {
+      setIsExpanded(localStorage.getItem('sidebarExpanded') === 'true');
+    };
+    window.addEventListener('sidebar-toggle', handleToggle);
+    return () => window.removeEventListener('sidebar-toggle', handleToggle);
+  }, []);
+
+  return (
+    <div className={`relative z-10 w-full h-full min-h-screen flex flex-col transition-[padding] duration-300 ease-in-out ${isExpanded ? 'md:pl-64' : 'md:pl-24'}`}>
+      {children}
     </div>
   );
 };
