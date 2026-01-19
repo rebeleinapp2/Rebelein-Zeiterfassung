@@ -153,6 +153,7 @@ export interface Department {
   responsible_user_id?: string;
   substitute_user_id?: string;
   is_substitute_active?: boolean;
+  is_retro_substitute_active?: boolean; // NEU: Separater Toggle für Rückwirkende Vertretung
   retro_responsible_user_id?: string; // NEU: Für rückwirkende Einträge
   retro_substitute_user_id?: string; // NEU: Vertretung für rückwirkende Einträge
   additional_responsible_ids?: string[]; // NEU: Weitere Zuständige (z.B. Stellvertreter)

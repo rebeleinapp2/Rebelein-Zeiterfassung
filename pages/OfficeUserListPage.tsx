@@ -467,7 +467,7 @@ const OfficeUserListPage: React.FC = () => {
                     <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
                         <Briefcase size={20} className="text-teal-400" /> Abteilungs-Verwaltung
                     </h2>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                         {departments.map(dept => {
                             const isResponsible = dept.responsible_user_id === currentUser?.user_id;
                             const canEdit = isAdmin || isResponsible;
@@ -475,170 +475,226 @@ const OfficeUserListPage: React.FC = () => {
                             if (!isAdmin && !isResponsible) return null;
 
                             return (
-                                <GlassCard key={dept.id} className="!p-3 flex flex-col gap-3 border-teal-500/20 bg-teal-900/10">
-                                    <div className="font-bold text-teal-300 uppercase tracking-wider text-xs border-b border-white/10 pb-1 mb-1">
-                                        {dept.label}
+                                <GlassCard key={dept.id} className="!p-0 flex flex-col overflow-hidden border-teal-500/20 bg-teal-900/10 h-full">
+                                    {/* Card Header */}
+                                    <div className="bg-white/5 px-4 py-3 border-b border-white/10 flex items-center justify-between">
+                                        <div className="font-bold text-teal-300 uppercase tracking-wider text-sm flex items-center gap-2">
+                                            <Briefcase size={14} />
+                                            {dept.label}
+                                        </div>
+                                        {/* Status Indicators (Mini dots) */}
+                                        <div className="flex gap-1.5">
+                                            <div className={`w-2 h-2 rounded-full ${dept.is_substitute_active ? 'bg-teal-500 shadow-[0_0_8px_rgba(20,184,166,0.6)]' : 'bg-white/10'}`} title="Vertretung Status" />
+                                            <div className={`w-2 h-2 rounded-full ${dept.is_retro_substitute_active ? 'bg-orange-500 shadow-[0_0_8px_rgba(249,115,22,0.6)]' : 'bg-white/10'}`} title="Rückwirkend Status" />
+                                        </div>
                                     </div>
 
-                                    {/* Responsible */}
-                                    {/* Responsible */}
-                                    <div>
-                                        <label className="text-[10px] text-white/50 uppercase font-bold block mb-1">Zuständig</label>
-                                        {isAdmin ? (
-                                            <select
-                                                className="w-full bg-slate-950/50 text-white text-xs rounded border border-white/10 p-1.5 focus:border-teal-500 outline-none appearance-none cursor-pointer hover:bg-slate-900/80 transition-colors"
-                                                value={dept.responsible_user_id || ''}
-                                                onChange={(e) => updateDepartment(dept.id, { responsible_user_id: e.target.value })}
-                                            >
-                                                <option value="" className="bg-slate-900 text-slate-300">- Wählen -</option>
-                                                {users.map(u => (
-                                                    <option key={u.user_id} value={u.user_id} className="bg-slate-900 text-slate-200">{u.display_name}</option>
-                                                ))}
-                                            </select>
-                                        ) : (
-                                            <div className="text-xs text-white font-medium">
-                                                {users.find(u => u.user_id === dept.responsible_user_id)?.display_name || '-'}
-                                            </div>
-                                        )}
-                                    </div>
+                                    <div className="p-4 space-y-6 flex-1 flex flex-col">
 
-                                    {/* Additional Responsible Users */}
-                                    <div>
-                                        <label className="text-[10px] text-teal-300/50 uppercase font-bold block mb-1">Weitere Zuständige</label>
-                                        {isAdmin ? (
-                                            <div className="space-y-2">
-                                                {/* List of existing */}
-                                                <div className="flex flex-wrap gap-1.5">
-                                                    {(dept.additional_responsible_ids || []).map(id => {
-                                                        const user = users.find(u => u.user_id === id);
-                                                        return (
-                                                            <div key={id} className="flex items-center gap-1 bg-teal-500/20 text-teal-200 px-2 py-0.5 rounded text-[10px] border border-teal-500/30">
-                                                                <span>{user?.display_name || 'Unbekannt'}</span>
-                                                                <button
-                                                                    onClick={() => {
-                                                                        const newIds = (dept.additional_responsible_ids || []).filter(existingId => existingId !== id);
-                                                                        updateDepartment(dept.id, { additional_responsible_ids: newIds });
-                                                                    }}
-                                                                    className="hover:text-white transition-colors"
-                                                                >
-                                                                    <X size={10} />
-                                                                </button>
-                                                            </div>
-                                                        );
-                                                    })}
-                                                </div>
-
-                                                {/* Add New */}
-                                                <select
-                                                    className="w-full bg-slate-950/30 text-teal-100 text-[10px] rounded border border-teal-500/20 p-1 focus:border-teal-500 outline-none appearance-none cursor-pointer hover:bg-slate-900/50 transition-colors"
-                                                    value=""
-                                                    onChange={(e) => {
-                                                        const idToAdd = e.target.value;
-                                                        if (!idToAdd) return;
-                                                        const currentIds = dept.additional_responsible_ids || [];
-                                                        if (!currentIds.includes(idToAdd)) {
-                                                            updateDepartment(dept.id, { additional_responsible_ids: [...currentIds, idToAdd] });
-                                                        }
-                                                    }}
-                                                >
-                                                    <option value="" className="bg-slate-900 text-slate-400">+ Hinzufügen</option>
-                                                    {users
-                                                        .filter(u => u.user_id && u.user_id !== dept.responsible_user_id && !(dept.additional_responsible_ids || []).includes(u.user_id))
-                                                        .map(u => (
-                                                            <option key={u.user_id} value={u.user_id} className="bg-slate-900 text-slate-200">{u.display_name}</option>
-                                                        ))}
-                                                </select>
-                                            </div>
-                                        ) : (
-                                            <div className="text-xs text-white/80 font-medium flex flex-wrap gap-1">
-                                                {(dept.additional_responsible_ids || []).length > 0 ? (
-                                                    (dept.additional_responsible_ids || []).map(id => (
-                                                        <span key={id} className="bg-white/10 px-1.5 py-0.5 rounded text-[10px]">
-                                                            {users.find(u => u.user_id === id)?.display_name || '-'}
-                                                        </span>
-                                                    ))
+                                        {/* SECTION 1: MAIN RESPONSIBILITY */}
+                                        <div className="space-y-3">
+                                            <div>
+                                                <label className="text-[10px] text-white/50 uppercase font-bold block mb-1.5 pl-1">Haupt-Zuständigkeit</label>
+                                                {isAdmin ? (
+                                                    <div className="relative">
+                                                        <select
+                                                            className="w-full bg-slate-950/40 text-white text-sm rounded-lg border border-white/10 px-3 py-2.5 focus:border-teal-500 focus:bg-slate-950/60 outline-none appearance-none cursor-pointer transition-colors"
+                                                            value={dept.responsible_user_id || ''}
+                                                            onChange={(e) => updateDepartment(dept.id, { responsible_user_id: e.target.value })}
+                                                        >
+                                                            <option value="" className="bg-slate-900 text-slate-300">- Wählen -</option>
+                                                            {users.map(u => (
+                                                                <option key={u.user_id} value={u.user_id} className="bg-slate-900 text-slate-200">{u.display_name}</option>
+                                                            ))}
+                                                        </select>
+                                                        <ChevronDown size={14} className="absolute right-3 top-3 text-white/30 pointer-events-none" />
+                                                    </div>
                                                 ) : (
-                                                    <span className="text-white/30 italic">-</span>
+                                                    <div className="text-sm text-white font-medium bg-white/5 px-3 py-2.5 rounded-lg border border-white/5">
+                                                        {users.find(u => u.user_id === dept.responsible_user_id)?.display_name || '-'}
+                                                    </div>
                                                 )}
                                             </div>
-                                        )}
-                                    </div>
 
-                                    {/* Substitute */}
-                                    <div>
-                                        <label className="text-[10px] text-white/50 uppercase font-bold block mb-1">Vertretung</label>
-                                        {canEdit ? (
-                                            <select
-                                                className="w-full bg-slate-950/50 text-white text-xs rounded border border-white/10 p-1.5 focus:border-teal-500 outline-none appearance-none cursor-pointer hover:bg-slate-900/80 transition-colors"
-                                                value={dept.substitute_user_id || ''}
-                                                onChange={(e) => updateDepartment(dept.id, { substitute_user_id: e.target.value })}
-                                            >
-                                                <option value="" className="bg-slate-900 text-slate-300">- Wählen -</option>
-                                                {users.map(u => (
-                                                    <option key={u.user_id} value={u.user_id} className="bg-slate-900 text-slate-200">{u.display_name}</option>
-                                                ))}
-                                            </select>
-                                        ) : (
-                                            <div className="text-xs text-white font-medium">
-                                                {users.find(u => u.user_id === dept.substitute_user_id)?.display_name || '-'}
+                                            {/* Additional Responsible Users */}
+                                            <div>
+                                                <label className="text-[10px] text-teal-300/50 uppercase font-bold block mb-1.5 pl-1">Weitere Zuständige</label>
+                                                <div className="bg-black/20 rounded-lg p-2 border border-white/5 space-y-2">
+                                                    {isAdmin ? (
+                                                        <>
+                                                            <div className="flex flex-wrap gap-2">
+                                                                {(dept.additional_responsible_ids || []).map(id => {
+                                                                    const user = users.find(u => u.user_id === id);
+                                                                    return (
+                                                                        <div key={id} className="flex items-center gap-1.5 bg-teal-500/10 text-teal-200 pl-2 pr-1 py-1 rounded text-xs border border-teal-500/20">
+                                                                            <span>{user?.display_name || 'Unbekannt'}</span>
+                                                                            <button
+                                                                                onClick={() => {
+                                                                                    const newIds = (dept.additional_responsible_ids || []).filter(existingId => existingId !== id);
+                                                                                    updateDepartment(dept.id, { additional_responsible_ids: newIds });
+                                                                                }}
+                                                                                className="hover:bg-teal-500/20 rounded p-0.5 text-teal-400 hover:text-white transition-colors"
+                                                                            >
+                                                                                <X size={12} />
+                                                                            </button>
+                                                                        </div>
+                                                                    );
+                                                                })}
+                                                                {(dept.additional_responsible_ids || []).length === 0 && (
+                                                                    <span className="text-white/20 text-xs italic px-1 py-0.5">Keine weiteren Zuständigen</span>
+                                                                )}
+                                                            </div>
+                                                            <div className="relative mt-2">
+                                                                <select
+                                                                    className="w-full bg-slate-950/30 text-teal-100/70 text-xs rounded border border-teal-500/10 px-2 py-1.5 focus:border-teal-500/50 outline-none appearance-none cursor-pointer hover:bg-slate-900/50 transition-colors"
+                                                                    value=""
+                                                                    onChange={(e) => {
+                                                                        const idToAdd = e.target.value;
+                                                                        if (!idToAdd) return;
+                                                                        const currentIds = dept.additional_responsible_ids || [];
+                                                                        if (!currentIds.includes(idToAdd)) {
+                                                                            updateDepartment(dept.id, { additional_responsible_ids: [...currentIds, idToAdd] });
+                                                                        }
+                                                                    }}
+                                                                >
+                                                                    <option value="" className="bg-slate-900 text-slate-400">+ Hinzufügen</option>
+                                                                    {users
+                                                                        .filter(u => u.user_id && u.user_id !== dept.responsible_user_id && !(dept.additional_responsible_ids || []).includes(u.user_id))
+                                                                        .map(u => (
+                                                                            <option key={u.user_id} value={u.user_id} className="bg-slate-900 text-slate-200">{u.display_name}</option>
+                                                                        ))}
+                                                                </select>
+                                                                <ChevronDown size={12} className="absolute right-2 top-2 text-teal-100/30 pointer-events-none" />
+                                                            </div>
+                                                        </>
+                                                    ) : (
+                                                        <div className="text-xs text-white/80 font-medium flex flex-wrap gap-2">
+                                                            {(dept.additional_responsible_ids || []).length > 0 ? (
+                                                                (dept.additional_responsible_ids || []).map(id => (
+                                                                    <span key={id} className="bg-white/10 px-2 py-1 rounded text-xs border border-white/5">
+                                                                        {users.find(u => u.user_id === id)?.display_name || '-'}
+                                                                    </span>
+                                                                ))
+                                                            ) : (
+                                                                <span className="text-white/30 italic px-1">- Keine -</span>
+                                                            )}
+                                                        </div>
+                                                    )}
+                                                </div>
                                             </div>
-                                        )}
-                                    </div>
+                                        </div>
 
-                                    <div className="col-span-1 h-px bg-white/10 my-1"></div>
+                                        <div className="h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
 
-                                    {/* Retro Responsible */}
-                                    <div>
-                                        <label className="text-[10px] text-orange-300/50 uppercase font-bold block mb-1">Rückwirkend (Chef)</label>
-                                        {canEdit ? (
-                                            <select
-                                                className="w-full bg-rose-950/30 text-orange-100 text-xs rounded border border-orange-500/30 p-1.5 focus:border-orange-500 outline-none appearance-none cursor-pointer hover:bg-rose-950/50 transition-colors"
-                                                value={dept.retro_responsible_user_id || ''}
-                                                onChange={(e) => updateDepartment(dept.id, { retro_responsible_user_id: e.target.value })}
-                                            >
-                                                <option value="" className="bg-slate-900 text-slate-300">- Wie Standard -</option>
-                                                {users.map(u => (
-                                                    <option key={u.user_id} value={u.user_id} className="bg-slate-900 text-slate-200">{u.display_name}</option>
-                                                ))}
-                                            </select>
-                                        ) : (
-                                            <div className="text-xs text-orange-200 font-medium">
-                                                {users.find(u => u.user_id === dept.retro_responsible_user_id)?.display_name || '(Standard)'}
+                                        {/* SECTION 2: VERTRETUNG */}
+                                        <div className="bg-teal-500/5 rounded-xl p-3 border border-teal-500/10 space-y-3">
+                                            <div className="flex items-center justify-between mb-1">
+                                                <label className="text-[10px] text-teal-200/70 uppercase font-bold flex items-center gap-1.5">
+                                                    <Shield size={10} /> Vertretung (Aktuell)
+                                                </label>
+                                                {/* Active Switch */}
+                                                {canEdit && (
+                                                    <button
+                                                        onClick={() => updateDepartment(dept.id, { is_substitute_active: !dept.is_substitute_active })}
+                                                        className={`flex items-center gap-2 px-2 py-1 rounded-full text-[10px] font-bold transition-all border ${dept.is_substitute_active
+                                                            ? 'bg-teal-500/20 text-teal-300 border-teal-500/30 hover:bg-teal-500/30'
+                                                            : 'bg-white/5 text-white/40 border-white/5 hover:bg-white/10'}`}
+                                                    >
+                                                        <span>{dept.is_substitute_active ? 'AKTIV' : 'INAKTIV'}</span>
+                                                        <div className={`w-2 h-2 rounded-full ${dept.is_substitute_active ? 'bg-teal-400 shadow-[0_0_5px_currentColor]' : 'bg-white/20'}`} />
+                                                    </button>
+                                                )}
                                             </div>
-                                        )}
-                                    </div>
 
-                                    {/* Retro Substitute */}
-                                    <div>
-                                        <label className="text-[10px] text-orange-300/50 uppercase font-bold block mb-1">Rückwirkend (Vertr.)</label>
-                                        {canEdit ? (
-                                            <select
-                                                className="w-full bg-rose-950/30 text-orange-100 text-xs rounded border border-orange-500/30 p-1.5 focus:border-orange-500 outline-none appearance-none cursor-pointer hover:bg-rose-950/50 transition-colors"
-                                                value={dept.retro_substitute_user_id || ''}
-                                                onChange={(e) => updateDepartment(dept.id, { retro_substitute_user_id: e.target.value })}
-                                            >
-                                                <option value="" className="bg-slate-900 text-slate-300">- Wie Standard -</option>
-                                                {users.map(u => (
-                                                    <option key={u.user_id} value={u.user_id} className="bg-slate-900 text-slate-200">{u.display_name}</option>
-                                                ))}
-                                            </select>
-                                        ) : (
-                                            <div className="text-xs text-orange-200 font-medium">
-                                                {users.find(u => u.user_id === dept.retro_substitute_user_id)?.display_name || '(Standard)'}
+                                            {canEdit ? (
+                                                <div className="relative">
+                                                    <select
+                                                        className="w-full bg-slate-950/40 text-white text-xs rounded-lg border border-teal-500/10 px-2 py-2 focus:border-teal-500 focus:bg-slate-950/60 outline-none appearance-none cursor-pointer transition-colors"
+                                                        value={dept.substitute_user_id || ''}
+                                                        onChange={(e) => updateDepartment(dept.id, { substitute_user_id: e.target.value })}
+                                                    >
+                                                        <option value="" className="bg-slate-900 text-slate-300">- Keine Vertretung -</option>
+                                                        {users.map(u => (
+                                                            <option key={u.user_id} value={u.user_id} className="bg-slate-900 text-slate-200">{u.display_name}</option>
+                                                        ))}
+                                                    </select>
+                                                    <ChevronDown size={12} className="absolute right-2.5 top-2.5 text-white/30 pointer-events-none" />
+                                                </div>
+                                            ) : (
+                                                <div className="text-xs text-white bg-black/20 px-2 py-2 rounded-lg border border-white/5">
+                                                    {users.find(u => u.user_id === dept.substitute_user_id)?.display_name || <span className="text-white/30 italic">- Keine -</span>}
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        {/* SECTION 3: RÜCKWIRKEND */}
+                                        <div className="bg-orange-500/5 rounded-xl p-3 border border-orange-500/10 space-y-3 mt-auto">
+                                            <div className="flex items-center justify-between mb-1">
+                                                <label className="text-[10px] text-orange-200/70 uppercase font-bold flex items-center gap-1.5">
+                                                    <Clock size={10} /> Rückwirkend
+                                                </label>
+                                                {canEdit && (
+                                                    <button
+                                                        onClick={() => updateDepartment(dept.id, { is_retro_substitute_active: !dept.is_retro_substitute_active })}
+                                                        className={`flex items-center gap-2 px-2 py-1 rounded-full text-[10px] font-bold transition-all border ${dept.is_retro_substitute_active
+                                                            ? 'bg-orange-500/20 text-orange-300 border-orange-500/30 hover:bg-orange-500/30'
+                                                            : 'bg-white/5 text-white/40 border-white/5 hover:bg-white/10'}`}
+                                                    >
+                                                        <span>{dept.is_retro_substitute_active ? 'AKTIV' : 'INAKTIV'}</span>
+                                                        <div className={`w-2 h-2 rounded-full ${dept.is_retro_substitute_active ? 'bg-orange-400 shadow-[0_0_5px_currentColor]' : 'bg-white/20'}`} />
+                                                    </button>
+                                                )}
                                             </div>
-                                        )}
-                                    </div>
 
-                                    {/* Active Toggle */}
-                                    <div className="flex items-center justify-between bg-white/5 p-2 rounded border border-white/5">
-                                        <span className="text-[10px] text-white/60 font-bold uppercase">Aktiv?</span>
-                                        <button
-                                            disabled={!canEdit}
-                                            onClick={() => updateDepartment(dept.id, { is_substitute_active: !dept.is_substitute_active })}
-                                            className={`w-8 h-4 rounded-full relative transition-colors ${dept.is_substitute_active ? 'bg-teal-500' : 'bg-white/10'}`}
-                                        >
-                                            <div className={`absolute top-0.5 w-3 h-3 bg-white rounded-full transition-transform shadow ${dept.is_substitute_active ? 'left-[18px]' : 'left-0.5'}`} />
-                                        </button>
+                                            <div className="grid grid-cols-2 gap-2">
+                                                {/* Chef Retro */}
+                                                <div>
+                                                    <label className="text-[9px] text-white/30 uppercase font-bold block mb-1 ml-1">Chef</label>
+                                                    {canEdit ? (
+                                                        <div className="relative">
+                                                            <select
+                                                                className="w-full bg-slate-950/40 text-orange-100 text-[11px] rounded-lg border border-orange-500/10 p-1.5 focus:border-orange-500/50 outline-none appearance-none cursor-pointer"
+                                                                value={dept.retro_responsible_user_id || ''}
+                                                                onChange={(e) => updateDepartment(dept.id, { retro_responsible_user_id: e.target.value })}
+                                                            >
+                                                                <option value="" className="bg-slate-900 text-slate-400">Standard</option>
+                                                                {users.map(u => (
+                                                                    <option key={u.user_id} value={u.user_id} className="bg-slate-900 text-slate-200">{u.display_name}</option>
+                                                                ))}
+                                                            </select>
+                                                        </div>
+                                                    ) : (
+                                                        <div className="text-[11px] text-orange-200 bg-black/20 p-1.5 rounded-lg border border-white/5 truncate">
+                                                            {users.find(u => u.user_id === dept.retro_responsible_user_id)?.display_name || '(Std)'}
+                                                        </div>
+                                                    )}
+                                                </div>
+
+                                                {/* Substitute Retro */}
+                                                <div>
+                                                    <label className="text-[9px] text-white/30 uppercase font-bold block mb-1 ml-1">Vertr.</label>
+                                                    {canEdit ? (
+                                                        <div className="relative">
+                                                            <select
+                                                                className="w-full bg-slate-950/40 text-orange-100 text-[11px] rounded-lg border border-orange-500/10 p-1.5 focus:border-orange-500/50 outline-none appearance-none cursor-pointer"
+                                                                value={dept.retro_substitute_user_id || ''}
+                                                                onChange={(e) => updateDepartment(dept.id, { retro_substitute_user_id: e.target.value })}
+                                                            >
+                                                                <option value="" className="bg-slate-900 text-slate-400">Standard</option>
+                                                                {users.map(u => (
+                                                                    <option key={u.user_id} value={u.user_id} className="bg-slate-900 text-slate-200">{u.display_name}</option>
+                                                                ))}
+                                                            </select>
+                                                        </div>
+                                                    ) : (
+                                                        <div className="text-[11px] text-orange-200 bg-black/20 p-1.5 rounded-lg border border-white/5 truncate">
+                                                            {users.find(u => u.user_id === dept.retro_substitute_user_id)?.display_name || '(Std)'}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </div>
+
                                     </div>
                                 </GlassCard>
                             )
