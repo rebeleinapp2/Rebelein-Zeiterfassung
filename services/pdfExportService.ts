@@ -330,6 +330,15 @@ export const generateProjectPdfBlob = (data: ExportData, startDate: string, endD
 
         const tableData = dayEntries.map(e => {
             let durationMin = calculateDurationInMinutes(e.start_time || '', e.end_time || '', 0);
+            
+            // Check for paid absence types with 0 duration
+            const paidAbsenceTypes = ['vacation', 'sick', 'holiday', 'special_holiday'];
+            if (durationMin === 0 && paidAbsenceTypes.includes(e.type || '')) {
+                // Use daily target hours
+                const targetHours = getDailyTargetForDate(e.date, settings.target_hours);
+                durationMin = targetHours * 60;
+            }
+
             let hoursStr = formatMinutesToDecimal(durationMin);
             let label = e.client_name;
 
@@ -401,7 +410,16 @@ export const generateProjectPdfBlob = (data: ExportData, startDate: string, endD
         const finalY = doc.lastAutoTable.finalY;
         const totalMinutes = dayEntries.reduce((acc, curr) => {
             if (curr.type === 'break') return acc;
+            
             let dur = calculateDurationInMinutes(curr.start_time || '', curr.end_time || '', 0);
+            
+             // FIX: Use Target for Absences if 0
+            const paidAbsenceTypes = ['vacation', 'sick', 'holiday', 'special_holiday'];
+            if (dur === 0 && paidAbsenceTypes.includes(curr.type || '')) {
+                const target = getDailyTargetForDate(curr.date, settings.target_hours);
+                dur = target * 60;
+            }
+
             if (curr.type === 'emergency_service' && curr.surcharge) {
                 dur = dur * (1 + curr.surcharge / 100);
             }
