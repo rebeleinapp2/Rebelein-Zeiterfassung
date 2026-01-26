@@ -256,8 +256,14 @@ const HistoryPage: React.FC = () => {
     const monthlyTotalHours = useMemo(() => {
         if (viewMode === 'projects') {
             return currentMonthData.reduce((acc, [_, dayEntries]) => {
-                // Exclude overtime_reduction from "Project Hours" sum (it's not productive time)
-                return acc + dayEntries.reduce((sum, e) => (e.type === 'break' || e.type === 'overtime_reduction' ? sum : sum + e.hours), 0);
+                return acc + dayEntries.reduce((sum, e) => {
+                    if (e.type === 'break' || e.type === 'overtime_reduction') return sum;
+                    let hours = e.hours;
+                    if (e.type === 'emergency_service' && e.surcharge) {
+                        hours = hours * (1 + e.surcharge / 100);
+                    }
+                    return sum + hours;
+                }, 0);
             }, 0);
         } else {
             // For attendance view summary
@@ -601,7 +607,14 @@ const HistoryPage: React.FC = () => {
                         {currentMonthData.map(([dateStr, dayEntries]) => {
                             const dateObj = new Date(dateStr);
                             const isLocked = lockedDays.includes(dateStr);
-                            const dayTotal = dayEntries.reduce((sum, e) => (e.type === 'break' || e.type === 'overtime_reduction' ? sum : sum + e.hours), 0);
+                            const dayTotal = dayEntries.reduce((sum, e) => {
+                                if (e.type === 'break' || e.type === 'overtime_reduction') return sum;
+                                let hours = e.hours;
+                                if (e.type === 'emergency_service' && e.surcharge) {
+                                    hours = hours * (1 + e.surcharge / 100);
+                                }
+                                return sum + hours;
+                            }, 0);
                             const isWeekend = dateObj.getDay() === 0 || dateObj.getDay() === 6;
                             const allSubmitted = dayEntries.every(e => e.submitted || e.isAbsence);
 
@@ -726,7 +739,14 @@ const HistoryPage: React.FC = () => {
                                                                     </span>
                                                                 ) : (
                                                                     <span className="text-xs text-white/40 flex items-center gap-1 md:text-sm">
-                                                                        <Clock size={10} className="md:w-4 md:h-4" /> {entry.hours.toFixed(2)} h
+                                                                        <Clock size={10} className="md:w-4 md:h-4" /> 
+                                                                        {entry.type === 'emergency_service' && entry.surcharge ? (
+                                                                            <span title={`Basis: ${entry.hours.toFixed(2)}h + ${entry.surcharge}% Zuschlag`}>
+                                                                                {(entry.hours * (1 + entry.surcharge / 100)).toFixed(2)} h <span className="text-[10px] opacity-70">(+{entry.surcharge}%)</span>
+                                                                            </span>
+                                                                        ) : (
+                                                                            `${entry.hours.toFixed(2)} h`
+                                                                        )}
                                                                     </span>
                                                                 )}
                                                             </div>
