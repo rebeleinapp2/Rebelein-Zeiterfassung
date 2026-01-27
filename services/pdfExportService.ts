@@ -2,7 +2,7 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { supabase } from './supabaseClient';
 import { TimeEntry, DailyLog, UserAbsence, UserSettings } from '../types';
-import { formatDuration, calculateDurationInMinutes, formatMinutesToDecimal } from './utils/timeUtils';
+import { formatDuration, calculateDurationInMinutes, formatMinutesToDecimal, calculateOverlapInMinutes } from './utils/timeUtils';
 import { getLocalISOString, getDailyTargetForDate } from './dataService';
 
 // --- Types ---
@@ -331,6 +331,16 @@ export const generateProjectPdfBlob = (data: ExportData, startDate: string, endD
         const tableData = dayEntries.map(e => {
             let durationMin = calculateDurationInMinutes(e.start_time || '', e.end_time || '', 0);
 
+            // Deduct Overlaps with BREAKS
+            if (e.type !== 'break') {
+                const breaks = dayEntries.filter(b => b.type === 'break');
+                breaks.forEach(b => {
+                    const overlap = calculateOverlapInMinutes(e.start_time || '', e.end_time || '', b.start_time || '', b.end_time || '');
+                    durationMin -= overlap;
+                });
+                durationMin = Math.max(0, durationMin);
+            }
+
             // Check for paid absence types with 0 duration
             const paidAbsenceTypes = ['vacation', 'sick', 'holiday', 'special_holiday'];
             if (durationMin === 0 && paidAbsenceTypes.includes(e.type || '')) {
@@ -356,6 +366,11 @@ export const generateProjectPdfBlob = (data: ExportData, startDate: string, endD
             // [UPDATED] Add Note on new line
             if (e.note) {
                 label += `\n${e.note}`;
+            }
+
+            // Hide hours for Break entries as requested
+            if (e.type === 'break') {
+                hoursStr = '';
             }
 
             return [
@@ -399,6 +414,14 @@ export const generateProjectPdfBlob = (data: ExportData, startDate: string, endD
             if (curr.type === 'break') return acc;
 
             let dur = calculateDurationInMinutes(curr.start_time || '', curr.end_time || '', 0);
+
+            // Deduct Overlaps with BREAKS
+            const breaks = dayEntries.filter(b => b.type === 'break');
+            breaks.forEach(b => {
+                const overlap = calculateOverlapInMinutes(curr.start_time || '', curr.end_time || '', b.start_time || '', b.end_time || '');
+                dur -= overlap;
+            });
+            dur = Math.max(0, dur);
 
             // FIX: Use Target for Absences if 0
             const paidAbsenceTypes = ['vacation', 'sick', 'holiday', 'special_holiday'];
@@ -612,12 +635,26 @@ export const generateMonthlyReportPdfBlob = (data: ExportData, startDate: string
 
         // Actuals: Projects + Credits
         // INCLUDE overtime_reduction to match App "Project Hours"
+        const dayBreaks = entries.filter(e => e.date === dateStr && e.type === 'break');
         const dayEntries = entries.filter(e => e.date === dateStr && e.type !== 'break' && !absenceTypes.includes(e.type || ''));
         const dayHours = dayEntries.reduce((sum, e) => {
-            if (e.type === 'emergency_service' && e.surcharge) {
-                return sum + (e.hours * (1 + e.surcharge / 100));
+            let h = e.hours;
+            // Fallback if hours is NaN (e.g. from old malformed entry)
+            if (isNaN(h)) {
+                h = calculateDurationInMinutes(e.start_time || '', e.end_time || '', 0) / 60;
             }
-            return sum + e.hours;
+
+            // Deduct Overlaps
+            dayBreaks.forEach(b => {
+                const overlap = calculateOverlapInMinutes(e.start_time || '', e.end_time || '', b.start_time || '', b.end_time || '');
+                h -= (overlap / 60);
+            });
+            h = Math.max(0, h);
+
+            if (e.type === 'emergency_service' && e.surcharge) {
+                return sum + (h * (1 + e.surcharge / 100));
+            }
+            return sum + h;
         }, 0);
         const credits = calculateCredits(dateStr);
 
@@ -786,10 +823,19 @@ export const generateMonthlyReportPdfBlob = (data: ExportData, startDate: string
             }]);
         }
 
-        // Calculate Day Total for Header (using minutes)
+        // Calculate Day Total for Header (using minutes) - With Overlap Deduction
         const dayTotalMinutes = dayItems.reduce((sum: number, item: any) => {
             if (item.type !== 'break' && !item.isAbsence) {
                 let duration = calculateDurationInMinutes(item.start_time || '', item.end_time || '', 0);
+
+                // Deduct Overlaps with BREAKS (New Logic)
+                const breaks = dayItems.filter((b: any) => b.type === 'break');
+                breaks.forEach((b: any) => {
+                    const overlap = calculateOverlapInMinutes(item.start_time || '', item.end_time || '', b.start_time || '', b.end_time || '');
+                    duration -= overlap;
+                });
+                duration = Math.max(0, duration);
+
                 if (item.type === 'emergency_service' && item.surcharge) {
                     duration = duration * (1 + item.surcharge / 100);
                 }
@@ -832,6 +878,15 @@ export const generateMonthlyReportPdfBlob = (data: ExportData, startDate: string
             } else {
                 // Work entry
                 durationMin = calculateDurationInMinutes(item.start_time || '', item.end_time || '', 0);
+
+                // Deduct Overlaps with BREAKS (New Logic)
+                const breaks = dayItems.filter(b => b.type === 'break');
+                breaks.forEach(b => {
+                    const overlap = calculateOverlapInMinutes(item.start_time || '', item.end_time || '', b.start_time || '', b.end_time || '');
+                    durationMin -= overlap;
+                });
+                durationMin = Math.max(0, durationMin);
+
                 if (item.type === 'emergency_service' && item.surcharge) {
                     const totalMin = durationMin * (1 + item.surcharge / 100);
                     hoursStr = `${formatMinutesToDecimal(totalMin)}`;

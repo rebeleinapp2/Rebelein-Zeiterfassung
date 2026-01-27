@@ -2,10 +2,52 @@ import { format, parse, differenceInMinutes, addDays, isBefore, isWeekend } from
 import { de } from 'date-fns/locale';
 
 // Helper to parse "HH:mm" string to minutes from start of day
+// Helper to parse "HH:mm" string to minutes from start of day
 const parseTimeToMinutes = (timeStr: string): number => {
   if (!timeStr) return 0;
-  const [hours, minutes] = timeStr.split(':').map(Number);
-  return (hours * 60) + minutes;
+
+  if (timeStr.includes(':')) {
+    const [hours, minutes] = timeStr.split(':').map(Number);
+    return (hours * 60) + (minutes || 0);
+  }
+
+  // Handle "HH" (22) or "HHMM" (2230) or "HMM" (830)
+  const clean = timeStr.trim();
+  if (/^\d{1,2}$/.test(clean)) {
+    const h = parseInt(clean, 10);
+    return h * 60;
+  }
+  if (/^\d{3}$/.test(clean)) {
+    const h = parseInt(clean.substring(0, 1), 10);
+    const m = parseInt(clean.substring(1), 10);
+    return (h * 60) + m;
+  }
+  if (/^\d{4}$/.test(clean)) {
+    const h = parseInt(clean.substring(0, 2), 10);
+    const m = parseInt(clean.substring(2), 10);
+    return (h * 60) + m;
+  }
+
+  return 0; // Fallback
+};
+
+// Helper to calculate overlap in minutes between two time ranges (HH:MM)
+export const calculateOverlapInMinutes = (start1: string, end1: string, start2: string, end2: string): number => {
+  if (!start1 || !end1 || !start2 || !end2) return 0;
+
+  const s1 = parseTimeToMinutes(start1);
+  const e1 = parseTimeToMinutes(end1);
+  const s2 = parseTimeToMinutes(start2);
+  const e2 = parseTimeToMinutes(end2);
+
+  // If any time is invalid (0 and not "00:00" explicitly? parseTimeToMinutes returns 0 for invalid)
+  // Actually parseTimeToMinutes handles it well. 
+  // Assumption: End time is after start time (crossing midnight not handled here for simplicity as per existing logic)
+
+  const start = Math.max(s1, s2);
+  const end = Math.min(e1, e2);
+
+  return Math.max(0, end - start);
 };
 
 // Berechnet die Dauer in Minuten (interner Gebrauch für präzise Addition)

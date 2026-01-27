@@ -93,8 +93,11 @@ const OfficeUserListPage: React.FC = () => {
     // VIEWABLE USERS LOGIC
     const viewableUserIds = useMemo(() => {
         if (!currentUser) return [];
-        if (isAdmin) return users.map(u => u.user_id); // Admin sees all
+        // Admin AND Office see ALL users now (Rule Change)
+        // But we will use 'responsibleDepartments' to gray out others later
+        if (isAdmin || currentUser.role === 'office') return users.map(u => u.user_id);
 
+        // Fallback for other roles (e.g. if we had sub-managers)
         const deptIds = new Set<string>();
         responsibleDepartments.forEach(d => deptIds.add(d.id));
         activeSubstituteDepartments.forEach(d => deptIds.add(d.id));
@@ -752,11 +755,18 @@ const OfficeUserListPage: React.FC = () => {
                                             const progressPercent = Math.min(100, (stats.actualHours / (stats.targetHours || 1)) * 100);
                                             const isInstaller = user.role === 'installer';
 
+                                            const isResponsibleForUser = isAdmin || responsibleDepartments.some(d => d.id === user.department_id) || activeSubstituteDepartments.some(d => d.id === user.department_id) || user.department_id === null; // Admins handle unassigned too usually
+
+                                            // Opacity Logic: 
+                                            // - Full Opacity if Responsible OR Admin
+                                            // - Reduced Opacity (0.5) if Office view but not responsible
+                                            const cardOpacity = isResponsibleForUser ? 'opacity-100' : 'opacity-50 hover:opacity-100';
+
                                             return (
                                                 <GlassCard
                                                     key={user.user_id}
                                                     onClick={() => navigate(`/office/user/${user.user_id}`)}
-                                                    className="group cursor-pointer hover:border-teal-500/30 transition-all duration-300 relative overflow-hidden flex flex-col pt-4"
+                                                    className={`group cursor-pointer hover:border-teal-500/30 transition-all duration-300 relative overflow-hidden flex flex-col pt-4 ${cardOpacity}`}
                                                 >
                                                     {/* Card Header (Dept & Role) */}
                                                     <div className="flex justify-between items-start mb-4 relative z-10">

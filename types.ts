@@ -84,7 +84,7 @@ export interface UserPreferences {
   visible_dashboard_groups?: string[]; // IDs of open groups
 }
 
-export type UserRole = 'admin' | 'office' | 'installer' | 'azubi';
+export type UserRole = 'admin' | 'office' | 'installer' | 'azubi' | 'super_admin';
 
 export interface UserSettings {
   user_id?: string; // Optional, da beim Laden oft implizit

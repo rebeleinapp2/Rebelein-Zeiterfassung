@@ -319,7 +319,7 @@ export const useTimeEntries = (customUserId?: string) => {
       // However, if require_confirmation is FALSE, maybe late checks are also skipped?
       // User said "einzige Ausnahme", let's assume Late Check is still dominant for safety.
       // If current user is NOT admin, revoke confirmation.
-      if (entry.late_reason && currentUserRole !== 'admin') {
+      if (entry.late_reason && currentUserRole !== 'admin' && currentUserRole !== 'super_admin') {
         delete autoConfirmData.confirmed_by;
         delete autoConfirmData.confirmed_at;
         autoConfirmData.submitted = false; // Stay draft

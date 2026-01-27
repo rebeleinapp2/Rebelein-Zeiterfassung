@@ -16,7 +16,7 @@ import { TimeEntry, UserAbsence, VacationRequest } from '../types';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import GlassDatePicker from '../components/GlassDatePicker';
-import { formatDuration } from '../services/utils/timeUtils';
+import { formatDuration, calculateOverlapInMinutes } from '../services/utils/timeUtils';
 // @ts-ignore
 import logoRebelein from '../logo/Logo Rebelein.jpeg';
 
@@ -132,6 +132,8 @@ const OfficeUserPage: React.FC = () => {
     // --- PERMISSION CHECK (Department Logic) ---
     const canManage = useMemo(() => {
         if (!viewerSettings || !currentUser) return false;
+        // Super Admin Bypass
+        if (viewerSettings.role === 'super_admin') return true;
         if (viewerSettings.role === 'admin') return true;
 
         if (!currentUser.department_id) return false; // No department assigned, only admin can manage? Or maybe default to false.
@@ -831,6 +833,12 @@ const OfficeUserPage: React.FC = () => {
         const reason = window.prompt("Bitte geben Sie einen Grund für die Löschung an:");
         if (!reason) return;
 
+        // Super-Admin Bypass: Delete directly
+        if (viewerSettings?.role === 'super_admin') {
+            await deleteEntry(entryId, reason);
+            return;
+        }
+
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) return;
 
@@ -1433,7 +1441,7 @@ const OfficeUserPage: React.FC = () => {
                                             onClick={() => {
                                                 // Permission Check: Only Admin/Office allowed
                                                 const role = viewerSettings?.role;
-                                                if (role !== 'admin' && role !== 'office' && (role as string) !== 'chef') {
+                                                if (role !== 'super_admin' && role !== 'admin' && role !== 'office' && (role as string) !== 'chef') {
                                                     setShowPermissionError(true);
                                                     return;
                                                 }
@@ -1635,10 +1643,25 @@ const OfficeUserPage: React.FC = () => {
                     const absence = absences.find(a => dateStr >= a.start_date && dateStr <= a.end_date);
 
                     // Calculate hours (Ist) - EXCLUDE DELETED
+                    // Calculate hours (Ist) - EXCLUDE DELETED & DEDUCT BREAK OVERLAPS
                     const dayEntries = monthEntries.filter(e => e.date === dateStr && !e.is_deleted && !e.deleted_at);
                     let hours = 0;
                     if (dayEntries.length > 0) {
-                        hours = dayEntries.reduce((acc, e) => e.type === 'break' ? acc : acc + e.hours, 0);
+                        const workEntries = dayEntries.filter(e => e.type !== 'break');
+                        const breakEntries = dayEntries.filter(e => e.type === 'break');
+
+                        let workSum = workEntries.reduce((acc, e) => acc + (isNaN(e.hours) ? 0 : e.hours), 0);
+
+                        // Deduct overlaps
+                        let overlapDeduction = 0;
+                        workEntries.forEach(w => {
+                            breakEntries.forEach(b => {
+                                const mins = calculateOverlapInMinutes(w.start_time || '', w.end_time || '', b.start_time || '', b.end_time || '');
+                                overlapDeduction += (mins / 60);
+                            });
+                        });
+
+                        hours = Math.max(0, workSum - overlapDeduction);
                     }
 
                     // ADDED: Consider Absences (Vacation, Sick, Holiday...) as effective working time (Ist)
@@ -1814,6 +1837,19 @@ const OfficeUserPage: React.FC = () => {
                                 )}
                                 {modalEntries.map(entry => {
                                     const isDeleted = entry.is_deleted || entry.deleted_at;
+                                    // Calculate Net Hours for Display (Deduct Overlaps)
+                                    let displayHours = isNaN(entry.hours) ? 0 : entry.hours;
+                                    let deduction = 0;
+                                    if (entry.type !== 'break' && !isDeleted) {
+                                        const breaks = modalEntries.filter(b => b.type === 'break' && !b.is_deleted && !b.deleted_at);
+                                        breaks.forEach(b => {
+                                            const overlap = calculateOverlapInMinutes(entry.start_time || '', entry.end_time || '', b.start_time || '', b.end_time || '');
+                                            deduction += (overlap / 60);
+                                        });
+                                        displayHours -= deduction;
+                                        displayHours = Math.max(0, displayHours);
+                                    }
+
                                     return (
                                         <div key={entry.id} className={`group relative p-4 rounded-xl border transition-all ${entry.type === 'emergency_service' ? 'bg-rose-500/10 border-rose-500/50 shadow-[0_0_15px_rgba(244,63,94,0.15)]' : 'bg-white/5 border-white/10 hover:bg-white/10'} ${isDeleted ? 'opacity-50 grayscale border-dashed !bg-black/40' : ''}`}>
                                             {editingEntry?.id === entry.id ? (
@@ -1855,8 +1891,13 @@ const OfficeUserPage: React.FC = () => {
                                                         {/* TIME & DURATION */}
                                                         <div className="flex flex-row md:flex-col items-center md:items-start gap-3 md:gap-1 min-w-[100px] border-b md:border-b-0 md:border-r border-white/10 pb-2 md:pb-0 md:pr-4 w-full md:w-auto">
                                                             <div className="text-white font-mono font-bold text-lg leading-none">
-                                                                {entry.hours.toFixed(2)}<span className="text-xs text-white/40 font-sans ml-1">h</span>
+                                                                {displayHours.toFixed(2)}<span className="text-xs text-white/40 font-sans ml-1">h</span>
                                                             </div>
+                                                            {deduction > 0 && (
+                                                                <div className="text-[10px] text-orange-300/60 font-mono mt-0.5 leading-tight" title="Pausenabzug">
+                                                                    {entry.hours.toFixed(2)} - {deduction.toFixed(2)}
+                                                                </div>
+                                                            )}
                                                             <div className="text-xs text-white/40 font-mono flex items-center gap-1">
                                                                 <Clock size={10} />
                                                                 {entry.start_time && entry.end_time ? `${entry.start_time} - ${entry.end_time}` : 'Manuell'}
@@ -1937,7 +1978,7 @@ const OfficeUserPage: React.FC = () => {
                                                                     {(() => {
                                                                         if (!canManage) return false;
                                                                         if (entry.responsible_user_id && viewerSettings?.user_id !== entry.responsible_user_id) return false;
-                                                                        if (entry.late_reason && !entry.responsible_user_id && viewerSettings?.role !== 'admin') return false;
+                                                                        if (entry.late_reason && !entry.responsible_user_id && viewerSettings?.role !== 'admin' && viewerSettings?.role !== 'super_admin') return false;
 
                                                                         // 3. Limit to specific types (Company, Office, etc.) like in Dashboard
                                                                         const confirmationTypes = ['company', 'office', 'warehouse', 'car', 'overtime_reduction'];
