@@ -18,7 +18,8 @@ import autoTable from 'jspdf-autotable';
 import GlassDatePicker from '../components/GlassDatePicker';
 import { formatDuration, calculateOverlapInMinutes } from '../services/utils/timeUtils';
 // @ts-ignore
-import logoRebelein from '../logo/Logo Rebelein.jpeg';
+// import logoRebelein from '../logo/Logo Rebelein.jpeg';
+const logoRebelein = '/logo/Logo Rebelein.jpeg';
 
 const OfficeUserPage: React.FC = () => {
     // Debug: OfficeUserPage loaded
