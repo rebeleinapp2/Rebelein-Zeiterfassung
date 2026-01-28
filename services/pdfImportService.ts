@@ -2,9 +2,8 @@ import * as pdfjsLib from 'pdfjs-dist';
 import { supabase } from './supabaseClient';
 
 // Worker Konfiguration für Vite
-// @ts-ignore
-import pdfWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
-pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorker;
+// Use CDN for production stability to avoid MIME type errors (application/octet-stream)
+pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/5.4.530/pdf.worker.min.mjs';
 
 export interface PdfAnalysisResult {
     success: boolean;
