@@ -11,13 +11,7 @@ const GlassLayout: React.FC<GlassLayoutProps> = ({ children }) => {
         /* Dynamic Mesh Gradient Animation */
         /* Dynamic Mesh Gradient Animation REMOVED for Performance */
         
-        .mesh-blob {
-          /* animation: float 20s ease-in-out infinite; */
-          opacity: 0.6;
-        }
 
-        /* .mesh-blob-delay-1 { animation-delay: -5s; } */
-        /* .mesh-blob-delay-2 { animation-delay: -12s; } */
 
         /* Custom Scrollbar for the main content area */
         .glass-scrollbar::-webkit-scrollbar {
@@ -35,21 +29,20 @@ const GlassLayout: React.FC<GlassLayoutProps> = ({ children }) => {
         }
       `}</style>
 
-      {/* Modern Mesh Gradient Background */}
-      <div className="fixed inset-0 z-0 overflow-hidden pointer-events-none">
-        {/* Deep Base Gradient */}
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-900 via-slate-950 to-black" />
-
-        {/* Vibrant Orbs */}
-        {/* Top Right - Cyan/Teal */}
-        <div className="mesh-blob absolute -top-[10%] -right-[10%] w-[50vw] h-[50vw] bg-teal-500/20 rounded-full blur-[100px] mix-blend-screen" />
-
-        {/* Bottom Left - Emerald/Green */}
-        <div className="mesh-blob mesh-blob-delay-1 absolute -bottom-[10%] -left-[10%] w-[60vw] h-[60vw] bg-emerald-600/20 rounded-full blur-[120px] mix-blend-screen" />
-
-        {/* Center/Top - Blue/Purple Accent for depth */}
-        <div className="mesh-blob mesh-blob-delay-2 absolute top-[20%] left-[20%] w-[40vw] h-[40vw] bg-blue-600/10 rounded-full blur-[100px] mix-blend-screen" />
-      </div>
+      {/* PERFORMANCE FIX: 
+         Statt echter <div> Blobs mit Blur-Filter nutzen wir einen einzigen CSS-Hintergrund.
+         Das sieht fast genauso aus, kostet aber 0% Leistung.
+      */}
+      <div
+        className="fixed inset-0 z-0 pointer-events-none"
+        style={{
+          background: `
+            radial-gradient(circle at 90% 10%, rgba(20, 184, 166, 0.15) 0%, transparent 40%),
+            radial-gradient(circle at 10% 90%, rgba(5, 150, 105, 0.15) 0%, transparent 40%),
+            linear-gradient(to bottom right, #0f172a, #020617)
+          `
+        }}
+      />
 
       {/* Main Content Container */}
       <SidebarAwareContainer>
