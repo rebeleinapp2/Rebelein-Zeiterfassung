@@ -1,4 +1,4 @@
-const CACHE_NAME = 'zeiterfassung-v65';
+const CACHE_NAME = 'zeiterfassung-v66';
 
 const ASSETS = [
   '/',
@@ -90,10 +90,35 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // ASSETS (JS, CSS, Images): Cache First, fallback to Network
+  // ASSETS (JS, CSS, Images): Cache First, fallback to Network AND Cache
+  // This validates that if we fetch from network, we save it for next time.
   event.respondWith(
-    caches.match(event.request).then((response) => {
-      return response || fetch(event.request);
+    caches.match(event.request).then((cachedResponse) => {
+      if (cachedResponse) {
+        return cachedResponse;
+      }
+
+      return fetch(event.request).then((networkResponse) => {
+        // Check if we received a valid response
+        if (!networkResponse || networkResponse.status !== 200 || networkResponse.type !== 'basic') {
+          return networkResponse;
+        }
+
+        // Clone the response because it's a stream and can only be consumed once
+        const responseToCache = networkResponse.clone();
+
+        caches.open(CACHE_NAME).then((cache) => {
+          // Don't cache API calls or other external stuff if necessary, 
+          // but for now we cache everything that isn't excluded.
+          // Filtering out sockjs, hmr, etc if in dev, but this is prod SW.
+          // Check if it's an asset (js, css, png, etc)
+          if (url.pathname.match(/\.(js|css|png|jpg|jpeg|svg|woff2)$/)) {
+            cache.put(event.request, responseToCache);
+          }
+        });
+
+        return networkResponse;
+      });
     })
   );
 });
