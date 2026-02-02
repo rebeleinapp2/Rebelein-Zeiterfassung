@@ -37,7 +37,7 @@ export default defineConfig({
     outDir: 'dist',
   },
   define: {
-    'process.env.APP_VERSION': JSON.stringify("1.1.18"),
+    'process.env.APP_VERSION': JSON.stringify("1.1.19"),
   },
   server: {
     port: 3000,
