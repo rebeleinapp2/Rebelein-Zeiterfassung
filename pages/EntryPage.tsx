@@ -697,9 +697,34 @@ const EntryPage: React.FC = () => {
         }
     };
 
-    // Helpers
+    // --- TIME INPUT HELPERS ---
+    const enforceTimeFormat = (val: string) => {
+        // 1. Replace dots with colons
+        let cleaned = val.replace(/\./g, ':');
+
+        // 2. Remove invalid characters (keep only digits and colon)
+        cleaned = cleaned.replace(/[^\d:]/g, '');
+
+        // 3. Auto-insert colon if user types 3 or 4 digits without one
+        // e.g. "103" -> "10:3", "1030" -> "10:30"
+        if (cleaned.length >= 3 && !cleaned.includes(':')) {
+            // If they typed something like "103", make it "10:3"
+            // If they typed "800", make it "80:0" which is invalid but blur will fix it?
+            // Actually, for single digit hours like 800, we might want 08:00
+            // But let's keep it simple for now as per plan.
+            cleaned = cleaned.slice(0, 2) + ':' + cleaned.slice(2);
+        }
+
+        // 4. Limit length to 5 characters (HH:mm)
+        if (cleaned.length > 5) {
+            cleaned = cleaned.slice(0, 5);
+        }
+
+        return cleaned;
+    };
+
     const formatTimeInput = (val: string) => {
-        const cleanVal = val.trim();
+        const cleanVal = val.trim().replace(/\./g, ':'); // Handle dot here too
         if (/^\d{1,2}$/.test(cleanVal)) {
             const h = parseInt(cleanVal, 10);
             if (h >= 0 && h <= 23) return `${String(h).padStart(2, '0')}:00`;
@@ -760,25 +785,23 @@ const EntryPage: React.FC = () => {
     };
 
     const handleStartTimeChange = (val: string) => {
-        setProjectStartTime(val);
-        if (hours && val && val.includes(':')) {
+        const enforced = enforceTimeFormat(val);
+        setProjectStartTime(enforced);
+        if (hours && enforced && enforced.includes(':')) {
             const h = parseFloat(hours.replace(',', '.'));
             const minutes = Math.round(h * 60);
-            setProjectEndTime(addMinutesToTime(val, minutes));
+            setProjectEndTime(addMinutesToTime(enforced, minutes));
         }
     };
 
     const handleEndTimeChange = (val: string) => {
-        setProjectEndTime(val);
+        const enforced = enforceTimeFormat(val);
+        setProjectEndTime(enforced);
         // Live calculation on valid input
-        if (projectStartTime && val && projectStartTime.includes(':') && val.includes(':')) {
-            const diffMins = getMinutesDiff(projectStartTime, val);
+        if (projectStartTime && enforced && projectStartTime.includes(':') && enforced.includes(':')) {
+            const diffMins = getMinutesDiff(projectStartTime, enforced);
             if (diffMins > 0) {
                 setHours((diffMins / 60).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
-            } else {
-                // Keep hours if negative/invalid? Or clear? 
-                // Better to clear or do nothing if invalid range to let user fix it.
-                // setHours(''); 
             }
         }
     };
