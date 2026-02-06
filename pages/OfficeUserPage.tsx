@@ -1877,10 +1877,10 @@ const OfficeUserPage: React.FC = () => {
                             <span className={`text-sm font-bold ${text}`}>{day}</span>
 
                             {(target > 0 || hours > 0) && (
-                                <div className="flex flex-col items-center leading-none mt-1 space-y-0.5 w-full">
-                                    {target > 0 && <span className="text-[8px] text-white/40">Soll: {target.toLocaleString('de-DE', { maximumFractionDigits: 1 })}</span>}
+                                <div className="flex flex-col items-center leading-none mt-0.5 space-y-0 w-full">
+                                    {target > 0 && <span className="text-[10px] text-white/60 font-medium">Soll: {target.toLocaleString('de-DE', { maximumFractionDigits: 1 })}</span>}
                                     {hours > 0 && (
-                                        <span className={`text-[8px] font-bold ${hours >= target ? 'text-emerald-400' : 'text-red-400'}`}>
+                                        <span className={`text-[10px] font-bold ${hours >= target ? 'text-emerald-400' : 'text-red-400'}`}>
                                             Ist: {hours >= target && !['vacation', 'sick', 'holiday', 'sick_child', 'sick_pay'].includes(status) ? '+' : ''}{hours.toLocaleString('de-DE', { maximumFractionDigits: 2 })}
                                         </span>
                                     )}
@@ -2200,29 +2200,89 @@ const OfficeUserPage: React.FC = () => {
                                                                     </span>
                                                                 )}
 
-                                                                {entry.late_reason && (
-                                                                    <span className="text-[10px] font-bold text-amber-300 bg-amber-500/20 px-1.5 py-0.5 rounded border border-amber-500/30 flex items-center gap-1" title={entry.late_reason}>
-                                                                        <AlertTriangle size={10} /> Verspätet
-                                                                    </span>
-                                                                )}
-
-                                                                {entry.confirmed_at ? (
-                                                                    <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20 flex items-center gap-1">
-                                                                        <CheckCircle size={10} /> Bestätigt von {users.find(u => u.user_id === entry.confirmed_by)?.display_name || 'Admin'}
-                                                                    </span>
-                                                                ) : isDeleted ? (
-                                                                    <span className="text-[10px] font-bold text-white bg-red-500/20 px-1.5 py-0.5 rounded border border-red-500/30 flex items-center gap-1">
-                                                                        <Trash2 size={10} /> GELÖSCHT
-                                                                    </span>
-                                                                ) : entry.rejected_at ? (
-                                                                    <span className="text-[10px] font-bold text-red-400 bg-red-500/10 px-1.5 py-0.5 rounded border border-red-500/20 flex items-center gap-1">
-                                                                        <XCircle size={10} /> Abgelehnt
-                                                                    </span>
-                                                                ) : (
-                                                                    <span className="text-[10px] font-bold text-white/30 bg-white/5 px-1.5 py-0.5 rounded border border-white/10 flex items-center gap-1">
-                                                                        <Clock size={10} /> Offen
-                                                                    </span>
-                                                                )}
+                                                                {/* WORKFLOW STATUS BADGE - Priorisierte Logik */}
+                                                                {(() => {
+                                                                    // Priorität 1: Löschanfrage ausstehend
+                                                                    if (entry.deletion_requested_at && !entry.is_deleted && !entry.deleted_at) {
+                                                                        return (
+                                                                            <span className="text-[10px] font-bold text-orange-300 bg-orange-500/20 px-2 py-1 rounded border border-orange-500/40 flex items-center gap-1.5 animate-pulse">
+                                                                                <Trash2 size={11} /> Löschanfrage ausstehend
+                                                                            </span>
+                                                                        );
+                                                                    }
+                                                                    // Priorität 2: Gelöscht
+                                                                    if (isDeleted) {
+                                                                        return (
+                                                                            <span className="text-[10px] font-bold text-white bg-red-500/30 px-1.5 py-0.5 rounded border border-red-500/50 flex items-center gap-1">
+                                                                                <Trash2 size={10} /> GELÖSCHT
+                                                                            </span>
+                                                                        );
+                                                                    }
+                                                                    // Priorität 3: Änderung wartet auf Benutzerbestätigung
+                                                                    if (entry.change_confirmed_by_user === false) {
+                                                                        return (
+                                                                            <span className="text-[10px] font-bold text-amber-300 bg-amber-500/20 px-2 py-1 rounded border border-amber-500/40 flex items-center gap-1.5 animate-pulse">
+                                                                                <Edit2 size={11} /> Änderung wartet auf Bestätigung
+                                                                            </span>
+                                                                        );
+                                                                    }
+                                                                    // Priorität 4: Peer-Review ausstehend
+                                                                    if (entry.responsible_user_id && !entry.confirmed_at && !entry.rejected_at) {
+                                                                        const reviewer = users.find(u => u.user_id === entry.responsible_user_id);
+                                                                        return (
+                                                                            <span className="text-[10px] font-bold text-blue-300 bg-blue-500/20 px-2 py-1 rounded border border-blue-500/40 flex items-center gap-1.5 animate-pulse">
+                                                                                <User size={11} /> Peer-Review: {reviewer?.display_name || 'Kollege'}
+                                                                            </span>
+                                                                        );
+                                                                    }
+                                                                    // Priorität 5: Verspäteter Eintrag wartet auf Admin
+                                                                    if (entry.late_reason && !entry.confirmed_at && !entry.rejected_at) {
+                                                                        return (
+                                                                            <span className="text-[10px] font-bold text-amber-300 bg-amber-500/20 px-2 py-1 rounded border border-amber-500/40 flex items-center gap-1.5 animate-pulse" title={entry.late_reason}>
+                                                                                <AlertTriangle size={11} /> Verspätet - wartet auf Admin
+                                                                            </span>
+                                                                        );
+                                                                    }
+                                                                    // Priorität 6: Office-Bestätigung ausstehend (für bestimmte Typen)
+                                                                    const confirmationTypes = ['company', 'office', 'warehouse', 'car', 'overtime_reduction'];
+                                                                    if (confirmationTypes.includes(entry.type || '') && !entry.confirmed_at && !entry.rejected_at) {
+                                                                        return (
+                                                                            <span className="text-[10px] font-bold text-yellow-300 bg-yellow-500/20 px-2 py-1 rounded border border-yellow-500/40 flex items-center gap-1.5 animate-pulse">
+                                                                                <Clock size={11} /> Wartet auf Office-Bestätigung
+                                                                            </span>
+                                                                        );
+                                                                    }
+                                                                    // Priorität 7: Vorschlag offen
+                                                                    if (entry.is_proposal && !entry.confirmed_at && !entry.rejected_at) {
+                                                                        return (
+                                                                            <span className="text-[10px] font-bold text-cyan-300 bg-cyan-500/20 px-2 py-1 rounded border border-cyan-500/40 flex items-center gap-1.5 animate-pulse">
+                                                                                <Send size={11} /> Vorschlag offen
+                                                                            </span>
+                                                                        );
+                                                                    }
+                                                                    // Priorität 8: Bestätigt
+                                                                    if (entry.confirmed_at) {
+                                                                        return (
+                                                                            <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20 flex items-center gap-1">
+                                                                                <CheckCircle size={10} /> Bestätigt von {users.find(u => u.user_id === entry.confirmed_by)?.display_name || 'Admin'}
+                                                                            </span>
+                                                                        );
+                                                                    }
+                                                                    // Priorität 9: Abgelehnt
+                                                                    if (entry.rejected_at) {
+                                                                        return (
+                                                                            <span className="text-[10px] font-bold text-red-400 bg-red-500/10 px-1.5 py-0.5 rounded border border-red-500/20 flex items-center gap-1">
+                                                                                <XCircle size={10} /> Abgelehnt
+                                                                            </span>
+                                                                        );
+                                                                    }
+                                                                    // Default: Offen (nur für work-Typ ohne spezielle Anforderungen)
+                                                                    return (
+                                                                        <span className="text-[10px] font-bold text-white/30 bg-white/5 px-1.5 py-0.5 rounded border border-white/10 flex items-center gap-1">
+                                                                            <CheckCircle size={10} /> OK
+                                                                        </span>
+                                                                    );
+                                                                })()}
                                                             </div>
                                                         </div>
 
@@ -2571,86 +2631,238 @@ const OfficeUserPage: React.FC = () => {
             }
 
             {/* HISTORY MODAL (ENTRY CHANGES) */}
-            {historyModal.isOpen && (
-                <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
-                    <GlassCard className="w-full max-w-lg max-h-[80vh] overflow-y-auto relative shadow-2xl border-white/20">
-                        <button onClick={() => setHistoryModal({ isOpen: false, entryId: null })} className="absolute top-4 right-4 p-2 bg-white/10 hover:bg-white/20 rounded-full text-white transition-colors"><X size={20} /></button>
-                        <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2"><HistoryIcon size={20} /> Änderungsverlauf</h3>
+            {historyModal.isOpen && (() => {
+                // Get current entry to show workflow status
+                const currentEntry = entries.find(e => e.id === historyModal.entryId);
 
-                        <div className="space-y-4">
-                            {entryHistory.length === 0 ? (
-                                <p className="text-white/40 italic text-center py-4">Keine Änderungen protokolliert.</p>
-                            ) : (
-                                entryHistory.map(h => (
-                                    <div key={h.id} className="bg-white/5 p-3 rounded-lg border border-white/10 text-sm">
-                                        <div className="flex justify-between items-start mb-2">
-                                            <span className="text-white font-bold">{h.changer_name || 'Unbekannt'}</span>
-                                            <span className="text-white/40 text-xs">{new Date(h.changed_at).toLocaleString('de-DE')}</span>
-                                        </div>
-                                        <div className="bg-black/20 p-2 rounded mb-2 font-mono text-xs text-orange-200">
-                                            {h.reason ? `Grund: ${h.reason}` : 'Kein Grund angegeben'}
-                                        </div>
-                                        <div className="space-y-1 text-xs">
-                                            {Object.keys(h.new_values).map(key => {
-                                                if (key === 'updated_at' || key === 'last_changed_by' || key === 'change_reason' || key === 'change_confirmed_by_user') return null;
+                // Determine current workflow step
+                const getWorkflowSteps = () => {
+                    if (!currentEntry) return [];
 
-                                                const fieldLabels: Record<string, string> = {
-                                                    client_name: 'Kunde/Projekt',
-                                                    hours: 'Stunden',
-                                                    start_time: 'Von',
-                                                    end_time: 'Bis',
-                                                    note: 'Notiz',
-                                                    date: 'Datum',
-                                                    type: 'Typ',
-                                                };
+                    const steps: Array<{ label: string; status: 'done' | 'current' | 'pending'; timestamp?: string; actor?: string }> = [];
 
-                                                const label = fieldLabels[key] || key;
-                                                const oldVal = (h.old_values as any)?.[key];
-                                                const newVal = (h.new_values as any)?.[key];
+                    // Step 1: Created
+                    steps.push({
+                        label: 'Erstellt',
+                        status: 'done',
+                        timestamp: currentEntry.created_at,
+                        actor: users.find(u => u.user_id === currentEntry.user_id)?.display_name || 'Benutzer'
+                    });
 
-                                                return (
-                                                    <div key={key} className="grid grid-cols-[100px_1fr] gap-2 items-center bg-white/5 p-1.5 rounded">
-                                                        <span className="text-white/40 uppercase font-bold text-[10px]">{label}</span>
-                                                        <div className="flex items-center gap-1.5 flex-wrap">
-                                                            <span className="text-red-300 line-through decoration-red-500/50">{oldVal !== undefined && oldVal !== null ? String(oldVal) : '(leer)'}</span>
-                                                            <span className="text-white/30">→</span>
-                                                            <span className="text-emerald-300 font-bold">{newVal !== undefined && newVal !== null ? String(newVal) : '(gelöscht)'}</span>
-                                                        </div>
-                                                    </div>
-                                                );
-                                            })}
-                                        </div>
-                                        {h.status === 'pending' && (
-                                            <div className="mt-2 text-yellow-300 text-xs font-bold border border-yellow-500/30 bg-yellow-500/10 px-2 py-1 rounded inline-block">
-                                                Wartet auf Bestätigung
-                                            </div>
-                                        )}
-                                        {h.status === 'confirmed' && (
-                                            <div className="mt-2 text-emerald-300 text-xs font-bold border border-emerald-500/30 bg-emerald-500/10 px-2 py-1 rounded inline-block">
-                                                <div className="flex items-center gap-1">
-                                                    <CheckCircle size={12} />
-                                                    <span>Bestätigt am {h.user_response_at ? new Date(h.user_response_at).toLocaleString('de-DE') : 'Unbekannt'}</span>
-                                                </div>
-                                            </div>
-                                        )}
-                                        {h.status === 'rejected' && (
-                                            <div className="mt-2 text-red-300 text-xs font-bold border border-red-500/30 bg-red-500/10 px-2 py-1 rounded inline-block">
-                                                <div className="flex flex-col gap-1">
-                                                    <div className="flex items-center gap-1">
-                                                        <X size={12} />
-                                                        <span>Abgelehnt am {h.user_response_at ? new Date(h.user_response_at).toLocaleString('de-DE') : 'Unbekannt'}</span>
-                                                    </div>
-                                                    {h.user_response_note && <span className="text-white/60 font-normal">"{h.user_response_note}"</span>}
-                                                </div>
-                                            </div>
-                                        )}
+                    // Step 2: Last Edit (if has history)
+                    if (entryHistory.length > 0) {
+                        const lastEdit = entryHistory[0];
+                        steps.push({
+                            label: 'Bearbeitet',
+                            status: 'done',
+                            timestamp: lastEdit.changed_at,
+                            actor: lastEdit.changer_name || 'Unbekannt'
+                        });
+                    }
+
+                    // Step 3: Pending Actions (if any)
+                    if (currentEntry.deletion_requested_at && !currentEntry.is_deleted && !currentEntry.deleted_at) {
+                        steps.push({ label: 'Löschanfrage wartet auf Bestätigung', status: 'current' });
+                        steps.push({ label: 'Abgeschlossen', status: 'pending' });
+                    } else if (currentEntry.change_confirmed_by_user === false) {
+                        steps.push({ label: 'Änderung wartet auf Benutzerbestätigung', status: 'current' });
+                        steps.push({ label: 'Abgeschlossen', status: 'pending' });
+                    } else if (currentEntry.responsible_user_id && !currentEntry.confirmed_at && !currentEntry.rejected_at) {
+                        const reviewer = users.find(u => u.user_id === currentEntry.responsible_user_id);
+                        steps.push({ label: `Peer-Review ausstehend (${reviewer?.display_name || 'Kollege'})`, status: 'current' });
+                        steps.push({ label: 'Abgeschlossen', status: 'pending' });
+                    } else if (currentEntry.late_reason && !currentEntry.confirmed_at && !currentEntry.rejected_at) {
+                        steps.push({ label: 'Verspätung wartet auf Admin-Bestätigung', status: 'current' });
+                        steps.push({ label: 'Abgeschlossen', status: 'pending' });
+                    } else if (['company', 'office', 'warehouse', 'car', 'overtime_reduction'].includes(currentEntry.type || '') && !currentEntry.confirmed_at && !currentEntry.rejected_at) {
+                        steps.push({ label: 'Wartet auf Office-Bestätigung', status: 'current' });
+                        steps.push({ label: 'Abgeschlossen', status: 'pending' });
+                    } else if (currentEntry.is_proposal && !currentEntry.confirmed_at && !currentEntry.rejected_at) {
+                        steps.push({ label: 'Vorschlag wartet auf Annahme', status: 'current' });
+                        steps.push({ label: 'Abgeschlossen', status: 'pending' });
+                    } else if (currentEntry.confirmed_at) {
+                        steps.push({
+                            label: 'Bestätigt',
+                            status: 'done',
+                            timestamp: currentEntry.confirmed_at,
+                            actor: users.find(u => u.user_id === currentEntry.confirmed_by)?.display_name || 'Admin'
+                        });
+                    } else if (currentEntry.rejected_at) {
+                        steps.push({
+                            label: 'Abgelehnt',
+                            status: 'done',
+                            timestamp: currentEntry.rejected_at,
+                            actor: users.find(u => u.user_id === currentEntry.rejected_by)?.display_name || 'Admin'
+                        });
+                    } else {
+                        steps.push({ label: 'Abgeschlossen', status: 'done' });
+                    }
+
+                    return steps;
+                };
+
+                const workflowSteps = getWorkflowSteps();
+                const hasPendingAction = workflowSteps.some(s => s.status === 'current');
+
+                // Re-Trigger Handler
+                const handleRetrigger = async () => {
+                    if (!historyModal.entryId) return;
+                    try {
+                        await supabase.from('time_entries').update({ updated_at: new Date().toISOString() }).eq('id', historyModal.entryId);
+                        alert('Benachrichtigung erneut gesendet!');
+                    } catch (err) {
+                        console.error('Retrigger failed:', err);
+                        alert('Fehler beim erneuten Senden.');
+                    }
+                };
+
+                return (
+                    <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
+                        <GlassCard className="w-full max-w-2xl max-h-[85vh] overflow-y-auto relative shadow-2xl border-white/20">
+                            <button onClick={() => setHistoryModal({ isOpen: false, entryId: null })} className="absolute top-4 right-4 p-2 bg-white/10 hover:bg-white/20 rounded-full text-white transition-colors"><X size={20} /></button>
+                            <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2"><HistoryIcon size={20} /> Änderungsverlauf & Workflow-Status</h3>
+
+                            {/* ENTRY INFO HEADER */}
+                            {currentEntry && (
+                                <div className="mb-4 p-3 bg-white/5 rounded-lg border border-white/10">
+                                    <div className="flex items-center justify-between mb-2">
+                                        <span className="font-bold text-white">{currentEntry.client_name}</span>
+                                        <span className="text-white/40 text-sm">{new Date(currentEntry.date).toLocaleDateString('de-DE')}</span>
                                     </div>
-                                ))
+                                    <div className="flex items-center gap-2 text-sm text-white/60">
+                                        <Clock size={14} />
+                                        <span>{currentEntry.start_time && currentEntry.end_time ? `${currentEntry.start_time} - ${currentEntry.end_time}` : 'Manuell'}</span>
+                                        <span className="text-white/30">•</span>
+                                        <span className="font-mono font-bold text-white">{currentEntry.hours?.toFixed(2)}h</span>
+                                    </div>
+                                </div>
                             )}
-                        </div>
-                    </GlassCard>
-                </div>
-            )}
+
+                            {/* WORKFLOW TIMELINE */}
+                            <div className="mb-6 p-4 bg-gradient-to-br from-white/5 to-white/[0.02] rounded-xl border border-white/10">
+                                <h4 className="text-xs uppercase font-bold text-white/50 mb-4 flex items-center gap-2">
+                                    <Layout size={14} /> Workflow-Status
+                                </h4>
+                                <div className="relative pl-6">
+                                    {workflowSteps.map((step, idx) => (
+                                        <div key={idx} className="relative pb-4 last:pb-0">
+                                            {/* Connecting Line */}
+                                            {idx < workflowSteps.length - 1 && (
+                                                <div className={`absolute left-[-18px] top-5 w-0.5 h-full ${step.status === 'done' ? 'bg-emerald-500/50' : 'bg-white/10'}`} />
+                                            )}
+                                            {/* Step Circle */}
+                                            <div className={`absolute left-[-24px] top-0.5 w-4 h-4 rounded-full flex items-center justify-center border-2 ${step.status === 'done' ? 'bg-emerald-500 border-emerald-400' :
+                                                    step.status === 'current' ? 'bg-yellow-500 border-yellow-400 animate-pulse' :
+                                                        'bg-white/10 border-white/20'
+                                                }`}>
+                                                {step.status === 'done' && <Check size={10} className="text-white" />}
+                                                {step.status === 'current' && <Clock size={8} className="text-white" />}
+                                            </div>
+                                            {/* Step Content */}
+                                            <div className={`${step.status === 'current' ? 'text-yellow-200' : step.status === 'done' ? 'text-white' : 'text-white/30'}`}>
+                                                <span className="font-medium text-sm">{step.label}</span>
+                                                {step.timestamp && (
+                                                    <div className="text-[10px] text-white/40 mt-0.5">
+                                                        {new Date(step.timestamp).toLocaleString('de-DE')}
+                                                        {step.actor && <span className="ml-1">• {step.actor}</span>}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+
+                                {/* RE-TRIGGER BUTTON */}
+                                {hasPendingAction && (
+                                    <button
+                                        onClick={handleRetrigger}
+                                        className="mt-4 w-full py-2 px-4 bg-gradient-to-r from-amber-500/20 to-orange-500/20 border border-amber-500/40 rounded-lg text-amber-200 text-sm font-bold flex items-center justify-center gap-2 hover:from-amber-500/30 hover:to-orange-500/30 transition-all"
+                                    >
+                                        <RotateCcw size={14} />
+                                        Benachrichtigung erneut senden
+                                    </button>
+                                )}
+                            </div>
+
+                            {/* CHANGE HISTORY */}
+                            <h4 className="text-xs uppercase font-bold text-white/50 mb-3 flex items-center gap-2">
+                                <Edit2 size={14} /> Änderungshistorie
+                            </h4>
+                            <div className="space-y-4">
+                                {entryHistory.length === 0 ? (
+                                    <p className="text-white/40 italic text-center py-4">Keine Änderungen protokolliert.</p>
+                                ) : (
+                                    entryHistory.map(h => (
+                                        <div key={h.id} className="bg-white/5 p-3 rounded-lg border border-white/10 text-sm">
+                                            <div className="flex justify-between items-start mb-2">
+                                                <span className="text-white font-bold">{h.changer_name || 'Unbekannt'}</span>
+                                                <span className="text-white/40 text-xs">{new Date(h.changed_at).toLocaleString('de-DE')}</span>
+                                            </div>
+                                            <div className="bg-black/20 p-2 rounded mb-2 font-mono text-xs text-orange-200">
+                                                {h.reason ? `Grund: ${h.reason}` : 'Kein Grund angegeben'}
+                                            </div>
+                                            <div className="space-y-1 text-xs">
+                                                {Object.keys(h.new_values).map(key => {
+                                                    if (key === 'updated_at' || key === 'last_changed_by' || key === 'change_reason' || key === 'change_confirmed_by_user') return null;
+
+                                                    const fieldLabels: Record<string, string> = {
+                                                        client_name: 'Kunde/Projekt',
+                                                        hours: 'Stunden',
+                                                        start_time: 'Von',
+                                                        end_time: 'Bis',
+                                                        note: 'Notiz',
+                                                        date: 'Datum',
+                                                        type: 'Typ',
+                                                    };
+
+                                                    const label = fieldLabels[key] || key;
+                                                    const oldVal = (h.old_values as any)?.[key];
+                                                    const newVal = (h.new_values as any)?.[key];
+
+                                                    return (
+                                                        <div key={key} className="grid grid-cols-[100px_1fr] gap-2 items-center bg-white/5 p-1.5 rounded">
+                                                            <span className="text-white/40 uppercase font-bold text-[10px]">{label}</span>
+                                                            <div className="flex items-center gap-1.5 flex-wrap">
+                                                                <span className="text-red-300 line-through decoration-red-500/50">{oldVal !== undefined && oldVal !== null ? String(oldVal) : '(leer)'}</span>
+                                                                <span className="text-white/30">→</span>
+                                                                <span className="text-emerald-300 font-bold">{newVal !== undefined && newVal !== null ? String(newVal) : '(gelöscht)'}</span>
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                            {h.status === 'pending' && (
+                                                <div className="mt-2 text-yellow-300 text-xs font-bold border border-yellow-500/30 bg-yellow-500/10 px-2 py-1 rounded inline-block">
+                                                    Wartet auf Bestätigung
+                                                </div>
+                                            )}
+                                            {h.status === 'confirmed' && (
+                                                <div className="mt-2 text-emerald-300 text-xs font-bold border border-emerald-500/30 bg-emerald-500/10 px-2 py-1 rounded inline-block">
+                                                    <div className="flex items-center gap-1">
+                                                        <CheckCircle size={12} />
+                                                        <span>Bestätigt am {h.user_response_at ? new Date(h.user_response_at).toLocaleString('de-DE') : 'Unbekannt'}</span>
+                                                    </div>
+                                                </div>
+                                            )}
+                                            {h.status === 'rejected' && (
+                                                <div className="mt-2 text-red-300 text-xs font-bold border border-red-500/30 bg-red-500/10 px-2 py-1 rounded inline-block">
+                                                    <div className="flex flex-col gap-1">
+                                                        <div className="flex items-center gap-1">
+                                                            <X size={12} />
+                                                            <span>Abgelehnt am {h.user_response_at ? new Date(h.user_response_at).toLocaleString('de-DE') : 'Unbekannt'}</span>
+                                                        </div>
+                                                        {h.user_response_note && <span className="text-white/60 font-normal">"{h.user_response_note}"</span>}
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    ))
+                                )}
+                            </div>
+                        </GlassCard>
+                    </div>
+                );
+            })()}
 
             {/* Quota History Modal */}
             {
