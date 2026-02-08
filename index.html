@@ -24,7 +24,7 @@
     // Migration: Force clear old caches if not done yet
     (function() {
       try {
-        const RESET_KEY = 'pwa_reset_v1_1_20'; // Increment this to force reset for users
+        const RESET_KEY = 'pwa_reset_v1_1_23'; // Increment this to force reset for users
         if (!localStorage.getItem(RESET_KEY)) {
           console.log('Performing PWA migration cleanup...');
           

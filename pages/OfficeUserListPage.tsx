@@ -870,11 +870,12 @@ const OfficeUserListPage: React.FC = () => {
                                                                     <span className="text-xs text-white/50 font-bold uppercase tracking-wider">Monatsziel</span>
                                                                     <div className="text-right">
                                                                         <span className={`font-mono font-bold text-lg ${stats.actualHours >= stats.targetHours ? 'text-emerald-300' : 'text-white'}`}>
-                                                                            {stats.actualHours.toFixed(1)}
+                                                                            {stats.actualHours.toFixed(2)}
                                                                         </span>
                                                                         <span className="text-white/40 text-sm font-mono"> / {stats.targetHours.toFixed(0)} h</span>
                                                                     </div>
                                                                 </div>
+
                                                                 <div className="h-2 w-full bg-white/5 rounded-full overflow-hidden">
                                                                     <div
                                                                         className={`h-full rounded-full transition-all duration-1000 ease-out ${progressPercent >= 100 ? 'bg-gradient-to-r from-emerald-500 to-teal-400' : 'bg-gradient-to-r from-blue-500 to-cyan-400'
