@@ -7,7 +7,7 @@ import GlassDatePicker from '../components/GlassDatePicker';
 import { PlusCircle, Save, X, Calendar, ChevronLeft, ChevronRight, Clock, Coffee, Building, Briefcase, Truck, Sun, Heart, AlertCircle, AlertTriangle, CheckCircle, Info, Lock, History, User, FileText, Palmtree, UserX, Copy, Loader2, RefreshCw, Send, ArrowLeft, Trash2, CalendarDays, Plus, ChevronDown, ChevronUp, ArrowRight, MessageSquareText, StickyNote, Building2, Warehouse, Car, Stethoscope, PartyPopper, Ban, TrendingDown, Play, Square, UserCheck, Check, UserPlus, ArrowLeftRight, Baby, Coins, PiggyBank, Siren, Percent, ShieldAlert, Edit2, XCircle, Hash, Users } from 'lucide-react';
 import { TimeSegment, QuotaChangeNotification, TimeEntry, UserAbsence } from '../types';
 import { formatDuration, getGracePeriodDate, formatMinutesToDecimal, calculateOverlapInMinutes } from '../services/utils/timeUtils';
-import { analyzeMontagebericht, uploadBackupFile } from '../services/pdfImportService';
+import { analyzeMontagebericht } from '../services/pdfImportService';
 
 
 // Zentrale Konfiguration für das Modal (Icons & Farben)
@@ -135,6 +135,11 @@ const EntryPage: React.FC = () => {
 
     // Nutzung von getLocalISOString statt UTC
     const [date, setDate] = useState(getLocalISOString());
+    const [endDate, setEndDate] = useState(''); // NEU: End-Datum für Zeitraum-Abwesenheiten
+    const [showEndDatePicker, setShowEndDatePicker] = useState(false);
+
+    // Abwesenheitstypen die einen Zeitraum unterstützen und keine rückwirkende Prüfung benötigen
+    const RANGE_ABSENCE_TYPES: EntryType[] = ['sick', 'sick_child', 'unpaid', 'overtime_reduction', 'sick_pay'];
     const [client, setClient] = useState('');
     const [hours, setHours] = useState('');
     const [note, setNote] = useState('');
@@ -188,9 +193,6 @@ const EntryPage: React.FC = () => {
         setAnalysisMsg(null);
 
         try {
-            // 1. Backup Upload
-            uploadBackupFile(file).catch(err => console.error("Backup failed", err));
-
             // 2. Analyse
             const result = await analyzeMontagebericht(file);
 
@@ -553,6 +555,9 @@ const EntryPage: React.FC = () => {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [showDatePicker, setShowDatePicker] = useState(false);
 
+    // --- DELETE CONFIRMATION MODAL STATE ---
+    const [deleteConfirm, setDeleteConfirm] = useState<{ isOpen: boolean; entryId: string | null; entryName: string }>({ isOpen: false, entryId: null, entryName: '' });
+
     // --- OVERLAP DETECTION STATE ---
     const [overlapWarning, setOverlapWarning] = useState<{
         isOpen: boolean;
@@ -693,6 +698,10 @@ const EntryPage: React.FC = () => {
             setProjectEndTime('');
             setOrderNumber('');
             setShowOrderInput(false);
+            // Reset end date when switching away from range types
+            if (!RANGE_ABSENCE_TYPES.includes(nextType)) {
+                setEndDate('');
+            }
         } else {
             // Restore start time if it was cleared (e.g. by passing through absence types) or is empty
             if (!projectStartTime) {
@@ -1081,14 +1090,14 @@ const EntryPage: React.FC = () => {
     };
 
     const finishSubmit = () => {
-        const isAbsence = ['vacation', 'sick', 'holiday', 'unpaid'].includes(entryType);
+        const isAbsence = ['vacation', 'sick', 'holiday', 'unpaid', 'sick_child', 'sick_pay'].includes(entryType);
 
         if (projectEndTime && !isAbsence) {
             setProjectStartTime(projectEndTime);
         }
 
         setClient('');
-
+        setEndDate(''); // Reset Zeitraum
         // Always reset type back to 'work' (project) to prevent accidentally creating wrong type entries
         if (entryType !== 'work') {
             setEntryType('work');
@@ -1125,7 +1134,7 @@ const EntryPage: React.FC = () => {
         }
 
 
-        const isAbsence = ['vacation', 'sick', 'holiday', 'unpaid'].includes(entryType);
+        const isAbsence = ['vacation', 'sick', 'holiday', 'unpaid', 'sick_child', 'sick_pay'].includes(entryType);
 
         // Validierung: Entweder Stunden ODER (Start + Ende) müssen da sein (außer bei Abwesenheiten)
         const hasTimeRange = projectStartTime && projectEndTime;
@@ -1171,7 +1180,10 @@ const EntryPage: React.FC = () => {
 
         // If > 2 days and no reason provided yet (or modal not open), TRIGGER MODAL
         // If we have an inline reason, we pass it to the modal for confirmation
-        if (diffDays > 2 && !lateEntryWarning.isOpen) {
+        // NEU: Abwesenheitstypen mit Zeitraum benötigen KEINE rückwirkende Prüfung
+        const skipLateCheck = RANGE_ABSENCE_TYPES.includes(entryType);
+
+        if (diffDays > 2 && !lateEntryWarning.isOpen && !skipLateCheck) {
             // If called from Modal Button (isOpen=true), we skip this and proceed to Save.
             // If called from Form Submit, we enter here.
 
@@ -1225,7 +1237,7 @@ const EntryPage: React.FC = () => {
         if (isAbsence) {
             await addAbsence({
                 start_date: date,
-                end_date: date,
+                end_date: endDate || date, // NEU: Zeitraum verwenden wenn gesetzt
                 type: entryType as any,
                 note: note || undefined
             });
@@ -1479,15 +1491,23 @@ const EntryPage: React.FC = () => {
     };
 
     const handleDeleteEntry = async (id: string) => {
-        if (!confirm('Eintrag wirklich löschen?')) return;
-        const { error } = await supabase.from('time_entries').update({ is_deleted: true, deleted_at: new Date().toISOString() }).eq('id', id);
+        // Find the entry to check if it's submitted
+        const entry = entries.find(e => e.id === id);
+        const isUnsubmitted = !entry?.submitted;
+        const { error } = await supabase.from('time_entries').update({
+            is_deleted: true,
+            deleted_at: new Date().toISOString(),
+            // Unsubmitted entries: auto-confirm deletion (no notification needed)
+            ...(isUnsubmitted ? { deletion_confirmed_by_user: true } : {})
+        }).eq('id', id);
         if (error) alert('Fehler beim Löschen');
+        setDeleteConfirm({ isOpen: false, entryId: null, entryName: '' });
     };
 
     return (
-        <div className="relative w-full h-full grid grid-cols-1 md:grid-cols-12 md:overflow-hidden text-white">
+        <div className="relative w-full h-full grid grid-cols-1 lg:grid-cols-12 lg:overflow-hidden text-white">
             {/* LEFT COLUMN (Header + Form) */}
-            <div className="md:col-span-7 lg:col-span-8 flex flex-col h-full overflow-y-auto overflow-x-hidden p-4 md:p-6 lg:p-8 glass-scrollbar pb-32 md:pb-6">
+            <div className="lg:col-span-8 flex flex-col h-full overflow-y-auto overflow-x-hidden p-4 md:p-6 lg:p-8 glass-scrollbar pb-32 lg:pb-6">
 
                 {/* UNIFIED HEADER & DATE SECTION */}
                 <div className="mb-8 animate-in slide-in-from-top-2 duration-500">
@@ -1500,7 +1520,7 @@ const EntryPage: React.FC = () => {
                         </div>
 
                         {/* DESKTOP DATE PICKER (Visible on md+) */}
-                        <div className="hidden md:flex gap-2">
+                        <div className="hidden lg:flex gap-2">
                             <GlassButton variant="secondary" onClick={setYesterday} className="!py-2 !px-4 !text-xs !bg-white/5 hover:!bg-white/10">Gestern</GlassButton>
                             <GlassButton variant="primary" onClick={setToday} className="!py-2 !px-4 !text-xs">Heute</GlassButton>
                             <div className="w-px h-6 bg-white/10 mx-1"></div>
@@ -1517,25 +1537,80 @@ const EntryPage: React.FC = () => {
 
                     {/* MAIN DATE CARD */}
                     <GlassCard
-                        onClick={() => setShowDatePicker(true)}
+                        onClick={() => {
+                            if (RANGE_ABSENCE_TYPES.includes(entryType)) {
+                                setShowDatePicker(true); // Range picker
+                            } else {
+                                setShowDatePicker(true);
+                            }
+                        }}
                         hoverEffect={true}
-                        className="relative !p-6 flex items-center justify-between group cursor-pointer border-teal-500/20 bg-gradient-to-br from-white/5 to-teal-900/10"
+                        className={`relative !p-6 flex items-center justify-between group cursor-pointer ${RANGE_ABSENCE_TYPES.includes(entryType) && endDate
+                            ? 'border-blue-500/20 bg-gradient-to-br from-white/5 to-blue-900/10'
+                            : 'border-teal-500/20 bg-gradient-to-br from-white/5 to-teal-900/10'
+                            }`}
                     >
                         <div className="flex items-center gap-5">
-                            <div className="w-14 h-14 rounded-2xl bg-teal-500/10 flex items-center justify-center text-teal-300 group-hover:scale-110 group-hover:bg-teal-500/20 transition-all duration-300">
+                            <div className={`w-14 h-14 rounded-2xl flex items-center justify-center group-hover:scale-110 transition-all duration-300 ${RANGE_ABSENCE_TYPES.includes(entryType) && endDate
+                                ? 'bg-blue-500/10 text-blue-300 group-hover:bg-blue-500/20'
+                                : 'bg-teal-500/10 text-teal-300 group-hover:bg-teal-500/20'
+                                }`}>
                                 <CalendarDays size={28} />
                             </div>
                             <div>
-                                <div className="text-xs font-bold text-teal-200/60 uppercase tracking-wider mb-1">Ausgewähltes Datum</div>
-                                <div className="text-2xl md:text-3xl font-bold text-white font-mono tracking-tight">{displayDate}</div>
+                                {endDate && RANGE_ABSENCE_TYPES.includes(entryType) ? (
+                                    <>
+                                        <div className="text-xs font-bold text-blue-200/60 uppercase tracking-wider mb-1">Zeitraum</div>
+                                        <div className="text-xl md:text-2xl font-bold text-white font-mono tracking-tight">
+                                            {new Date(date + 'T12:00:00').toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' })}
+                                            {' — '}
+                                            {new Date(endDate + 'T12:00:00').toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' })}
+                                        </div>
+                                        <div className="text-xs text-blue-300/60 mt-0.5 font-bold">
+                                            {Math.max(1, Math.ceil((new Date(endDate + 'T12:00:00').getTime() - new Date(date + 'T12:00:00').getTime()) / 86400000) + 1)} Tage
+                                        </div>
+                                    </>
+                                ) : (
+                                    <>
+                                        <div className="text-xs font-bold text-teal-200/60 uppercase tracking-wider mb-1">Ausgewähltes Datum</div>
+                                        <div className="text-2xl md:text-3xl font-bold text-white font-mono tracking-tight">{displayDate}</div>
+                                    </>
+                                )}
                             </div>
                         </div>
-                        <ChevronDown className="text-white/20 group-hover:text-teal-400 transition-colors" size={24} />
+                        <div className="flex items-center gap-2">
+                            {endDate && RANGE_ABSENCE_TYPES.includes(entryType) && (
+                                <button
+                                    onClick={(e) => { e.stopPropagation(); setEndDate(''); }}
+                                    className="p-1.5 text-white/30 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
+                                    title="Zeitraum entfernen"
+                                >
+                                    <X size={16} />
+                                </button>
+                            )}
+                            <ChevronDown className={`${RANGE_ABSENCE_TYPES.includes(entryType) && endDate ? 'text-blue-400/30 group-hover:text-blue-400' : 'text-white/20 group-hover:text-teal-400'} transition-colors`} size={24} />
+                        </div>
                     </GlassCard>
                 </div>
 
+                {/* NEU: ZEITRAUM BUTTON (nur wenn kein Zeitraum gesetzt) */}
+                {RANGE_ABSENCE_TYPES.includes(entryType) && !endDate && (
+                    <div className="animate-in slide-in-from-top-2 duration-300 mb-2">
+                        <button
+                            onClick={() => {
+                                setEndDate(date);
+                                setShowDatePicker(true);
+                            }}
+                            className="w-full py-2.5 px-4 rounded-xl border border-dashed border-blue-500/30 bg-blue-900/5 hover:bg-blue-900/15 text-blue-300/70 hover:text-blue-300 text-xs font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-2"
+                        >
+                            <CalendarDays size={14} />
+                            Zeitraum auswählen (mehrere Tage)
+                        </button>
+                    </div>
+                )}
+
                 {/* PDF & ACTIONS BAR (Mobile Only Compact) */}
-                <div className="md:hidden flex gap-3 mb-6 overflow-x-auto pb-2 scrollbar-hide">
+                <div className="lg:hidden flex gap-3 mb-6 overflow-x-auto pb-2 scrollbar-hide">
                     <button onClick={setYesterday} className="whitespace-nowrap px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-xs font-bold text-white/60">Gestern</button>
                     <button onClick={setToday} className="whitespace-nowrap px-4 py-2 rounded-xl bg-teal-500/10 border border-teal-500/20 text-xs font-bold text-teal-300">Heute</button>
                     <div className="w-px h-8 bg-white/10 mx-1"></div>
@@ -1936,7 +2011,7 @@ const EntryPage: React.FC = () => {
 
                                 {/* ORDER NUMBER SLIDING OVERLAY */}
                                 <div
-                                    className={`absolute top-0 right-0 h-full w-[85%] bg-slate-800/95 backdrop-blur-xl border-l border-white/20 shadow-xl transition-all duration-300 ease-out z-20 flex items-center px-2 md:rounded-r-xl rounded-r-xl ${showOrderInput ? 'translate-x-0 opacity-100' : 'translate-x-full opacity-0 pointer-events-none'}`}
+                                    className={`absolute top-0 right-0 h-full w-[85%] md:w-[50%] bg-slate-800/95 backdrop-blur-xl border-l border-white/20 shadow-xl transition-all duration-300 ease-out z-20 flex items-center px-2 md:rounded-r-xl rounded-r-xl ${showOrderInput ? 'translate-x-0 opacity-100' : 'translate-x-full opacity-0 pointer-events-none'}`}
                                 >
                                     <Hash size={14} className="text-teal-400 mr-2 shrink-0" />
                                     <input
@@ -2201,7 +2276,7 @@ const EntryPage: React.FC = () => {
             </div>
 
             {/* RIGHT COLUMN (Time + History) */}
-            <div className="md:col-span-5 lg:col-span-4 h-full overflow-y-auto p-4 md:p-6 space-y-6 glass-scrollbar">
+            <div className="lg:col-span-4 h-full overflow-y-auto p-4 md:p-6 space-y-6 glass-scrollbar">
                 <GlassCard className={`space-y-0 transition-all duration-300 ${settings?.is_active === false ? 'opacity-50 pointer-events-none grayscale' : ''}`}>
                     <div
                         className="flex items-center justify-between text-orange-300 cursor-pointer mb-4"
@@ -2326,7 +2401,7 @@ const EntryPage: React.FC = () => {
                                                     </button>
                                                     <button
                                                         type="button"
-                                                        onClick={() => handleDeleteEntry(entry.id)}
+                                                        onClick={() => setDeleteConfirm({ isOpen: true, entryId: entry.id, entryName: entry.client_name || 'Eintrag' })}
                                                         className="px-2 py-1 rounded bg-red-500/20 text-red-300 text-[10px] font-bold hover:bg-red-500/30"
                                                     >
                                                         LÖSCHEN
@@ -2537,14 +2612,64 @@ const EntryPage: React.FC = () => {
             }
             {
                 showDatePicker && (
-                    <GlassDatePicker
-                        value={date}
-                        onChange={setDate}
-                        onClose={() => setShowDatePicker(false)}
-                        gracePeriodCutoff={gracePeriodCutoff}
-                    />
+                    RANGE_ABSENCE_TYPES.includes(entryType) ? (
+                        <GlassDatePicker
+                            value={date}
+                            onChange={setDate}
+                            onClose={() => setShowDatePicker(false)}
+                            rangeMode={true}
+                            rangeStart={date}
+                            rangeEnd={endDate || date}
+                            onRangeChange={(start, end) => {
+                                setDate(start);
+                                setEndDate(end);
+                            }}
+                        />
+                    ) : (
+                        <GlassDatePicker
+                            value={date}
+                            onChange={setDate}
+                            onClose={() => setShowDatePicker(false)}
+                            gracePeriodCutoff={gracePeriodCutoff}
+                        />
+                    )
                 )
             }
+            {/* DELETE CONFIRMATION MODAL */}
+            {deleteConfirm.isOpen && (
+                <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+                    <GlassCard className="w-full max-w-sm !p-0 overflow-hidden ring-1 ring-red-500/20 shadow-2xl">
+                        <div className="p-5 bg-gradient-to-b from-red-900/20 to-transparent">
+                            <div className="flex items-center gap-3 mb-3">
+                                <div className="w-10 h-10 rounded-xl bg-red-500/10 flex items-center justify-center">
+                                    <Trash2 size={20} className="text-red-400" />
+                                </div>
+                                <div>
+                                    <h3 className="text-base font-bold text-white">Eintrag löschen?</h3>
+                                    <p className="text-xs text-white/50">Diese Aktion kann nicht rückgängig gemacht werden.</p>
+                                </div>
+                            </div>
+                            <div className="bg-white/5 rounded-lg px-3 py-2 border border-white/10">
+                                <span className="text-sm text-white/80 font-medium">{deleteConfirm.entryName}</span>
+                            </div>
+                        </div>
+                        <div className="flex border-t border-white/10">
+                            <button
+                                onClick={() => setDeleteConfirm({ isOpen: false, entryId: null, entryName: '' })}
+                                className="flex-1 py-3 text-sm font-bold text-white/50 hover:text-white hover:bg-white/5 transition-colors uppercase tracking-wider"
+                            >
+                                Abbrechen
+                            </button>
+                            <button
+                                onClick={() => deleteConfirm.entryId && handleDeleteEntry(deleteConfirm.entryId)}
+                                className="flex-1 py-3 text-sm font-bold text-red-400 hover:text-red-300 hover:bg-red-500/10 transition-colors uppercase tracking-wider border-l border-white/10"
+                            >
+                                Löschen
+                            </button>
+                        </div>
+                    </GlassCard>
+                </div>
+            )}
         </div >
     );
 };

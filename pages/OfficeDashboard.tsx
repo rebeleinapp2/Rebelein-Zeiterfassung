@@ -570,29 +570,32 @@ const OfficeDashboard: React.FC = () => {
                     {/* SECTION 4: GLOBAL PEER REVIEWS (Admin/Office Only) */}
                     {isOfficeOrAdmin && pendingPeerReviews.length > 0 && (
                         <div className="animate-in slide-in-from-bottom-6">
-                            <details className="group" open>
-                                <summary className="flex items-center justify-between cursor-pointer list-none mb-4">
-                                    <h2 className="text-xl font-bold text-white flex items-center gap-2">
-                                        <UserCheck size={24} className="text-teal-400" />
-                                        <span className="text-teal-100">Ausstehende Mitarbeiter-Bestätigungen</span>
-                                        <span className="bg-teal-500/20 text-teal-300 text-xs px-2 py-0.5 rounded-full border border-teal-500/30">
-                                            {pendingPeerReviews.length}
-                                        </span>
-                                    </h2>
-                                    <div className="flex items-center gap-2">
-                                        <button
-                                            onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleConfirmAllPeerReviews(); }}
-                                            className="text-xs font-bold text-emerald-300 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5"
-                                            title="Alle ausstehenden Peer-Reviews bestätigen"
-                                        >
-                                            <CheckCircle size={14} /> Alle bestätigen
-                                        </button>
-                                        <div className="p-2 bg-white/5 rounded-lg group-open:bg-white/10 transition-colors">
-                                            <ChevronRight size={20} className="text-white/50 transition-transform group-open:rotate-90" />
-                                        </div>
+                            <div
+                                className="flex items-center justify-between cursor-pointer mb-4"
+                                onClick={() => toggleSection('peerReviews')}
+                            >
+                                <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                                    <UserCheck size={24} className="text-teal-400" />
+                                    <span className="text-teal-100">Ausstehende Mitarbeiter-Bestätigungen</span>
+                                    <span className="bg-teal-500/20 text-teal-300 text-xs px-2 py-0.5 rounded-full border border-teal-500/30">
+                                        {pendingPeerReviews.length}
+                                    </span>
+                                </h2>
+                                <div className="flex items-center gap-2">
+                                    <button
+                                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleConfirmAllPeerReviews(); }}
+                                        className="text-xs font-bold text-emerald-300 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5"
+                                        title="Alle ausstehenden Peer-Reviews bestätigen"
+                                    >
+                                        <CheckCircle size={14} /> Alle bestätigen
+                                    </button>
+                                    <div className={`p-2 rounded-lg transition-colors ${collapsedSections['peerReviews'] ? 'bg-white/5' : 'bg-white/10'}`}>
+                                        <ChevronRight size={20} className={`text-white/50 transition-transform ${!collapsedSections['peerReviews'] ? 'rotate-90' : ''}`} />
                                     </div>
-                                </summary>
+                                </div>
+                            </div>
 
+                            {!collapsedSections['peerReviews'] && (
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-8 pl-2 border-l-2 border-teal-500/10">
                                     {pendingPeerReviews.map(entry => {
                                         const creator = users.find(u => u.user_id === entry.user_id);
@@ -748,26 +751,29 @@ const OfficeDashboard: React.FC = () => {
                                         );
                                     })}
                                 </div>
-                            </details>
+                            )}
                         </div>
                     )}
                     {/* SECTION 5: CHANGE REQUESTS (User edit requests on submitted entries) */}
                     {isOfficeOrAdmin && pendingChangeRequests.length > 0 && (
                         <div className="animate-in slide-in-from-bottom-6">
-                            <details className="group" open>
-                                <summary className="flex items-center justify-between cursor-pointer list-none mb-4">
-                                    <h2 className="text-xl font-bold text-white flex items-center gap-2">
-                                        <FileText size={24} className="text-blue-400" />
-                                        <span className="text-blue-100">Änderungsanträge</span>
-                                        <span className="bg-blue-500/20 text-blue-300 text-xs px-2 py-0.5 rounded-full border border-blue-500/30">
-                                            {pendingChangeRequests.length}
-                                        </span>
-                                    </h2>
-                                    <div className="p-2 bg-white/5 rounded-lg group-open:bg-white/10 transition-colors">
-                                        <ChevronRight size={20} className="text-white/50 transition-transform group-open:rotate-90" />
-                                    </div>
-                                </summary>
+                            <div
+                                className="flex items-center justify-between cursor-pointer mb-4"
+                                onClick={() => toggleSection('changeRequests')}
+                            >
+                                <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                                    <FileText size={24} className="text-blue-400" />
+                                    <span className="text-blue-100">Änderungsanträge</span>
+                                    <span className="bg-blue-500/20 text-blue-300 text-xs px-2 py-0.5 rounded-full border border-blue-500/30">
+                                        {pendingChangeRequests.length}
+                                    </span>
+                                </h2>
+                                <div className={`p-2 rounded-lg transition-colors ${collapsedSections['changeRequests'] ? 'bg-white/5' : 'bg-white/10'}`}>
+                                    <ChevronRight size={20} className={`text-white/50 transition-transform ${!collapsedSections['changeRequests'] ? 'rotate-90' : ''}`} />
+                                </div>
+                            </div>
 
+                            {!collapsedSections['changeRequests'] && (
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8 pl-2 border-l-2 border-blue-500/10">
                                     {pendingChangeRequests.map(req => {
                                         const entry = req.time_entries;
@@ -885,294 +891,312 @@ const OfficeDashboard: React.FC = () => {
                                         );
                                     })}
                                 </div>
-                            </details>
+                            )}
                         </div>
                     )}
 
                     {/* Pending Confirmations (Grouped by User) */}
                     <div className="animate-in slide-in-from-bottom-6">
-                        <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
-                            <Shield size={24} className="text-teal-400" />
-                            <span className="text-teal-100">Zur Freigabe (Mitarbeiter)</span>
-                        </h2>
-
-                        {Object.keys(approvalsByUser).length === 0 ? (
-                            <GlassCard className="flex flex-col items-center justify-center p-8 text-white/30 gap-2 border-dashed">
-                                <CheckCircle size={40} className="mb-2" />
-                                <p>Keine offenen Freigaben</p>
-                            </GlassCard>
-                        ) : (
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                {Object.keys(approvalsByUser).map(userId => {
-                                    const userEntries = approvalsByUser[userId];
-                                    const user = users.find(u => u.user_id === userId);
-                                    if (!user) return null;
-
-                                    return (
-                                        <GlassCard
-                                            key={userId}
-                                            className="group cursor-pointer hover:border-teal-500/50 transition-all border-teal-500/20 bg-teal-900/5"
-                                            onClick={() => setReviewModal({ isOpen: true, userId })}
-                                        >
-                                            <div className="flex justify-between items-start mb-4">
-                                                <div className="flex items-center gap-3">
-                                                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-gray-700 to-gray-900 border border-white/10 flex items-center justify-center font-bold text-white">
-                                                        {user.display_name.charAt(0)}
-                                                    </div>
-                                                    <div>
-                                                        <h3 className="font-bold text-white">{user.display_name}</h3>
-                                                        <span className="text-[10px] bg-teal-500/10 text-teal-300 px-1.5 py-0.5 rounded border border-teal-500/20 uppercase font-bold tracking-wider">
-                                                            {userEntries.length} Einträge
-                                                        </span>
-                                                    </div>
-                                                </div>
-                                                <button className="p-2 bg-white/5 rounded-full hover:bg-teal-500/20 text-white/50 hover:text-teal-300 transition-colors">
-                                                    <ChevronRight size={20} />
-                                                </button>
-                                            </div>
-
-                                            {/* Preview of Types */}
-                                            <div className="flex gap-2 flex-wrap mb-2">
-                                                {userEntries.some(e => e.type === 'company') && (
-                                                    <span className="text-[10px] flex items-center gap-1 text-white/50 bg-white/5 px-2 py-1 rounded">
-                                                        <Briefcase size={10} /> Firma
-                                                    </span>
-                                                )}
-                                                {userEntries.some(e => e.type === 'office') && (
-                                                    <span className="text-[10px] flex items-center gap-1 text-white/50 bg-white/5 px-2 py-1 rounded">
-                                                        <Home size={10} /> Büro
-                                                    </span>
-                                                )}
-                                                {userEntries.some(e => e.type === 'car') && (
-                                                    <span className="text-[10px] flex items-center gap-1 text-white/50 bg-white/5 px-2 py-1 rounded">
-                                                        <Truck size={10} /> Auto
-                                                    </span>
-                                                )}
-                                                {userEntries.some(e => e.type === 'overtime_reduction') && (
-                                                    <span className="text-[10px] flex items-center gap-1 text-white/50 bg-white/5 px-2 py-1 rounded">
-                                                        <Calculator size={10} /> Abbau
-                                                    </span>
-                                                )}
-                                                {userEntries.some(e => e.late_reason) && (
-                                                    <span className="text-[10px] flex items-center gap-1 text-amber-300 bg-amber-500/10 border border-amber-500/20 px-2 py-1 rounded font-bold">
-                                                        <Clock size={10} /> Rückwirkend
-                                                    </span>
-                                                )}
-                                            </div>
-                                        </GlassCard>
-                                    );
-                                })}
+                        <div
+                            className="flex items-center justify-between cursor-pointer mb-4"
+                            onClick={() => toggleSection('confirmations')}
+                        >
+                            <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                                <Shield size={24} className="text-teal-400" />
+                                <span className="text-teal-100">Zur Freigabe (Mitarbeiter)</span>
+                            </h2>
+                            <div className={`p-2 rounded-lg transition-colors ${collapsedSections['confirmations'] ? 'bg-white/5' : 'bg-white/10'}`}>
+                                <ChevronRight size={20} className={`text-white/50 transition-transform ${!collapsedSections['confirmations'] ? 'rotate-90' : ''}`} />
                             </div>
+                        </div>
+
+                        {!collapsedSections['confirmations'] && (
+                            <>
+                                {Object.keys(approvalsByUser).length === 0 ? (
+                                    <GlassCard className="flex flex-col items-center justify-center p-8 text-white/30 gap-2 border-dashed">
+                                        <CheckCircle size={40} className="mb-2" />
+                                        <p>Keine offenen Freigaben</p>
+                                    </GlassCard>
+                                ) : (
+                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                        {Object.keys(approvalsByUser).map(userId => {
+                                            const userEntries = approvalsByUser[userId];
+                                            const user = users.find(u => u.user_id === userId);
+                                            if (!user) return null;
+
+                                            return (
+                                                <GlassCard
+                                                    key={userId}
+                                                    className="group cursor-pointer hover:border-teal-500/50 transition-all border-teal-500/20 bg-teal-900/5"
+                                                    onClick={() => setReviewModal({ isOpen: true, userId })}
+                                                >
+                                                    <div className="flex justify-between items-start mb-4">
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-gray-700 to-gray-900 border border-white/10 flex items-center justify-center font-bold text-white">
+                                                                {user.display_name.charAt(0)}
+                                                            </div>
+                                                            <div>
+                                                                <h3 className="font-bold text-white">{user.display_name}</h3>
+                                                                <span className="text-[10px] bg-teal-500/10 text-teal-300 px-1.5 py-0.5 rounded border border-teal-500/20 uppercase font-bold tracking-wider">
+                                                                    {userEntries.length} Einträge
+                                                                </span>
+                                                            </div>
+                                                        </div>
+                                                        <button className="p-2 bg-white/5 rounded-full hover:bg-teal-500/20 text-white/50 hover:text-teal-300 transition-colors">
+                                                            <ChevronRight size={20} />
+                                                        </button>
+                                                    </div>
+
+                                                    {/* Preview of Types */}
+                                                    <div className="flex gap-2 flex-wrap mb-2">
+                                                        {userEntries.some(e => e.type === 'company') && (
+                                                            <span className="text-[10px] flex items-center gap-1 text-white/50 bg-white/5 px-2 py-1 rounded">
+                                                                <Briefcase size={10} /> Firma
+                                                            </span>
+                                                        )}
+                                                        {userEntries.some(e => e.type === 'office') && (
+                                                            <span className="text-[10px] flex items-center gap-1 text-white/50 bg-white/5 px-2 py-1 rounded">
+                                                                <Home size={10} /> Büro
+                                                            </span>
+                                                        )}
+                                                        {userEntries.some(e => e.type === 'car') && (
+                                                            <span className="text-[10px] flex items-center gap-1 text-white/50 bg-white/5 px-2 py-1 rounded">
+                                                                <Truck size={10} /> Auto
+                                                            </span>
+                                                        )}
+                                                        {userEntries.some(e => e.type === 'overtime_reduction') && (
+                                                            <span className="text-[10px] flex items-center gap-1 text-white/50 bg-white/5 px-2 py-1 rounded">
+                                                                <Calculator size={10} /> Abbau
+                                                            </span>
+                                                        )}
+                                                        {userEntries.some(e => e.late_reason) && (
+                                                            <span className="text-[10px] flex items-center gap-1 text-amber-300 bg-amber-500/10 border border-amber-500/20 px-2 py-1 rounded font-bold">
+                                                                <Clock size={10} /> Rückwirkend
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </GlassCard>
+                                            );
+                                        })}
+                                    </div>
+                                )}
+                            </>
                         )}
                     </div>
                 </>
             )}
 
-            {!isOfficeOrAdmin && myPendingChanges.length === 0 && (
-                <GlassCard className="flex flex-col items-center justify-center p-12 text-white/30 gap-4 mt-8">
-                    <CheckCircle size={60} className="text-emerald-500/20" />
-                    <div className="text-center">
-                        <h3 className="text-lg font-bold text-white/50">Alles erledigt</h3>
-                        <p className="text-sm">Aktuell gibt es keine offenen Aufgaben für dich.</p>
-                    </div>
-                </GlassCard>
-            )}
+            {
+                !isOfficeOrAdmin && myPendingChanges.length === 0 && (
+                    <GlassCard className="flex flex-col items-center justify-center p-12 text-white/30 gap-4 mt-8">
+                        <CheckCircle size={60} className="text-emerald-500/20" />
+                        <div className="text-center">
+                            <h3 className="text-lg font-bold text-white/50">Alles erledigt</h3>
+                            <p className="text-sm">Aktuell gibt es keine offenen Aufgaben für dich.</p>
+                        </div>
+                    </GlassCard>
+                )
+            }
 
             {/* QUICK REVIEW MODAL */}
-            {reviewModal.isOpen && reviewModal.userId && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
-                    <GlassCard className="w-full max-w-2xl max-h-[90vh] flex flex-col !p-0 overflow-hidden shadow-2xl border-white/20">
-                        {/* Modal Header */}
-                        <div className="p-4 bg-gradient-to-r from-gray-900 to-gray-800 border-b border-white/10 flex justify-between items-center">
-                            <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-teal-500 to-emerald-600 flex items-center justify-center font-bold text-white shadow-lg">
-                                    {users.find(u => u.user_id === reviewModal.userId)?.display_name.charAt(0)}
-                                </div>
-                                <div>
-                                    <h3 className="font-bold text-white text-lg">{users.find(u => u.user_id === reviewModal.userId)?.display_name}</h3>
-                                    <p className="text-teal-300 text-xs font-bold uppercase tracking-wider">
-                                        Freigabe erforderlich
-                                    </p>
-                                </div>
-                            </div>
-                            <button onClick={() => setReviewModal({ isOpen: false, userId: null })} className="p-2 hover:bg-white/10 rounded-full text-white/50 hover:text-white transition-colors">
-                                <X size={24} />
-                            </button>
-                        </div>
-
-                        {/* Modal Body */}
-                        <div className="flex-1 overflow-y-auto p-4 space-y-3">
-                            {pendingConfirmations.filter(e => e.user_id === reviewModal.userId).length === 0 && (
-                                <p className="text-white/30 text-center italic py-4">Keine offenen Einträge.</p>
-                            )}
-                            {pendingConfirmations.filter(e => e.user_id === reviewModal.userId).map(entry => (
-                                <div key={entry.id} className={`bg-white/5 border border-white/10 rounded-xl p-3 hover:bg-white/10 transition-colors ${entry.late_reason ? 'border-amber-500/30 bg-amber-900/10' : ''}`}>
-                                    {/* Header Line */}
-                                    <div className="flex justify-between items-start mb-2">
-                                        <div className="flex items-center gap-2">
-                                            <span className="text-sm font-bold text-white/80 font-mono">{new Date(entry.date).toLocaleDateString('de-DE')}</span>
-                                            <span className="text-white/20">|</span>
-                                            {entry.late_reason ? (
-                                                <span className="text-[10px] font-bold uppercase text-amber-400">Rückwirkend</span>
-                                            ) : (
-                                                <span className="text-[10px] font-bold uppercase text-teal-300">{entry.type}</span>
-                                            )}
-                                            <span className="text-white/20">|</span>
-                                            <span className="text-sm font-bold font-mono text-white">{entry.hours}h</span>
-                                        </div>
-                                        {/* Quick Actions (Confirm / Reject) */}
-                                        <div className="flex gap-2">
-                                            {rejectionState.entryId !== entry.id && (
-                                                <>
-                                                    <button onClick={() => handleConfirmEntry(entry.id)} className="p-1.5 bg-emerald-500/20 hover:bg-emerald-500 text-emerald-400 hover:text-white rounded transition-colors" title="Bestätigen">
-                                                        <CheckCircle size={16} />
-                                                    </button>
-                                                    <button onClick={() => setRejectionState({ entryId: entry.id, reason: '' })} className="p-1.5 bg-red-500/20 hover:bg-red-500 text-red-400 hover:text-white rounded transition-colors" title="Ablehnen">
-                                                        <X size={16} />
-                                                    </button>
-                                                </>
-                                            )}
-                                        </div>
+            {
+                reviewModal.isOpen && reviewModal.userId && (
+                    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
+                        <GlassCard className="w-full max-w-2xl max-h-[90vh] flex flex-col !p-0 overflow-hidden shadow-2xl border-white/20">
+                            {/* Modal Header */}
+                            <div className="p-4 bg-gradient-to-r from-gray-900 to-gray-800 border-b border-white/10 flex justify-between items-center">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-teal-500 to-emerald-600 flex items-center justify-center font-bold text-white shadow-lg">
+                                        {users.find(u => u.user_id === reviewModal.userId)?.display_name.charAt(0)}
                                     </div>
-
-                                    {/* Change/Note Info */}
-                                    {(entry.note || entry.late_reason) && (
-                                        <div className="space-y-1 mb-2">
-                                            {entry.late_reason && (
-                                                <div className="text-xs text-amber-300 italic bg-amber-500/10 p-1.5 rounded border border-amber-500/20 flex gap-2 items-start">
-                                                    <Clock size={12} className="mt-0.5 shrink-0" />
-                                                    <span>Grund: {entry.late_reason}</span>
-                                                </div>
-                                            )}
-                                            {entry.note && (
-                                                <div className="text-xs text-white/50 italic bg-black/20 p-1.5 rounded border border-white/5">
-                                                    "{entry.note}"
-                                                </div>
-                                            )}
-                                        </div>
-                                    )}
-
-                                    {/* Rejection Input */}
-                                    {rejectionState.entryId === entry.id && (
-                                        <div className="mt-2 animate-in fade-in slide-in-from-top-2 bg-red-900/20 p-2 rounded-lg border border-red-500/30">
-                                            <p className="text-[10px] uppercase font-bold text-red-300 mb-1">Ablehnungsgrund eingeben:</p>
-                                            <div className="flex gap-2">
-                                                <input
-                                                    type="text"
-                                                    value={rejectionState.reason}
-                                                    onChange={e => setRejectionState({ ...rejectionState, reason: e.target.value })}
-                                                    className="flex-1 bg-black/30 border border-red-500/30 rounded px-2 py-1 text-xs text-white placeholder-red-300/30 focus:outline-none focus:border-red-400"
-                                                    placeholder="Warum wird abgelehnt?"
-                                                    autoFocus
-                                                />
-                                                <button
-                                                    onClick={handleRejectEntry}
-                                                    disabled={!rejectionState.reason.trim()}
-                                                    className="bg-red-500 hover:bg-red-600 disabled:opacity-50 text-white text-xs font-bold px-3 rounded transition-colors"
-                                                >
-                                                    Ablehnen
-                                                </button>
-                                            </div>
-                                            <button onClick={() => setRejectionState({ entryId: null, reason: '' })} className="text-[10px] text-red-300/50 hover:text-red-300 mt-1 underline">Abbrechen</button>
-                                        </div>
-                                    )}
+                                    <div>
+                                        <h3 className="font-bold text-white text-lg">{users.find(u => u.user_id === reviewModal.userId)?.display_name}</h3>
+                                        <p className="text-teal-300 text-xs font-bold uppercase tracking-wider">
+                                            Freigabe erforderlich
+                                        </p>
+                                    </div>
                                 </div>
-                            ))}
-                        </div>
-                    </GlassCard>
-                </div >
-            )}
+                                <button onClick={() => setReviewModal({ isOpen: false, userId: null })} className="p-2 hover:bg-white/10 rounded-full text-white/50 hover:text-white transition-colors">
+                                    <X size={24} />
+                                </button>
+                            </div>
+
+                            {/* Modal Body */}
+                            <div className="flex-1 overflow-y-auto p-4 space-y-3">
+                                {pendingConfirmations.filter(e => e.user_id === reviewModal.userId).length === 0 && (
+                                    <p className="text-white/30 text-center italic py-4">Keine offenen Einträge.</p>
+                                )}
+                                {pendingConfirmations.filter(e => e.user_id === reviewModal.userId).map(entry => (
+                                    <div key={entry.id} className={`bg-white/5 border border-white/10 rounded-xl p-3 hover:bg-white/10 transition-colors ${entry.late_reason ? 'border-amber-500/30 bg-amber-900/10' : ''}`}>
+                                        {/* Header Line */}
+                                        <div className="flex justify-between items-start mb-2">
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-sm font-bold text-white/80 font-mono">{new Date(entry.date).toLocaleDateString('de-DE')}</span>
+                                                <span className="text-white/20">|</span>
+                                                {entry.late_reason ? (
+                                                    <span className="text-[10px] font-bold uppercase text-amber-400">Rückwirkend</span>
+                                                ) : (
+                                                    <span className="text-[10px] font-bold uppercase text-teal-300">{entry.type}</span>
+                                                )}
+                                                <span className="text-white/20">|</span>
+                                                <span className="text-sm font-bold font-mono text-white">{entry.hours}h</span>
+                                            </div>
+                                            {/* Quick Actions (Confirm / Reject) */}
+                                            <div className="flex gap-2">
+                                                {rejectionState.entryId !== entry.id && (
+                                                    <>
+                                                        <button onClick={() => handleConfirmEntry(entry.id)} className="p-1.5 bg-emerald-500/20 hover:bg-emerald-500 text-emerald-400 hover:text-white rounded transition-colors" title="Bestätigen">
+                                                            <CheckCircle size={16} />
+                                                        </button>
+                                                        <button onClick={() => setRejectionState({ entryId: entry.id, reason: '' })} className="p-1.5 bg-red-500/20 hover:bg-red-500 text-red-400 hover:text-white rounded transition-colors" title="Ablehnen">
+                                                            <X size={16} />
+                                                        </button>
+                                                    </>
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        {/* Change/Note Info */}
+                                        {(entry.note || entry.late_reason) && (
+                                            <div className="space-y-1 mb-2">
+                                                {entry.late_reason && (
+                                                    <div className="text-xs text-amber-300 italic bg-amber-500/10 p-1.5 rounded border border-amber-500/20 flex gap-2 items-start">
+                                                        <Clock size={12} className="mt-0.5 shrink-0" />
+                                                        <span>Grund: {entry.late_reason}</span>
+                                                    </div>
+                                                )}
+                                                {entry.note && (
+                                                    <div className="text-xs text-white/50 italic bg-black/20 p-1.5 rounded border border-white/5">
+                                                        "{entry.note}"
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
+
+                                        {/* Rejection Input */}
+                                        {rejectionState.entryId === entry.id && (
+                                            <div className="mt-2 animate-in fade-in slide-in-from-top-2 bg-red-900/20 p-2 rounded-lg border border-red-500/30">
+                                                <p className="text-[10px] uppercase font-bold text-red-300 mb-1">Ablehnungsgrund eingeben:</p>
+                                                <div className="flex gap-2">
+                                                    <input
+                                                        type="text"
+                                                        value={rejectionState.reason}
+                                                        onChange={e => setRejectionState({ ...rejectionState, reason: e.target.value })}
+                                                        className="flex-1 bg-black/30 border border-red-500/30 rounded px-2 py-1 text-xs text-white placeholder-red-300/30 focus:outline-none focus:border-red-400"
+                                                        placeholder="Warum wird abgelehnt?"
+                                                        autoFocus
+                                                    />
+                                                    <button
+                                                        onClick={handleRejectEntry}
+                                                        disabled={!rejectionState.reason.trim()}
+                                                        className="bg-red-500 hover:bg-red-600 disabled:opacity-50 text-white text-xs font-bold px-3 rounded transition-colors"
+                                                    >
+                                                        Ablehnen
+                                                    </button>
+                                                </div>
+                                                <button onClick={() => setRejectionState({ entryId: null, reason: '' })} className="text-[10px] text-red-300/50 hover:text-red-300 mt-1 underline">Abbrechen</button>
+                                            </div>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                        </GlassCard>
+                    </div >
+                )
+            }
 
             {/* SEARCH MODAL */}
-            {searchModalOpen && (
-                <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/90 backdrop-blur-md animate-in fade-in duration-200">
-                    <GlassCard className="w-full max-w-4xl max-h-[90vh] flex flex-col !p-0 overflow-hidden shadow-2xl border-white/20">
-                        <div className="p-4 bg-gray-900 border-b border-white/10 flex gap-4 items-center">
-                            <Search size={24} className="text-teal-400 shrink-0" />
-                            <form onSubmit={handleSearch} className="flex-1 relative">
-                                <input
-                                    autoFocus
-                                    type="text"
-                                    className="w-full bg-transparent border-none outline-none text-xl text-white placeholder-white/30"
-                                    placeholder="Suche nach Kunde, Auftrag..."
-                                    value={searchQuery}
-                                    onChange={(e) => setSearchQuery(e.target.value)}
-                                />
-                            </form>
-                            <button
-                                onClick={handleSearch}
-                                className="bg-teal-600 hover:bg-teal-500 text-white px-4 py-2 rounded-lg font-bold text-sm disabled:opacity-50"
-                                disabled={isSearching}
-                            >
-                                {isSearching ? '...' : 'Suchen'}
-                            </button>
-                            <div className="w-px h-8 bg-white/10 mx-2"></div>
-                            <button onClick={() => setSearchModalOpen(false)} className="text-white/50 hover:text-white"><X size={24} /></button>
-                        </div>
+            {
+                searchModalOpen && (
+                    <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/90 backdrop-blur-md animate-in fade-in duration-200">
+                        <GlassCard className="w-full max-w-4xl max-h-[90vh] flex flex-col !p-0 overflow-hidden shadow-2xl border-white/20">
+                            <div className="p-4 bg-gray-900 border-b border-white/10 flex gap-4 items-center">
+                                <Search size={24} className="text-teal-400 shrink-0" />
+                                <form onSubmit={handleSearch} className="flex-1 relative">
+                                    <input
+                                        autoFocus
+                                        type="text"
+                                        className="w-full bg-transparent border-none outline-none text-xl text-white placeholder-white/30"
+                                        placeholder="Suche nach Kunde, Auftrag..."
+                                        value={searchQuery}
+                                        onChange={(e) => setSearchQuery(e.target.value)}
+                                    />
+                                </form>
+                                <button
+                                    onClick={handleSearch}
+                                    className="bg-teal-600 hover:bg-teal-500 text-white px-4 py-2 rounded-lg font-bold text-sm disabled:opacity-50"
+                                    disabled={isSearching}
+                                >
+                                    {isSearching ? '...' : 'Suchen'}
+                                </button>
+                                <div className="w-px h-8 bg-white/10 mx-2"></div>
+                                <button onClick={() => setSearchModalOpen(false)} className="text-white/50 hover:text-white"><X size={24} /></button>
+                            </div>
 
-                        <div className="flex-1 overflow-y-auto p-4 bg-gray-900/50">
-                            {/* Results Header / Actions */}
-                            {searchResults.length > 0 && (
-                                <div className="flex justify-between items-center mb-6">
-                                    <div className="text-white/60 text-sm">
-                                        <span className="text-white font-bold">{searchResults.length}</span> Treffer gefunden
+                            <div className="flex-1 overflow-y-auto p-4 bg-gray-900/50">
+                                {/* Results Header / Actions */}
+                                {searchResults.length > 0 && (
+                                    <div className="flex justify-between items-center mb-6">
+                                        <div className="text-white/60 text-sm">
+                                            <span className="text-white font-bold">{searchResults.length}</span> Treffer gefunden
+                                        </div>
+                                        <button
+                                            onClick={() => generateSearchReport(searchResults, users, searchQuery)}
+                                            className="flex items-center gap-2 bg-white/5 hover:bg-white/10 border border-white/10 text-teal-300 px-3 py-2 rounded-lg text-sm font-bold transition-colors"
+                                        >
+                                            <Download size={16} /> Suchbericht (PDF)
+                                        </button>
                                     </div>
-                                    <button
-                                        onClick={() => generateSearchReport(searchResults, users, searchQuery)}
-                                        className="flex items-center gap-2 bg-white/5 hover:bg-white/10 border border-white/10 text-teal-300 px-3 py-2 rounded-lg text-sm font-bold transition-colors"
-                                    >
-                                        <Download size={16} /> Suchbericht (PDF)
-                                    </button>
-                                </div>
-                            )}
-
-                            {/* Results List Grouped */}
-                            <div className="space-y-8">
-                                {Object.keys(groupedSearchResults).length === 0 && !isSearching && searchQuery && (
-                                    <div className="text-center text-white/30 py-10">Keine Ergebnisse gefunden</div>
                                 )}
 
-                                {Object.keys(groupedSearchResults).map(userId => {
-                                    const user = users.find(u => u.user_id === userId);
-                                    const entries = groupedSearchResults[userId];
+                                {/* Results List Grouped */}
+                                <div className="space-y-8">
+                                    {Object.keys(groupedSearchResults).length === 0 && !isSearching && searchQuery && (
+                                        <div className="text-center text-white/30 py-10">Keine Ergebnisse gefunden</div>
+                                    )}
 
-                                    return (
-                                        <div key={userId} className="animate-in slide-in-from-bottom-2">
-                                            <div className="flex items-center gap-3 mb-3 border-b border-white/5 pb-2">
-                                                <div className="w-8 h-8 rounded-full bg-teal-500/20 flex items-center justify-center font-bold text-teal-300 text-sm border border-teal-500/30">
-                                                    {user?.display_name.charAt(0) || '?'}
-                                                </div>
-                                                <h3 className="font-bold text-white text-lg">{user?.display_name || 'Unbekannt'}</h3>
-                                                <span className="text-xs text-white/40 ml-auto">{entries.length} Einträge</span>
-                                            </div>
+                                    {Object.keys(groupedSearchResults).map(userId => {
+                                        const user = users.find(u => u.user_id === userId);
+                                        const entries = groupedSearchResults[userId];
 
-                                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                                                {entries.map(entry => (
-                                                    <div key={entry.id} className="bg-white/5 hover:bg-white/10 border border-white/5 p-3 rounded-xl transition-colors">
-                                                        <div className="flex justify-between items-start mb-2">
-                                                            <span className="text-xs font-mono text-teal-200/70">{new Date(entry.date).toLocaleDateString()}</span>
-                                                            <span className="text-sm font-bold text-white font-mono">{entry.hours.toLocaleString('de-DE')}h</span>
-                                                        </div>
-                                                        <div className="font-bold text-white text-sm mb-1 truncate">{entry.client_name}</div>
-                                                        {entry.order_number && (
-                                                            <div className="inline-block bg-white/5 px-1.5 py-0.5 rounded text-[10px] text-white/50 font-mono mb-2">
-                                                                #{entry.order_number}
-                                                            </div>
-                                                        )}
-                                                        {entry.note && (
-                                                            <div className="text-xs text-white/50 italic line-clamp-2">"{entry.note}"</div>
-                                                        )}
+                                        return (
+                                            <div key={userId} className="animate-in slide-in-from-bottom-2">
+                                                <div className="flex items-center gap-3 mb-3 border-b border-white/5 pb-2">
+                                                    <div className="w-8 h-8 rounded-full bg-teal-500/20 flex items-center justify-center font-bold text-teal-300 text-sm border border-teal-500/30">
+                                                        {user?.display_name.charAt(0) || '?'}
                                                     </div>
-                                                ))}
+                                                    <h3 className="font-bold text-white text-lg">{user?.display_name || 'Unbekannt'}</h3>
+                                                    <span className="text-xs text-white/40 ml-auto">{entries.length} Einträge</span>
+                                                </div>
+
+                                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                                                    {entries.map(entry => (
+                                                        <div key={entry.id} className="bg-white/5 hover:bg-white/10 border border-white/5 p-3 rounded-xl transition-colors">
+                                                            <div className="flex justify-between items-start mb-2">
+                                                                <span className="text-xs font-mono text-teal-200/70">{new Date(entry.date).toLocaleDateString()}</span>
+                                                                <span className="text-sm font-bold text-white font-mono">{entry.hours.toLocaleString('de-DE')}h</span>
+                                                            </div>
+                                                            <div className="font-bold text-white text-sm mb-1 truncate">{entry.client_name}</div>
+                                                            {entry.order_number && (
+                                                                <div className="inline-block bg-white/5 px-1.5 py-0.5 rounded text-[10px] text-white/50 font-mono mb-2">
+                                                                    #{entry.order_number}
+                                                                </div>
+                                                            )}
+                                                            {entry.note && (
+                                                                <div className="text-xs text-white/50 italic line-clamp-2">"{entry.note}"</div>
+                                                            )}
+                                                        </div>
+                                                    ))}
+                                                </div>
                                             </div>
-                                        </div>
-                                    );
-                                })}
+                                        );
+                                    })}
+                                </div>
                             </div>
-                        </div>
-                    </GlassCard>
-                </div>
-            )}
+                        </GlassCard>
+                    </div>
+                )
+            }
         </div >
     );
 };
