@@ -361,13 +361,16 @@ const EntryPage: React.FC = () => {
     const [entryNotifications, setEntryNotifications] = useState<TimeEntry[]>([]);
     const [isEntryNotificationModalOpen, setIsEntryNotificationModalOpen] = useState(false);
 
+    // INFO-ONLY NOTIFICATIONS: Admin/Office changes that are auto-confirmed but user should see
+    const [infoNotifications, setInfoNotifications] = useState<{ entry: TimeEntry, historyId: string, changerName: string, reason: string, changedAt: string, oldValues: any, newValues: any, isDeletion: boolean }[]>([]);
+
     // Check for modifications/deletions on load
     useEffect(() => {
         const checkEntryNotifications = async () => {
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) return;
 
-            // 1. Deleted Entries needing confirmation (Legacy or direct soft-delete)
+            // 1. Deleted Entries needing confirmation (Legacy — only non-admin deletions)
             const { data: deleted } = await supabase
                 .from('time_entries')
                 .select('*')
@@ -375,7 +378,7 @@ const EntryPage: React.FC = () => {
                 .eq('is_deleted', true)
                 .eq('deletion_confirmed_by_user', false);
 
-            // 1b. Deletion REQUESTS (New Flow)
+            // 1b. Deletion REQUESTS (New Flow — only non-admin deletions that require user consent)
             const { data: deletionRequests } = await supabase
                 .from('time_entries')
                 .select('*')
@@ -383,8 +386,7 @@ const EntryPage: React.FC = () => {
                 .not('deletion_requested_at', 'is', null)
                 .eq('is_deleted', false);
 
-            // 2. Modified Entries needing confirmation (Based on History Table)
-            // Fetch entries that have PENDING history records
+            // 2. Modified Entries needing confirmation (Based on History Table — only PENDING status)
             const { data: pendingHistory } = await supabase
                 .from('entry_change_history')
                 .select('entry_id')
@@ -397,25 +399,110 @@ const EntryPage: React.FC = () => {
                     .from('time_entries')
                     .select('*')
                     .in('id', entryIds)
-                    .eq('user_id', user.id) // Ensure only own entries
-                    .eq('is_deleted', false); // Exclude deleted ones (handled above)
+                    .eq('user_id', user.id)
+                    .eq('is_deleted', false);
 
                 if (entriesWithPending) modifiedDetails = entriesWithPending;
             }
 
             // Combine DELETED (priority) + MODIFIED + DELETION REQUESTS
-            // Filter duplicates just in case
             const allNotifs = [...(deleted || []), ...(deletionRequests || []), ...modifiedDetails].filter((v, i, a) => a.findIndex(t => (t.id === v.id)) === i);
 
             if (allNotifs.length > 0) {
                 setEntryNotifications(allNotifs as TimeEntry[]);
-                // Modal removed, now using persistent dashboard card
-                // setIsEntryNotificationModalOpen(true);
+            }
+
+            // 3. INFO-ONLY: Admin/Office changes that are auto-confirmed but user hasn't seen yet
+            // These have status='confirmed' AND user_response_at IS NULL (user hasn't acknowledged)
+            const { data: confirmedUnread } = await supabase
+                .from('entry_change_history')
+                .select('*')
+                .eq('status', 'confirmed')
+                .is('user_response_at', null)
+                .neq('changed_by', user.id) // Not self-changes
+                .order('changed_at', { ascending: false });
+
+            if (confirmedUnread && confirmedUnread.length > 0) {
+                // Get entry details and changer names
+                const entryIds = Array.from(new Set(confirmedUnread.map(h => h.entry_id)));
+                const changerIds = Array.from(new Set(confirmedUnread.map(h => h.changed_by).filter(Boolean)));
+
+                const { data: relatedEntries } = await supabase
+                    .from('time_entries')
+                    .select('*')
+                    .in('id', entryIds)
+                    .eq('user_id', user.id); // Only own entries
+
+                const { data: changerNames } = await supabase
+                    .from('user_settings')
+                    .select('user_id, display_name')
+                    .in('user_id', changerIds);
+
+                const changerMap = new Map<string, string>();
+                if (changerNames) changerNames.forEach(c => changerMap.set(c.user_id, c.display_name));
+
+                const entryMap = new Map<string, TimeEntry>();
+                if (relatedEntries) (relatedEntries as TimeEntry[]).forEach(e => entryMap.set(e.id, e));
+
+                const infoItems = confirmedUnread
+                    .filter(h => entryMap.has(h.entry_id)) // Only entries that belong to the user
+                    .map(h => ({
+                        entry: entryMap.get(h.entry_id)!,
+                        historyId: h.id,
+                        changerName: h.changed_by ? (changerMap.get(h.changed_by) || 'Büro') : 'Büro',
+                        reason: h.reason || 'Kein Grund angegeben',
+                        changedAt: h.changed_at,
+                        oldValues: h.old_values,
+                        newValues: h.new_values,
+                        isDeletion: entryMap.get(h.entry_id)?.is_deleted === true
+                    }));
+
+                setInfoNotifications(infoItems);
             }
         };
 
         checkEntryNotifications();
+
+        // Realtime: Refresh when time_entries or entry_change_history changes
+        const channel = supabase
+            .channel('entry_notifications_realtime')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'time_entries' }, () => {
+                checkEntryNotifications();
+            })
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'entry_change_history' }, () => {
+                checkEntryNotifications();
+            })
+            .subscribe();
+
+        return () => { supabase.removeChannel(channel); };
     }, []);
+
+    // Dismiss an info-only notification (mark as read)
+    const dismissInfoNotification = async (historyId: string) => {
+        const { error } = await supabase
+            .from('entry_change_history')
+            .update({ user_response_at: new Date().toISOString() })
+            .eq('id', historyId);
+
+        if (!error) {
+            setInfoNotifications(prev => prev.filter(n => n.historyId !== historyId));
+        }
+    };
+
+    // Dismiss all info notifications at once
+    const dismissAllInfoNotifications = async () => {
+        const ids = infoNotifications.map(n => n.historyId);
+        if (ids.length === 0) return;
+
+        const { error } = await supabase
+            .from('entry_change_history')
+            .update({ user_response_at: new Date().toISOString() })
+            .in('id', ids);
+
+        if (!error) {
+            setInfoNotifications([]);
+        }
+    };
 
     const confirmEntryNotification = async (entry: TimeEntry) => {
         if (entry.is_deleted) {
@@ -426,7 +513,7 @@ const EntryPage: React.FC = () => {
             const { error } = await supabase.from('time_entries').update({
                 is_deleted: true,
                 deleted_at: new Date().toISOString(),
-                deleted_by: entry.deletion_requested_by, // The admin/office who requested it
+                deleted_by: entry.deletion_requested_by,
                 deletion_reason: entry.deletion_request_reason,
                 deletion_confirmed_by_user: true
             }).eq('id', entry.id);
@@ -445,12 +532,11 @@ const EntryPage: React.FC = () => {
             if (error) {
                 console.error("Error confirming history:", error);
                 alert("Fehler beim Bestätigen: " + error.message);
-                return; // Don't remove from list if failed
+                return;
             }
         }
 
         setEntryNotifications(prev => prev.filter(e => e.id !== entry.id));
-        // Persistent card doesn't use modal state anymore, so no need to check length for modal
     };
 
     // NEU: State für Review-Ablehnung
@@ -1002,12 +1088,15 @@ const EntryPage: React.FC = () => {
         }
 
         setClient('');
-        if (isAbsence) {
+
+        // Always reset type back to 'work' (project) to prevent accidentally creating wrong type entries
+        if (entryType !== 'work') {
             setEntryType('work');
             if (!projectEndTime) {
                 setProjectStartTime(getSuggestedStartTime());
             }
         }
+
         setHours('');
         setNote('');
         setProjectEndTime('');
@@ -1015,7 +1104,7 @@ const EntryPage: React.FC = () => {
         setOrderNumber('');
         setShowOrderInput(false);
         setSurcharge(0);
-        setLateEntryWarning({ isOpen: false, diffDays: 0, reason: '' }); // Reset Late Warning
+        setLateEntryWarning({ isOpen: false, diffDays: 0, reason: '' });
         setIsSubmitting(false);
     };
 
@@ -1627,6 +1716,91 @@ const EntryPage: React.FC = () => {
                     </div>
                 )}
 
+                {/* --- INFO: AUTOMATISCH DURCHGEFÜHRTE ÄNDERUNGEN (ADMIN/OFFICE) --- */}
+                {infoNotifications.length > 0 && (
+                    <div className="mb-8 animate-in slide-in-from-top-4">
+                        <div className="flex items-center justify-between mb-3 px-1">
+                            <div className="flex items-center gap-2">
+                                <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>
+                                <h3 className="text-xs font-bold text-blue-300 uppercase tracking-wider">Änderungen vom Büro ({infoNotifications.length})</h3>
+                            </div>
+                            {infoNotifications.length > 1 && (
+                                <button
+                                    onClick={dismissAllInfoNotifications}
+                                    className="text-[10px] text-blue-300/70 hover:text-blue-200 font-bold uppercase tracking-wider transition-colors"
+                                >
+                                    Alle gelesen
+                                </button>
+                            )}
+                        </div>
+                        <div className="grid gap-3">
+                            {infoNotifications.map(notif => {
+                                const typeConfig = ENTRY_TYPES_CONFIG[notif.entry.type as EntryType];
+                                const TypeIcon = typeConfig?.icon || Info;
+
+                                // Determine what changed
+                                const newVals = notif.newValues || {};
+                                const changedFields: string[] = [];
+                                if (newVals.client_name) changedFields.push(`Kunde: ${newVals.client_name}`);
+                                if (newVals.hours !== undefined) changedFields.push(`Stunden: ${newVals.hours}`);
+                                if (newVals.start_time) changedFields.push(`Start: ${newVals.start_time}`);
+                                if (newVals.end_time) changedFields.push(`Ende: ${newVals.end_time}`);
+                                if (newVals.type) changedFields.push(`Typ: ${ENTRY_TYPES_CONFIG[newVals.type as EntryType]?.label || newVals.type}`);
+                                if (newVals.note !== undefined) changedFields.push(`Notiz: ${newVals.note || '(entfernt)'}`);
+                                if (newVals.surcharge !== undefined) changedFields.push(`Zuschlag: ${newVals.surcharge}%`);
+                                if (newVals.order_number !== undefined) changedFields.push(`Auftrag: ${newVals.order_number || '(entfernt)'}`);
+
+                                return (
+                                    <GlassCard key={notif.historyId} className="!p-4 border-blue-500/30 bg-blue-900/5 hover:bg-blue-900/10">
+                                        <div className="flex justify-between items-start mb-2">
+                                            <div className="flex items-center gap-2">
+                                                <TypeIcon size={14} className={typeConfig?.color || 'text-blue-300'} />
+                                                <span className="text-xs font-bold text-white/50">{new Date(notif.entry.date).toLocaleDateString('de-DE')}</span>
+                                                <span className="text-white/20">·</span>
+                                                <span className="text-xs text-white/70 font-medium">{notif.entry.client_name}</span>
+                                            </div>
+                                            <span className="bg-blue-500/20 text-blue-200 text-[10px] px-2 py-0.5 rounded uppercase font-bold">
+                                                {notif.isDeletion ? 'Gelöscht' : 'Geändert'}
+                                            </span>
+                                        </div>
+                                        <div className="text-sm text-white/80 mb-3">
+                                            <p className="text-xs">
+                                                <span className="text-blue-300 font-bold">{notif.changerName}</span>
+                                                {notif.isDeletion ? ' hat diesen Eintrag gelöscht.' : ' hat diesen Eintrag bearbeitet.'}
+                                            </p>
+                                            {notif.reason && notif.reason !== 'Kein Grund angegeben' && (
+                                                <p className="text-xs mt-1 italic text-white/50 bg-black/20 p-1.5 rounded border border-white/5">
+                                                    "{notif.reason}"
+                                                </p>
+                                            )}
+                                            {changedFields.length > 0 && !notif.isDeletion && (
+                                                <div className="mt-2 text-[11px] text-white/40 space-y-0.5">
+                                                    {changedFields.map((f, i) => (
+                                                        <div key={i} className="flex items-center gap-1">
+                                                            <span className="text-blue-400">→</span> {f}
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+                                        <div className="flex justify-between items-center">
+                                            <span className="text-[10px] text-white/30">
+                                                {new Date(notif.changedAt).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                                            </span>
+                                            <button
+                                                onClick={() => dismissInfoNotification(notif.historyId)}
+                                                className="bg-blue-500/20 hover:bg-blue-500/40 text-blue-200 text-xs font-bold px-3 py-1.5 rounded-lg flex items-center gap-2 transition-colors"
+                                            >
+                                                <CheckCircle size={12} /> Gelesen
+                                            </button>
+                                        </div>
+                                    </GlassCard>
+                                );
+                            })}
+                        </div>
+                    </div>
+                )}
+
                 {/* DEACTIVATED ACCOUNT */}
                 {settings?.is_active === false && (
                     <GlassCard className="mb-6 !border-red-500/30 !bg-red-900/10">
@@ -1986,12 +2160,18 @@ const EntryPage: React.FC = () => {
                             <GlassButton
                                 type="submit"
                                 disabled={isSubmitting}
-                                className={`w-full h-12 text-base shadow-xl font-bold tracking-wide ${getButtonGradient()}`}
+                                className={`w-full h-12 text-base shadow-xl font-bold tracking-wide relative ${isSubmitting ? 'opacity-70 cursor-not-allowed' : ''} ${getButtonGradient()}`}
                             >
-                                {isSubmitting ? 'Speichere...' :
+                                {isSubmitting ? (
+                                    <span className="flex items-center justify-center gap-2">
+                                        <Loader2 size={18} className="animate-spin" />
+                                        Speichere...
+                                    </span>
+                                ) : (
                                     editingEntryId ? 'Änderung speichern' :
                                         (entryType === 'break' ? 'Pause buchen' :
-                                            (responsibleUserId ? 'Zur Prüfung senden' : 'Zeit erfassen'))}
+                                            (responsibleUserId ? 'Zur Prüfung senden' : 'Zeit erfassen'))
+                                )}
                             </GlassButton>
                         </div>
                     </GlassCard>

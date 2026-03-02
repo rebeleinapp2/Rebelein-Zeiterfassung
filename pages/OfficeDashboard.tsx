@@ -21,6 +21,7 @@ const OfficeDashboard: React.FC = () => {
     const [pendingPeerReviews, setPendingPeerReviews] = useState<TimeEntry[]>([]);
     const [myPendingChanges, setMyPendingChanges] = useState<TimeEntry[]>([]);
     const [pendingVacationRequests, setPendingVacationRequests] = useState<VacationRequest[]>([]);
+    const [pendingChangeRequests, setPendingChangeRequests] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
 
     const [currentUser, setCurrentUser] = useState<UserSettings | null>(null);
@@ -28,6 +29,8 @@ const OfficeDashboard: React.FC = () => {
     // Modal State
     const [reviewModal, setReviewModal] = useState<{ isOpen: boolean, userId: string | null }>({ isOpen: false, userId: null });
     const [rejectionState, setRejectionState] = useState<{ entryId: string | null; reason: string }>({ entryId: null, reason: '' });
+    const [peerRejectionState, setPeerRejectionState] = useState<{ entryId: string | null; reason: string }>({ entryId: null, reason: '' });
+    const [changeRequestRejection, setChangeRequestRejection] = useState<{ historyId: string | null; reason: string }>({ historyId: null, reason: '' });
 
     // Collapsible Sections State
     const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>(() => {
@@ -220,6 +223,16 @@ const OfficeDashboard: React.FC = () => {
 
             if (requestsError) console.error("Error fetching requests:", requestsError);
             else setPendingVacationRequests(requests as VacationRequest[]);
+
+            // 5. CHANGE REQUESTS (User-submitted edit requests on submitted entries)
+            const { data: changeReqs, error: changeReqError } = await supabase
+                .from('entry_change_history')
+                .select('*, time_entries!inner(user_id, client_name, hours, date, start_time, end_time, note, order_number, type)')
+                .eq('status', 'change_requested')
+                .order('changed_at', { ascending: false });
+
+            if (changeReqError) console.error("Error fetching change requests:", changeReqError);
+            else setPendingChangeRequests(changeReqs || []);
         }
 
         setLoading(false);
@@ -304,6 +317,96 @@ const OfficeDashboard: React.FC = () => {
             const remaining = pendingConfirmations.filter(e => e.id !== rejectionState.entryId && e.user_id === reviewModal.userId);
             if (remaining.length === 0) setReviewModal({ isOpen: false, userId: null });
             setRejectionState({ entryId: null, reason: '' });
+        }
+    };
+
+    // Confirm Peer Review (Admin/Office acts on behalf of absent peer reviewer)
+    const handleConfirmPeerReview = async (entryId: string) => {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+        const { error } = await supabase.from('time_entries').update({
+            confirmed_by: user.id,
+            confirmed_at: new Date().toISOString()
+        }).eq('id', entryId);
+
+        if (!error) {
+            setPendingPeerReviews(prev => prev.filter(e => e.id !== entryId));
+            // Also remove from pendingConfirmations if it appears there
+            setPendingConfirmations(prev => prev.filter(e => e.id !== entryId));
+        }
+    };
+
+    // Reject Peer Review (Admin/Office rejects on behalf of absent peer reviewer)
+    const handleRejectPeerReview = async () => {
+        if (!peerRejectionState.entryId || !peerRejectionState.reason.trim()) return;
+
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+
+        const { error } = await supabase.from('time_entries').update({
+            rejected_by: user.id,
+            rejection_reason: peerRejectionState.reason,
+            rejected_at: new Date().toISOString(),
+            confirmed_at: null
+        }).eq('id', peerRejectionState.entryId);
+
+        if (!error) {
+            setPendingPeerReviews(prev => prev.filter(e => e.id !== peerRejectionState.entryId));
+            setPendingConfirmations(prev => prev.filter(e => e.id !== peerRejectionState.entryId));
+            setPeerRejectionState({ entryId: null, reason: '' });
+        }
+    };
+
+    // Confirm ALL peer reviews at once
+    const handleConfirmAllPeerReviews = async () => {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+
+        const ids = pendingPeerReviews.map(e => e.id);
+        if (ids.length === 0) return;
+
+        const { error } = await supabase.from('time_entries').update({
+            confirmed_by: user.id,
+            confirmed_at: new Date().toISOString()
+        }).in('id', ids);
+
+        if (!error) {
+            setPendingPeerReviews([]);
+            setPendingConfirmations(prev => prev.filter(e => !ids.includes(e.id)));
+        }
+    };
+
+    // Approve Change Request (apply changes to entry)
+    const handleApproveChangeRequest = async (historyId: string) => {
+        const { error } = await supabase.rpc('handle_change_request', {
+            p_history_id: historyId,
+            p_action: 'approve'
+        });
+
+        if (error) {
+            console.error('Error approving change request:', error);
+            alert('Fehler beim Genehmigen: ' + error.message);
+        } else {
+            setPendingChangeRequests(prev => prev.filter(r => r.id !== historyId));
+        }
+    };
+
+    // Reject Change Request
+    const handleRejectChangeRequest = async () => {
+        if (!changeRequestRejection.historyId || !changeRequestRejection.reason.trim()) return;
+
+        const { error } = await supabase.rpc('handle_change_request', {
+            p_history_id: changeRequestRejection.historyId,
+            p_action: 'reject',
+            p_note: changeRequestRejection.reason
+        });
+
+        if (error) {
+            console.error('Error rejecting change request:', error);
+            alert('Fehler beim Ablehnen: ' + error.message);
+        } else {
+            setPendingChangeRequests(prev => prev.filter(r => r.id !== changeRequestRejection.historyId));
+            setChangeRequestRejection({ historyId: null, reason: '' });
         }
     };
 
@@ -467,7 +570,7 @@ const OfficeDashboard: React.FC = () => {
                     {/* SECTION 4: GLOBAL PEER REVIEWS (Admin/Office Only) */}
                     {isOfficeOrAdmin && pendingPeerReviews.length > 0 && (
                         <div className="animate-in slide-in-from-bottom-6">
-                            <details className="group">
+                            <details className="group" open>
                                 <summary className="flex items-center justify-between cursor-pointer list-none mb-4">
                                     <h2 className="text-xl font-bold text-white flex items-center gap-2">
                                         <UserCheck size={24} className="text-teal-400" />
@@ -476,8 +579,17 @@ const OfficeDashboard: React.FC = () => {
                                             {pendingPeerReviews.length}
                                         </span>
                                     </h2>
-                                    <div className="p-2 bg-white/5 rounded-lg group-open:bg-white/10 transition-colors">
-                                        <ChevronRight size={20} className="text-white/50 transition-transform group-open:rotate-90" />
+                                    <div className="flex items-center gap-2">
+                                        <button
+                                            onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleConfirmAllPeerReviews(); }}
+                                            className="text-xs font-bold text-emerald-300 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5"
+                                            title="Alle ausstehenden Peer-Reviews bestätigen"
+                                        >
+                                            <CheckCircle size={14} /> Alle bestätigen
+                                        </button>
+                                        <div className="p-2 bg-white/5 rounded-lg group-open:bg-white/10 transition-colors">
+                                            <ChevronRight size={20} className="text-white/50 transition-transform group-open:rotate-90" />
+                                        </div>
                                     </div>
                                 </summary>
 
@@ -485,6 +597,7 @@ const OfficeDashboard: React.FC = () => {
                                     {pendingPeerReviews.map(entry => {
                                         const creator = users.find(u => u.user_id === entry.user_id);
                                         const reviewer = users.find(u => u.user_id === entry.responsible_user_id);
+                                        const isRejectingThis = peerRejectionState.entryId === entry.id;
 
                                         return (
                                             <GlassCard key={entry.id} className="animate-in fade-in zoom-in-95 duration-500 !p-4 bg-teal-900/5 border-teal-500/20 hover:border-teal-500/40 relative overflow-hidden group/card">
@@ -522,8 +635,16 @@ const OfficeDashboard: React.FC = () => {
                                                         )}
                                                     </div>
 
+                                                    {/* Late reason if present */}
+                                                    {entry.late_reason && (
+                                                        <div className="mb-3 text-xs text-amber-300 italic bg-amber-500/10 p-1.5 rounded border border-amber-500/20 flex gap-2 items-start">
+                                                            <Clock size={12} className="mt-0.5 shrink-0" />
+                                                            <span>Rückwirkend: {entry.late_reason}</span>
+                                                        </div>
+                                                    )}
+
                                                     {/* Actors: Creator -> Reviewer */}
-                                                    <div className="flex items-center gap-3">
+                                                    <div className="flex items-center gap-3 mb-3">
                                                         {/* Creator */}
                                                         <div className="flex-1 min-w-0">
                                                             <div className="text-[10px] uppercase text-white/40 font-bold mb-1">Ersteller</div>
@@ -576,6 +697,189 @@ const OfficeDashboard: React.FC = () => {
                                                             </div>
                                                         </div>
                                                     </div>
+
+                                                    {/* Action Buttons */}
+                                                    {!isRejectingThis && (
+                                                        <div className="flex justify-end gap-2 pt-2 border-t border-white/5">
+                                                            <button
+                                                                onClick={() => handleConfirmPeerReview(entry.id)}
+                                                                className="p-1.5 bg-emerald-500/20 hover:bg-emerald-500 text-emerald-400 hover:text-white rounded transition-colors flex items-center gap-1.5 text-xs font-bold px-3"
+                                                                title="Eintrag bestätigen"
+                                                            >
+                                                                <CheckCircle size={14} /> Bestätigen
+                                                            </button>
+                                                            <button
+                                                                onClick={() => setPeerRejectionState({ entryId: entry.id, reason: '' })}
+                                                                className="p-1.5 bg-red-500/20 hover:bg-red-500 text-red-400 hover:text-white rounded transition-colors flex items-center gap-1.5 text-xs font-bold px-3"
+                                                                title="Eintrag ablehnen"
+                                                            >
+                                                                <X size={14} /> Ablehnen
+                                                            </button>
+                                                        </div>
+                                                    )}
+
+                                                    {/* Rejection Input */}
+                                                    {isRejectingThis && (
+                                                        <div className="mt-2 animate-in fade-in slide-in-from-top-2 bg-red-900/20 p-2 rounded-lg border border-red-500/30">
+                                                            <p className="text-[10px] uppercase font-bold text-red-300 mb-1">Ablehnungsgrund eingeben:</p>
+                                                            <div className="flex gap-2">
+                                                                <input
+                                                                    type="text"
+                                                                    value={peerRejectionState.reason}
+                                                                    onChange={e => setPeerRejectionState({ ...peerRejectionState, reason: e.target.value })}
+                                                                    className="flex-1 bg-black/30 border border-red-500/30 rounded px-2 py-1 text-xs text-white placeholder-red-300/30 focus:outline-none focus:border-red-400"
+                                                                    placeholder="Warum wird abgelehnt?"
+                                                                    autoFocus
+                                                                    onKeyDown={(e) => { if (e.key === 'Enter' && peerRejectionState.reason.trim()) handleRejectPeerReview(); }}
+                                                                />
+                                                                <button
+                                                                    onClick={handleRejectPeerReview}
+                                                                    disabled={!peerRejectionState.reason.trim()}
+                                                                    className="bg-red-500 hover:bg-red-600 disabled:opacity-50 text-white text-xs font-bold px-3 rounded transition-colors"
+                                                                >
+                                                                    Ablehnen
+                                                                </button>
+                                                            </div>
+                                                            <button onClick={() => setPeerRejectionState({ entryId: null, reason: '' })} className="text-[10px] text-red-300/50 hover:text-red-300 mt-1 underline">Abbrechen</button>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </GlassCard>
+                                        );
+                                    })}
+                                </div>
+                            </details>
+                        </div>
+                    )}
+                    {/* SECTION 5: CHANGE REQUESTS (User edit requests on submitted entries) */}
+                    {isOfficeOrAdmin && pendingChangeRequests.length > 0 && (
+                        <div className="animate-in slide-in-from-bottom-6">
+                            <details className="group" open>
+                                <summary className="flex items-center justify-between cursor-pointer list-none mb-4">
+                                    <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                                        <FileText size={24} className="text-blue-400" />
+                                        <span className="text-blue-100">Änderungsanträge</span>
+                                        <span className="bg-blue-500/20 text-blue-300 text-xs px-2 py-0.5 rounded-full border border-blue-500/30">
+                                            {pendingChangeRequests.length}
+                                        </span>
+                                    </h2>
+                                    <div className="p-2 bg-white/5 rounded-lg group-open:bg-white/10 transition-colors">
+                                        <ChevronRight size={20} className="text-white/50 transition-transform group-open:rotate-90" />
+                                    </div>
+                                </summary>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8 pl-2 border-l-2 border-blue-500/10">
+                                    {pendingChangeRequests.map(req => {
+                                        const entry = req.time_entries;
+                                        const creator = users.find(u => u.user_id === entry?.user_id);
+                                        const newVals = req.new_values || {};
+                                        const isRejectingThis = changeRequestRejection.historyId === req.id;
+
+                                        return (
+                                            <GlassCard key={req.id} className="animate-in fade-in zoom-in-95 duration-500 !p-4 bg-blue-900/5 border-blue-500/20 hover:border-blue-500/40 relative overflow-hidden">
+                                                <div className="absolute top-0 right-0 p-2 opacity-30">
+                                                    <FileText size={40} className="text-blue-500/10" />
+                                                </div>
+
+                                                <div className="relative z-10">
+                                                    {/* Header */}
+                                                    <div className="mb-3 border-b border-white/5 pb-2">
+                                                        <div className="flex justify-between items-center mb-1">
+                                                            <div className="flex items-center gap-2">
+                                                                <div className="w-6 h-6 rounded-full bg-blue-500/20 flex items-center justify-center text-[10px] font-bold text-blue-300 shrink-0">
+                                                                    {creator?.display_name.charAt(0) || '?'}
+                                                                </div>
+                                                                <span className="text-sm font-bold text-blue-100">{creator?.display_name || 'Unbekannt'}</span>
+                                                            </div>
+                                                            <span className="text-[10px] text-white/40">
+                                                                {new Date(req.changed_at).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                                                            </span>
+                                                        </div>
+                                                        <div className="text-xs font-bold text-blue-400 uppercase tracking-wider">
+                                                            {entry?.date ? new Date(entry.date).toLocaleDateString('de-DE') : ''}
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Reason */}
+                                                    {req.reason && (
+                                                        <div className="mb-3 text-xs text-blue-200 italic bg-blue-500/10 p-2 rounded border border-blue-500/20">
+                                                            Grund: "{req.reason}"
+                                                        </div>
+                                                    )}
+
+                                                    {/* Diff View: Old -> New */}
+                                                    <div className="grid grid-cols-2 gap-2 mb-3 text-xs">
+                                                        <div className="bg-red-900/10 p-2 rounded border border-red-500/10">
+                                                            <div className="text-[10px] uppercase font-bold text-red-300/60 mb-1">Aktuell</div>
+                                                            <div className="font-bold text-white/70 truncate">{entry?.client_name}</div>
+                                                            <div className="text-white/40 font-mono">{entry?.hours?.toFixed?.(2) || entry?.hours} h</div>
+                                                            {entry?.start_time && <div className="text-white/30">{entry.start_time} - {entry.end_time}</div>}
+                                                            {entry?.note && <div className="text-white/30 italic truncate">"{entry.note}"</div>}
+                                                        </div>
+                                                        <div className="bg-emerald-900/10 p-2 rounded border border-emerald-500/10">
+                                                            <div className="text-[10px] uppercase font-bold text-emerald-300/60 mb-1">Neu</div>
+                                                            <div className={`font-bold truncate ${newVals.client_name !== entry?.client_name ? 'text-emerald-300' : 'text-white/70'}`}>
+                                                                {newVals.client_name || entry?.client_name}
+                                                            </div>
+                                                            <div className={`font-mono ${parseFloat(newVals.hours) !== entry?.hours ? 'text-emerald-300' : 'text-white/40'}`}>
+                                                                {parseFloat(newVals.hours)?.toFixed?.(2) || newVals.hours} h
+                                                            </div>
+                                                            {(newVals.start_time || entry?.start_time) && (
+                                                                <div className={newVals.start_time !== entry?.start_time || newVals.end_time !== entry?.end_time ? 'text-emerald-300' : 'text-white/30'}>
+                                                                    {newVals.start_time || entry?.start_time} - {newVals.end_time || entry?.end_time}
+                                                                </div>
+                                                            )}
+                                                            {(newVals.note || entry?.note) && (
+                                                                <div className={`italic truncate ${newVals.note !== entry?.note ? 'text-emerald-300' : 'text-white/30'}`}>
+                                                                    "{newVals.note || entry?.note}"
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Action Buttons */}
+                                                    {!isRejectingThis && (
+                                                        <div className="flex justify-end gap-2 pt-2 border-t border-white/5">
+                                                            <button
+                                                                onClick={() => handleApproveChangeRequest(req.id)}
+                                                                className="p-1.5 bg-emerald-500/20 hover:bg-emerald-500 text-emerald-400 hover:text-white rounded transition-colors flex items-center gap-1.5 text-xs font-bold px-3"
+                                                            >
+                                                                <CheckCircle size={14} /> Genehmigen
+                                                            </button>
+                                                            <button
+                                                                onClick={() => setChangeRequestRejection({ historyId: req.id, reason: '' })}
+                                                                className="p-1.5 bg-red-500/20 hover:bg-red-500 text-red-400 hover:text-white rounded transition-colors flex items-center gap-1.5 text-xs font-bold px-3"
+                                                            >
+                                                                <X size={14} /> Ablehnen
+                                                            </button>
+                                                        </div>
+                                                    )}
+
+                                                    {/* Rejection Input */}
+                                                    {isRejectingThis && (
+                                                        <div className="mt-2 animate-in fade-in slide-in-from-top-2 bg-red-900/20 p-2 rounded-lg border border-red-500/30">
+                                                            <p className="text-[10px] uppercase font-bold text-red-300 mb-1">Ablehnungsgrund:</p>
+                                                            <div className="flex gap-2">
+                                                                <input
+                                                                    type="text"
+                                                                    value={changeRequestRejection.reason}
+                                                                    onChange={e => setChangeRequestRejection({ ...changeRequestRejection, reason: e.target.value })}
+                                                                    className="flex-1 bg-black/30 border border-red-500/30 rounded px-2 py-1 text-xs text-white placeholder-red-300/30 focus:outline-none focus:border-red-400"
+                                                                    placeholder="Warum wird der Antrag abgelehnt?"
+                                                                    autoFocus
+                                                                    onKeyDown={(e) => { if (e.key === 'Enter' && changeRequestRejection.reason.trim()) handleRejectChangeRequest(); }}
+                                                                />
+                                                                <button
+                                                                    onClick={handleRejectChangeRequest}
+                                                                    disabled={!changeRequestRejection.reason.trim()}
+                                                                    className="bg-red-500 hover:bg-red-600 disabled:opacity-50 text-white text-xs font-bold px-3 rounded transition-colors"
+                                                                >
+                                                                    Ablehnen
+                                                                </button>
+                                                            </div>
+                                                            <button onClick={() => setChangeRequestRejection({ historyId: null, reason: '' })} className="text-[10px] text-red-300/50 hover:text-red-300 mt-1 underline">Abbrechen</button>
+                                                        </div>
+                                                    )}
                                                 </div>
                                             </GlassCard>
                                         );

@@ -42,7 +42,8 @@ export const fetchExportData = async (userId: string, startDate: string, endDate
         .select('*')
         .eq('user_id', userId)
         .gte('date', startDate)
-        .lte('date', endDate);
+        .lte('date', endDate)
+        .neq('is_deleted', true);
 
     // 3. Fetch Daily Logs
     const { data: logsData } = await supabase
@@ -61,7 +62,8 @@ export const fetchExportData = async (userId: string, startDate: string, endDate
         .select('*')
         .eq('user_id', userId)
         .lte('start_date', yearEnd)
-        .gte('end_date', yearStart);
+        .gte('end_date', yearStart)
+        .neq('is_deleted', true);
 
     // 5. Fetch Absence Entries (Whole Year for Stats - Legacy/Daily Entry Absences)
     const { data: yearEntriesData } = await supabase
@@ -70,7 +72,8 @@ export const fetchExportData = async (userId: string, startDate: string, endDate
         .eq('user_id', userId)
         .gte('date', yearStart)
         .lte('date', yearEnd)
-        .in('type', ['vacation', 'sick', 'holiday', 'unpaid', 'sick_child', 'sick_pay', 'special_holiday']);
+        .in('type', ['vacation', 'sick', 'holiday', 'unpaid', 'sick_child', 'sick_pay', 'special_holiday'])
+        .neq('is_deleted', true);
 
     // 6. INJECT VIRTUAL ENTRIES (24.12. / 31.12.) - Mirroring dataService logic
     const entryList = (entriesData as TimeEntry[]) || [];
@@ -140,14 +143,16 @@ export const fetchExportData = async (userId: string, startDate: string, endDate
         .select('*')
         .eq('user_id', userId)
         .gte('date', historyStart)
-        .lte('date', endDate);
+        .lte('date', endDate)
+        .neq('is_deleted', true);
 
     const { data: histAbsData } = await supabase
         .from('user_absences')
         .select('*')
         .eq('user_id', userId)
         .gte('end_date', historyStart)
-        .lte('start_date', endDate); // Overlap check simplified
+        .lte('start_date', endDate) // Overlap check simplified
+        .neq('is_deleted', true);
 
     let historyEntries = (histEntriesData as TimeEntry[]) || [];
     const historyAbsences = (histAbsData as UserAbsence[]) || [];

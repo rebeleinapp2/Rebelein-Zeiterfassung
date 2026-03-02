@@ -39,6 +39,10 @@ const HistoryPage: React.FC = () => {
     // NEU: State für das Löschen-Modal (statt window.confirm)
     const [entryToDelete, setEntryToDelete] = useState<TimeEntry | null>(null);
 
+    // NEU: Change Request Modal (für abgegebene Einträge)
+    const [changeRequestModal, setChangeRequestModal] = useState<{ isOpen: boolean; reason: string }>({ isOpen: false, reason: '' });
+    const [isSubmittingChangeRequest, setIsSubmittingChangeRequest] = useState(false);
+
     // History Modal State
     const [historyModal, setHistoryModal] = useState<{ isOpen: boolean; entryId: string | null }>({ isOpen: false, entryId: null });
     const [rejectionNote, setRejectionNote] = useState('');
@@ -339,8 +343,53 @@ const HistoryPage: React.FC = () => {
             order_number: editForm.order_number || undefined
         };
 
+        // NEU: Wenn der Eintrag bereits abgegeben ist, Änderungsantrag erstellen
+        if (editingEntry.submitted) {
+            setChangeRequestModal({ isOpen: true, reason: '' });
+            return; // Warte auf Begründung im Modal
+        }
+
         await updateEntry(editingEntry.id, updates);
         setEditingEntry(null);
+    };
+
+    // NEU: Änderungsantrag absenden
+    const submitChangeRequest = async () => {
+        if (!editingEntry || !changeRequestModal.reason.trim()) return;
+
+        setIsSubmittingChangeRequest(true);
+
+        const updates = {
+            date: editForm.date,
+            client_name: editForm.client_name,
+            hours: parseFloat(editForm.hours.replace(',', '.')),
+            start_time: editForm.start_time || null,
+            end_time: editForm.end_time || null,
+            note: editForm.note || null,
+            order_number: editForm.order_number || null
+        };
+
+        const { data: { user } } = await supabase.auth.getUser();
+
+        const { error } = await supabase.from('entry_change_history').insert([{
+            entry_id: editingEntry.id,
+            changed_by: user?.id,
+            reason: changeRequestModal.reason,
+            old_values: editingEntry,
+            new_values: updates,
+            status: 'change_requested'
+        }]);
+
+        setIsSubmittingChangeRequest(false);
+
+        if (error) {
+            console.error('Error creating change request:', error);
+            alert('Fehler beim Erstellen des Änderungsantrags: ' + error.message);
+        } else {
+            setChangeRequestModal({ isOpen: false, reason: '' });
+            setEditingEntry(null);
+            alert('Änderungsantrag wurde an das Büro gesendet. Die Änderung wird nach Genehmigung wirksam.');
+        }
     };
 
     // --- Delete Logic (Modal based) ---
@@ -453,17 +502,22 @@ const HistoryPage: React.FC = () => {
             datesToCheck = Array.from(new Set(entriesToProcess.map(e => e.date)));
         }
 
-        // Check for blocked entries (rejected/pending)
-        // For "Submit All", we might want to skip them silently or warn.
-        // Let's warn to be safe, consistent with range behavior.
-        const blockedCount = entriesToProcess.filter(e => !e.isAbsence && (e.rejected_at || e.responsible_user_id)).length;
+        // Check for blocked entries (rejected or still awaiting peer review)
+        // FIXED: Entries with responsible_user_id that HAVE been confirmed (confirmed_at set) are NOT blocked
+        // This fixes the Azubi submission issue where confirmed peer-reviewed entries were wrongly excluded
+        const blockedCount = entriesToProcess.filter(e =>
+            !e.isAbsence && (
+                e.rejected_at ||
+                (e.responsible_user_id && !e.confirmed_at) // Only blocked if peer review is still pending
+            )
+        ).length;
         if (blockedCount > 0) {
             alert(`${blockedCount} Einträge sind abgelehnt oder noch in Prüfung und werden NICHT als abgegeben markiert.`);
         }
 
         const idsToMark = entriesToProcess
             .filter(e => !e.isAbsence && !e.id.startsWith('virtual-'))
-            .filter(e => !e.rejected_at && !e.responsible_user_id && !e.submitted) // Ensure we don't re-submit
+            .filter(e => !e.rejected_at && !(e.responsible_user_id && !e.confirmed_at) && !e.submitted) // Allow confirmed peer-reviewed entries
             .map(e => e.id);
 
         if (idsToMark.length > 0) {
@@ -808,10 +862,10 @@ const HistoryPage: React.FC = () => {
                                                                 )}
                                                             </div>
 
-                                                            {!isLocked && (!entry.submitted || entry.rejected_at) && settings?.is_active !== false && !entry.is_deleted && (
-                                                                <div className="flex items-center gap-2 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
+                                                            {!isLocked && settings?.is_active !== false && !entry.is_deleted && (
+                                                                <div className={`flex items-center gap-2 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity ${entry.submitted && !entry.rejected_at ? '' : ''}`}>
                                                                     {!entry.isAbsence && (
-                                                                        <button onClick={() => handleEditClick(entry)} className={`p-1.5 rounded-lg transition-colors ${entry.rejected_at ? 'text-teal-300 bg-teal-500/10 hover:bg-teal-500/20' : 'text-white/30 hover:text-white hover:bg-white/10'}`}>
+                                                                        <button onClick={() => handleEditClick(entry)} className={`p-1.5 rounded-lg transition-colors ${entry.rejected_at ? 'text-teal-300 bg-teal-500/10 hover:bg-teal-500/20' : entry.submitted ? 'text-blue-300/60 hover:text-blue-300 hover:bg-blue-500/10' : 'text-white/30 hover:text-white hover:bg-white/10'}`} title={entry.submitted ? 'Änderungsantrag stellen' : 'Bearbeiten'}>
                                                                             {entry.rejected_at ? <RefreshCw size={14} /> : <Edit2 size={14} />}
                                                                         </button>
                                                                     )}
@@ -955,6 +1009,58 @@ const HistoryPage: React.FC = () => {
                     </>
                 )}
             </div>
+
+            {/* CHANGE REQUEST MODAL (für abgegebene Einträge) */}
+            {changeRequestModal.isOpen && editingEntry && (
+                <div className="fixed inset-0 z-[200] flex items-center justify-center p-6 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
+                    <GlassCard className="w-full max-w-sm relative shadow-2xl border-blue-500/30">
+                        <div className="flex items-center gap-3 text-blue-400 mb-4">
+                            <FileText size={28} />
+                            <h3 className="text-xl font-bold">Änderungsantrag</h3>
+                        </div>
+                        <p className="text-white/70 text-sm mb-2">
+                            Dieser Eintrag wurde bereits abgegeben. Deine Änderung wird als <strong className="text-blue-300">Antrag</strong> an das Büro gesendet und erst nach Genehmigung wirksam.
+                        </p>
+                        <div className="bg-white/5 rounded-lg p-3 mb-4 border border-white/10 text-xs text-white/50">
+                            <div className="flex justify-between mb-1">
+                                <span className="font-bold text-white/70">{editForm.client_name}</span>
+                                <span className="font-mono">{editForm.hours} h</span>
+                            </div>
+                            <div className="flex gap-2">
+                                <span>{editForm.date}</span>
+                                {editForm.start_time && <span>{editForm.start_time} - {editForm.end_time}</span>}
+                            </div>
+                        </div>
+                        <div className="mb-4">
+                            <label className="text-xs font-bold text-white/50 uppercase tracking-wider mb-1 block">Grund der Änderung *</label>
+                            <input
+                                type="text"
+                                value={changeRequestModal.reason}
+                                onChange={(e) => setChangeRequestModal(prev => ({ ...prev, reason: e.target.value }))}
+                                className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder-white/30 focus:outline-none focus:ring-1 focus:ring-blue-500/50"
+                                placeholder="Warum muss der Eintrag geändert werden?"
+                                autoFocus
+                                onKeyDown={(e) => { if (e.key === 'Enter' && changeRequestModal.reason.trim()) submitChangeRequest(); }}
+                            />
+                        </div>
+                        <div className="flex gap-3">
+                            <GlassButton
+                                onClick={() => { setChangeRequestModal({ isOpen: false, reason: '' }); setEditingEntry(null); }}
+                                className="bg-white/10 hover:bg-white/20 border-white/10 text-white"
+                            >
+                                Abbrechen
+                            </GlassButton>
+                            <GlassButton
+                                onClick={submitChangeRequest}
+                                disabled={!changeRequestModal.reason.trim() || isSubmittingChangeRequest}
+                                className="bg-blue-500 hover:bg-blue-600 border-blue-500 text-white disabled:opacity-50"
+                            >
+                                {isSubmittingChangeRequest ? 'Sende...' : 'Antrag senden'}
+                            </GlassButton>
+                        </div>
+                    </GlassCard>
+                </div>
+            )}
 
             {/* CONFIRMATION MODAL FOR DELETE */}
             {

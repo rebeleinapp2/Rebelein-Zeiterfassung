@@ -488,6 +488,14 @@ export const useTimeEntries = (customUserId?: string) => {
     let changeTrackingData: Partial<TimeEntry> = {};
     const isOwner = user?.id === entry.user_id;
 
+    // Fetch current user role to see if they are admin/office
+    let currentUserRole = 'installer';
+    if (user?.id) {
+      const { data: mySettings } = await supabase.from('user_settings').select('role').eq('user_id', user.id).single();
+      if (mySettings) currentUserRole = mySettings.role;
+    }
+    const isAdminOrOffice = currentUserRole === 'admin' || currentUserRole === 'office' || currentUserRole === 'super_admin';
+
     if (!isOwner) {
       // Modification by Admin/Office -> Require Reason & Track
       // If no reason provided, we might want to throw error or handled in UI. 
@@ -495,7 +503,7 @@ export const useTimeEntries = (customUserId?: string) => {
       changeTrackingData = {
         last_changed_by: user?.id,
         change_reason: reason || 'Kein Grund angegeben',
-        change_confirmed_by_user: false,
+        change_confirmed_by_user: isAdminOrOffice, // Auto-confirm if admin/office
         updated_at: new Date().toISOString() // Assuming we want to track update time too
       };
     } else {
@@ -559,6 +567,15 @@ export const useTimeEntries = (customUserId?: string) => {
       }
     }
 
+    // NEW LOGIC: Admin/Office forces auto-confirm on updates
+    if (isAdminOrOffice) {
+      autoConfirmData = {
+        submitted: true,
+        confirmed_by: user?.id,
+        confirmed_at: new Date().toISOString()
+      };
+    }
+
     // New: Auto-Confirm based on Content Owner Settings
     // REMOVED: Entries should NOT be auto-submitted on update.
 
@@ -583,9 +600,8 @@ export const useTimeEntries = (customUserId?: string) => {
       alert("Fehler beim Aktualisieren: " + (error.message || JSON.stringify(error)));
     } else {
       // --- HISTORY LOGGING ---
-      const historyStatus = isOwner ? 'confirmed' : 'pending';
-      // Cleanup old_values to reduce size: optional, but here we keep "entry" as snaphot.
-      // Actually, let's keep it simple: "entry" is old state, "updates" is change.
+      // Admin/Office changes are auto-confirmed (no user confirmation required)
+      const historyStatus = (isOwner || isAdminOrOffice) ? 'confirmed' : 'pending';
 
       const { error: historyError } = await supabase.from('entry_change_history').insert([{
         entry_id: id,
@@ -613,6 +629,14 @@ export const useTimeEntries = (customUserId?: string) => {
 
     const { data: { user } } = await supabase.auth.getUser();
 
+    // Fetch current user role to see if they are admin/office
+    let currentUserRole = 'installer';
+    if (user?.id) {
+      const { data: mySettings } = await supabase.from('user_settings').select('role').eq('user_id', user.id).single();
+      if (mySettings) currentUserRole = mySettings.role;
+    }
+    const isAdminOrOffice = currentUserRole === 'admin' || currentUserRole === 'office' || currentUserRole === 'super_admin';
+
     // Check Handling: Hard vs Soft Delete
     // Hard Delete allowed if: Entry is NOT submitted AND Current User is Owner
     const isDraft = !entry.submitted; // Assuming submitted is set to true on first save usually, wait. 
@@ -635,12 +659,15 @@ export const useTimeEntries = (customUserId?: string) => {
         return;
       }
 
+      // If Admin/Office deletes it, it is immediately confirmed to avoid showing up as deleted but unconfirmed to the user
+      const isAutoConfirmed = isOwner || isAdminOrOffice;
+
       const { error } = await supabase.from('time_entries').update({
         is_deleted: true,
         deleted_at: new Date().toISOString(),
         deleted_by: user?.id,
         deletion_reason: reason,
-        deletion_confirmed_by_user: isOwner // If owner deletes it, they know it. If admin deletes, false.
+        deletion_confirmed_by_user: isAutoConfirmed // If owner deletes it, they know it. If admin/office deletes, auto-confirm it.
       }).eq('id', id);
 
       if (error) {
