@@ -133,6 +133,24 @@ const EntryPage: React.FC = () => {
     const { reviews: pendingReviews, processReview } = usePeerReviews();
     const { proposals, acceptProposal, discardProposal } = useProposals();
 
+    // Emergency Swap Requests State
+    const [pendingSwapRequests, setPendingSwapRequests] = useState<any[]>([]);
+
+    useEffect(() => {
+        const fetchSwaps = async () => {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) return;
+
+            const { data } = await supabase.from('emergency_schedule')
+                .select('*')
+                .eq('proposed_user_id', user.id)
+                .eq('swap_status', 'pending');
+
+            setPendingSwapRequests(data || []);
+        };
+        fetchSwaps();
+    }, []);
+
     // Nutzung von getLocalISOString statt UTC
     const [date, setDate] = useState(getLocalISOString());
     const [endDate, setEndDate] = useState(''); // NEU: End-Datum für Zeitraum-Abwesenheiten
@@ -1416,6 +1434,27 @@ const EntryPage: React.FC = () => {
         // Show success toast or similar (optional, but updateEntry usually updates list automatically)
     };
 
+    const handleAcceptSwap = async (swapId: string, currentUserId: string) => {
+        try {
+            await supabase.from('emergency_schedule')
+                .update({ user_id: currentUserId, proposed_user_id: null, swap_status: null, swap_requested_at: null })
+                .eq('id', swapId);
+            setPendingSwapRequests(prev => prev.filter(s => s.id !== swapId));
+        } catch (e) {
+            console.error(e);
+        }
+    };
+
+    const handleRejectSwap = async (swapId: string) => {
+        try {
+            await supabase.from('emergency_schedule')
+                .update({ proposed_user_id: null, swap_status: null, swap_requested_at: null })
+                .eq('id', swapId);
+            setPendingSwapRequests(prev => prev.filter(s => s.id !== swapId));
+        } catch (e) {
+            console.error(e);
+        }
+    };
 
 
     const dateObj = new Date(date);
@@ -1728,6 +1767,54 @@ const EntryPage: React.FC = () => {
                                                         const reason = prompt("Grund für Ablehnung:");
                                                         if (reason) processReview(review.id, 'reject', reason);
                                                     }}
+                                                    className="p-2 bg-red-500/20 text-red-300 rounded-xl hover:bg-red-500/30"
+                                                    title="Ablehnen"
+                                                >
+                                                    <X size={18} />
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </GlassCard>
+                                );
+                            })}
+                        </div>
+                    </div>
+                )}
+
+                {/* --- NEU: NOTDIENST TAUSCHANFRAGEN --- */}
+                {pendingSwapRequests.length > 0 && (
+                    <div className="mb-8 animate-in slide-in-from-top-4">
+                        <div className="flex items-center gap-2 mb-3 px-1">
+                            <span className="w-2 h-2 rounded-full bg-orange-500 animate-pulse"></span>
+                            <h3 className="text-xs font-bold text-orange-300 uppercase tracking-wider">Notdienst Tauschanfragen ({pendingSwapRequests.length})</h3>
+                        </div>
+                        <div className="grid gap-3">
+                            {pendingSwapRequests.map(swap => {
+                                const originalUser = installers.find(i => i.user_id === swap.user_id)?.display_name || 'Jemand';
+                                return (
+                                    <GlassCard key={swap.id} className="!p-4 border-orange-500/30 bg-orange-900/5 hover:bg-orange-900/10">
+                                        <div className="flex justify-between items-start gap-4">
+                                            <div className="flex-1">
+                                                <div className="text-xs font-bold text-orange-400 uppercase tracking-wider mb-1">
+                                                    Anfrage von {originalUser}
+                                                </div>
+                                                <div className="font-bold text-white text-sm">Notdienst am {new Date(swap.date).toLocaleDateString('de-DE')}</div>
+                                                {swap.swap_requested_at && (
+                                                    <div className="text-white/50 text-xs mt-1">
+                                                        Angefragt am: {new Date(swap.swap_requested_at).toLocaleDateString('de-DE')}
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <div className="flex flex-col gap-2 shrink-0">
+                                                <button
+                                                    onClick={() => handleAcceptSwap(swap.id, swap.proposed_user_id)}
+                                                    className="p-2 bg-emerald-500/20 text-emerald-300 rounded-xl hover:bg-emerald-500/30"
+                                                    title="Annehmen"
+                                                >
+                                                    <Check size={18} />
+                                                </button>
+                                                <button
+                                                    onClick={() => handleRejectSwap(swap.id)}
                                                     className="p-2 bg-red-500/20 text-red-300 rounded-xl hover:bg-red-500/30"
                                                     title="Ablehnen"
                                                 >

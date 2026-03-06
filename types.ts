@@ -280,3 +280,13 @@ export interface MonthlyStats {
   credits: number;
   diff: number;
 }
+
+export interface EmergencySchedule {
+  id: string;
+  date: string;
+  user_id: string;
+  created_at?: string;
+  proposed_user_id?: string;
+  swap_status?: string;
+  swap_requested_at?: string;
+}

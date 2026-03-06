@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { generateSearchReport } from '../services/pdfExportService';
 import { TimeEntry, UserSettings, UserAbsence, VacationRequest } from '../types';
+import EmergencyCalendar from '../components/EmergencyCalendar';
 
 const OfficeDashboard: React.FC = () => {
     const { users, fetchAllUsers } = useOfficeService();
@@ -22,6 +23,7 @@ const OfficeDashboard: React.FC = () => {
     const [myPendingChanges, setMyPendingChanges] = useState<TimeEntry[]>([]);
     const [pendingVacationRequests, setPendingVacationRequests] = useState<VacationRequest[]>([]);
     const [pendingChangeRequests, setPendingChangeRequests] = useState<any[]>([]);
+    const [pendingSwapRequests, setPendingSwapRequests] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
 
     const [currentUser, setCurrentUser] = useState<UserSettings | null>(null);
@@ -233,6 +235,15 @@ const OfficeDashboard: React.FC = () => {
 
             if (changeReqError) console.error("Error fetching change requests:", changeReqError);
             else setPendingChangeRequests(changeReqs || []);
+
+            // 6. EMERGENCY SWAP REQUESTS
+            const { data: swapReqs, error: swapReqError } = await supabase
+                .from('emergency_schedule')
+                .select('*')
+                .eq('swap_status', 'pending');
+
+            if (swapReqError) console.error("Error fetching swap requests:", swapReqError);
+            else setPendingSwapRequests(swapReqs || []);
         }
 
         setLoading(false);
@@ -563,6 +574,33 @@ const OfficeDashboard: React.FC = () => {
                                         );
                                     })}
                                 </div>
+                            )}
+                        </div>
+                    )}
+
+                    {/* SECTION 3.5: NOTDIENST PLAN (Admin/Office Only) */}
+                    {isOfficeOrAdmin && (
+                        <div className="animate-in slide-in-from-bottom-5">
+                            <button
+                                onClick={() => toggleSection('emergency')}
+                                className="w-full text-left mb-4 flex items-center gap-2 group focus:outline-none"
+                            >
+                                <div className={`p-1 rounded transition-colors ${collapsedSections['emergency'] ? 'text-white/30 group-hover:bg-white/10' : 'text-rose-400'}`}>
+                                    {collapsedSections['emergency'] ? <ChevronRight size={24} /> : <ChevronDown size={24} />}
+                                </div>
+                                <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                                    <Shield size={24} className="text-rose-400" />
+                                    <span className="text-rose-100">Notdienst Plan</span>
+                                </h2>
+                                {pendingSwapRequests.length > 0 && (
+                                    <span className="bg-orange-500/20 text-orange-400 text-xs font-bold px-2 py-1 rounded-full border border-orange-500/30">
+                                        {pendingSwapRequests.length} offene Anfragen
+                                    </span>
+                                )}
+                            </button>
+
+                            {!collapsedSections['emergency'] && (
+                                <EmergencyCalendar isAdmin={true} users={users} />
                             )}
                         </div>
                     )}

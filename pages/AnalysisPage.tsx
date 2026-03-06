@@ -1,13 +1,14 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { useTimeEntries, useSettings, useDailyLogs, useAbsences, useVacationRequests, getDailyTargetForDate, getLocalISOString, getYearlyQuota, fetchMonthlyStats, fetchLifetimeStats } from '../services/dataService';
+import { useTimeEntries, useSettings, useDailyLogs, useAbsences, useVacationRequests, getDailyTargetForDate, getLocalISOString, getYearlyQuota, fetchMonthlyStats, fetchLifetimeStats, useOfficeService } from '../services/dataService';
 import { formatDuration } from '../services/utils/timeUtils';
 import { GlassCard, GlassButton, GlassInput } from '../components/GlassCard';
 import { ChevronLeft, ChevronRight, TrendingUp, TrendingDown, Clock, UserCheck, Palmtree, Stethoscope, Ban, PartyPopper, CalendarHeart, X, CheckCircle, Calendar, CalendarDays, BarChart3, List, Grid3X3, ArrowRight, AlertTriangle, Scale } from 'lucide-react';
 import GlassDatePicker from '../components/GlassDatePicker';
 import { YearlyVacationQuota, MonthlyStats, LifetimeStats } from '../types';
+import EmergencyCalendar from '../components/EmergencyCalendar';
 
-type ViewMode = 'month' | 'year' | 'overtime';
+type ViewMode = 'month' | 'year' | 'overtime' | 'emergency';
 
 // Helper for local date string YYYY-MM-DD - NOW USING GLOBAL HELPER
 // (Previously local `getLocalDateStr` was here, now removed in favor of import)
@@ -15,6 +16,7 @@ type ViewMode = 'month' | 'year' | 'overtime';
 const AnalysisPage: React.FC = () => {
     const { entries } = useTimeEntries();
     const { settings } = useSettings();
+    const { users } = useOfficeService();
     const { dailyLogs, fetchDailyLogs } = useDailyLogs();
     const { absences } = useAbsences();
     const { requests, createRequest, deleteRequest } = useVacationRequests();
@@ -587,16 +589,22 @@ const AnalysisPage: React.FC = () => {
 
     return (
         <div className="p-6 pb-24 h-full overflow-y-auto md:max-w-6xl md:mx-auto w-full">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
-                <div>
-                    <h2 className="text-2xl font-bold text-white">Analyse</h2>
-                    <p className="text-white/50 text-sm">
-                        {viewMode === 'month' ? 'Monatsauswertung' : viewMode === 'year' ? 'Jahresbilanz' : 'Überstundenkonto'}
-                    </p>
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-6">
+                <div className="flex justify-between items-start lg:items-center w-full lg:w-auto gap-4">
+                    <div>
+                        <h2 className="text-2xl font-bold text-white">Analyse</h2>
+                        <p className="text-white/50 text-sm">
+                            {viewMode === 'month' ? 'Monatsauswertung' : viewMode === 'year' ? 'Jahresbilanz' : viewMode === 'overtime' ? 'Überstundenkonto' : 'Notdienst Plan'}
+                        </p>
+                    </div>
+                    <GlassButton onClick={() => setShowRequestModal(true)} className="!w-auto px-3 py-1.5 md:px-4 md:py-2 text-xs md:text-sm flex shrink-0 items-center gap-1.5 bg-purple-500/20 border-purple-500/40 text-purple-200 hover:bg-purple-500/40">
+                        <Palmtree size={16} /> <span className="hidden sm:inline">Urlaub beantragen</span>
+                        <span className="sm:hidden">Urlaub</span>
+                    </GlassButton>
                 </div>
 
-                <div className="flex gap-4 items-center self-end md:self-auto">
-                    <div className="bg-white/10 p-1 rounded-xl flex">
+                <div className="flex w-full lg:w-auto overflow-x-auto pb-1 scrollbar-hide">
+                    <div className="bg-white/10 p-1 rounded-xl flex shrink-0">
                         <button
                             onClick={() => setViewMode('month')}
                             className={`px-3 py-2 rounded-lg text-sm font-bold transition-all ${viewMode === 'month' ? 'bg-teal-500 text-white shadow-lg' : 'text-white/50 hover:text-white'}`}
@@ -615,15 +623,18 @@ const AnalysisPage: React.FC = () => {
                         >
                             Überstunden
                         </button>
+                        <button
+                            onClick={() => setViewMode('emergency')}
+                            className={`px-3 py-2 rounded-lg text-sm font-bold transition-all ${viewMode === 'emergency' ? 'bg-teal-500 text-white shadow-lg' : 'text-white/50 hover:text-white'}`}
+                        >
+                            Notdienst
+                        </button>
                     </div>
-                    <GlassButton onClick={() => setShowRequestModal(true)} className="!w-auto px-4 py-2 text-sm flex items-center gap-2 bg-purple-500/20 border-purple-500/40 text-purple-200 hover:bg-purple-500/40">
-                        <Palmtree size={16} /> <span className="hidden md:inline">Urlaub beantragen</span>
-                    </GlassButton>
                 </div>
             </div>
 
             {/* DATE NAV */}
-            {viewMode !== 'overtime' && (
+            {viewMode !== 'overtime' && viewMode !== 'emergency' && (
                 <div className="flex items-center justify-between bg-white/5 p-2 rounded-xl border border-white/10 mb-6 max-w-md mx-auto md:mx-0">
                     <button onClick={prev} className="p-2 hover:bg-white/10 rounded-lg text-white transition-colors"><ChevronLeft /></button>
                     <span className="font-bold text-white text-lg">
@@ -681,7 +692,7 @@ const AnalysisPage: React.FC = () => {
             )}
 
             {/* REGULAR ANALYSIS VIEW */}
-            {viewMode !== 'overtime' && (
+            {viewMode !== 'overtime' && viewMode !== 'emergency' && (
                 <>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
                         <GlassCard className="relative overflow-hidden group">
@@ -869,7 +880,7 @@ const AnalysisPage: React.FC = () => {
             )}
 
             {/* REQUESTS LIST */}
-            {viewMode !== 'overtime' && (
+            {viewMode !== 'overtime' && viewMode !== 'emergency' && (
                 <GlassCard>
                     <div className="flex items-center gap-2 mb-4 text-purple-300 font-bold uppercase text-xs tracking-wider">
                         <List size={16} /> Meine Anträge ({year})
@@ -974,6 +985,14 @@ const AnalysisPage: React.FC = () => {
                     />
                 )
             }
+
+            {viewMode === 'emergency' && (
+                <EmergencyCalendar
+                    isAdmin={settings.role === 'admin' || settings.role === 'office'}
+                    users={users}
+                    currentUserId={settings.user_id}
+                />
+            )}
         </div >
     );
 };
