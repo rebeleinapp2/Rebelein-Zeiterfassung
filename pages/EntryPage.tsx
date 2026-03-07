@@ -5,6 +5,7 @@ import { supabase } from '../services/supabaseClient'; // Ensure supabase is imp
 import { GlassCard, GlassInput, GlassButton } from '../components/GlassCard';
 import GlassDatePicker from '../components/GlassDatePicker';
 import { PlusCircle, Save, X, Calendar, ChevronLeft, ChevronRight, Clock, Coffee, Building, Briefcase, Truck, Sun, Heart, AlertCircle, AlertTriangle, CheckCircle, Info, Lock, History, User, FileText, Palmtree, UserX, Copy, Loader2, RefreshCw, Send, ArrowLeft, Trash2, CalendarDays, Plus, ChevronDown, ChevronUp, ArrowRight, MessageSquareText, StickyNote, Building2, Warehouse, Car, Stethoscope, PartyPopper, Ban, TrendingDown, Play, Square, UserCheck, Check, UserPlus, ArrowLeftRight, Baby, Coins, PiggyBank, Siren, Percent, ShieldAlert, Edit2, XCircle, Hash, Users } from 'lucide-react';
+import { useToast } from '../components/Toast';
 import { TimeSegment, QuotaChangeNotification, TimeEntry, UserAbsence } from '../types';
 import { formatDuration, getGracePeriodDate, formatMinutesToDecimal, calculateOverlapInMinutes } from '../services/utils/timeUtils';
 import { analyzeMontagebericht } from '../services/pdfImportService';
@@ -84,6 +85,7 @@ const DebouncedSegmentNote: React.FC<{
 };
 
 const EntryPage: React.FC = () => {
+    const { showToast } = useToast();
     const { addEntry, entries, updateEntry } = useTimeEntries();
     const { addAbsence, absences, confirmAbsenceDeletion, rejectAbsenceDeletion } = useAbsences();
     const { settings, updateSettings } = useSettings();
@@ -321,7 +323,7 @@ const EntryPage: React.FC = () => {
                                 handleFileUpload(syntheticEvent);
 
                                 // 3. Notify User
-                                alert("Ein Montagebericht wurde geteilt und wird analysiert!");
+                                showToast("Ein Montagebericht wurde geteilt und wird analysiert!", "info");
                             }
 
                             // 4. Clear Store
@@ -371,7 +373,7 @@ const EntryPage: React.FC = () => {
             setNotificationRejectionReason('');
         } catch (e) {
             console.error(e);
-            alert("Fehler beim Senden der Antwort.");
+            showToast("Fehler beim Senden der Antwort.", "error");
         }
     };
 
@@ -539,7 +541,7 @@ const EntryPage: React.FC = () => {
             }).eq('id', entry.id);
 
             if (error) {
-                alert("Fehler beim Löschen: " + error.message);
+                showToast("Fehler beim Löschen: " + error.message, "error");
                 return;
             }
         } else {
@@ -551,7 +553,7 @@ const EntryPage: React.FC = () => {
 
             if (error) {
                 console.error("Error confirming history:", error);
-                alert("Fehler beim Bestätigen: " + error.message);
+                showToast("Fehler beim Bestätigen: " + error.message, "error");
                 return;
             }
         }
@@ -1103,7 +1105,7 @@ const EntryPage: React.FC = () => {
             console.error("Fehler beim Speichern der Überlappung:", err);
             // Optional: Show user feedback
             setIsSubmitting(false);
-            alert("Fehler beim Speichern. Bitte Konsole prüfen.");
+            showToast("Fehler beim Speichern. Bitte Konsole prüfen.", "error");
         }
     };
 
@@ -1404,7 +1406,7 @@ const EntryPage: React.FC = () => {
 
         } catch (e) {
             console.error(e);
-            alert("Fehler beim Speichern der Überschneidung.");
+            showToast("Fehler beim Speichern der Überschneidung.", "error");
         } finally {
             setIsSubmitting(false);
         }
@@ -1539,7 +1541,7 @@ const EntryPage: React.FC = () => {
             // Unsubmitted entries: auto-confirm deletion (no notification needed)
             ...(isUnsubmitted ? { deletion_confirmed_by_user: true } : {})
         }).eq('id', id);
-        if (error) alert('Fehler beim Löschen');
+        if (error) showToast('Fehler beim Löschen', "error");
         setDeleteConfirm({ isOpen: false, entryId: null, entryName: '' });
     };
 

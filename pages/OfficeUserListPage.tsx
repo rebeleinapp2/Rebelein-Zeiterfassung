@@ -1,9 +1,12 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { useOfficeService, getLocalISOString, useDepartments } from '../services/dataService';
 import { supabase } from '../services/supabaseClient';
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from '../services/supabaseClient';
 import { GlassCard, GlassInput } from '../components/GlassCard';
+import ConfirmDialog from '../components/ConfirmDialog';
+import { useToast } from '../components/Toast';
 import { useNavigate } from 'react-router-dom';
-import { ChevronLeft, ChevronRight, CheckCircle, AlertTriangle, CalendarClock, Shield, X, Save, Edit2, Clock, StickyNote, Briefcase, FileDown, Palmtree, Power, ChevronDown, ChevronUp, Settings2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, CheckCircle, AlertTriangle, CalendarClock, Shield, X, Save, Edit2, Clock, StickyNote, Briefcase, FileDown, Palmtree, Power, ChevronDown, ChevronUp, Settings2, KeyRound, Trash2, Eye, EyeOff } from 'lucide-react';
 import { TimeEntry, UserSettings, UserAbsence, Department } from '../types';
 import BatchExportModal from '../components/BatchExportModal';
 
@@ -30,6 +33,26 @@ const OfficeUserListPage: React.FC = () => {
     // UI Configuration State
     const [isDeptMgmtOpen, setIsDeptMgmtOpen] = useState(false);
     const [openGroups, setOpenGroups] = useState<string[]>([]);
+
+    // Admin User Management Modal State
+    const [managingUser, setManagingUser] = useState<UserSettings | null>(null);
+    const [adminAction, setAdminAction] = useState<'password' | 'delete' | null>(null);
+    const [newPassword, setNewPassword] = useState('');
+    const [showPassword, setShowPassword] = useState(false);
+    const [deleteConfirm1, setDeleteConfirm1] = useState('');
+    const [deleteConfirm2, setDeleteConfirm2] = useState('');
+    const [adminActionLoading, setAdminActionLoading] = useState(false);
+    const [adminActionResult, setAdminActionResult] = useState<{ success: boolean; message: string } | null>(null);
+
+    // Confirm Dialog State
+    const [confirmDialog, setConfirmDialog] = useState<{
+        isOpen: boolean;
+        title: string;
+        message: string;
+        action: () => void;
+    }>({ isOpen: false, title: '', message: '', action: () => { } });
+
+    const { showToast } = useToast();
 
     // Initial Load Users
     useEffect(() => {
@@ -237,9 +260,9 @@ const OfficeUserListPage: React.FC = () => {
     };
 
     const handleSaveEdit = async (entryId: string) => {
-        // Enforce Reason for Admins/Office (Assuming this dashboard IS for office/admin)
+        // Enforce Reason for Admins/Office (Assuming this dashboard IS for office/admin)        }
         if (!editForm.reason || editForm.reason.trim() === '') {
-            alert("Bitte geben Sie einen Änderungsgrund an.");
+            showToast("Bitte geben Sie einen Änderungsgrund an.", "error");
             return;
         }
 
@@ -277,6 +300,102 @@ const OfficeUserListPage: React.FC = () => {
             } : e));
 
             setEditingEntryId(null);
+        }
+    };
+
+    // --- Admin User Management ---
+    const openUserManagement = (user: UserSettings, action: 'password' | 'delete') => {
+        setManagingUser(user);
+        setAdminAction(action);
+        setNewPassword('');
+        setShowPassword(false);
+        setDeleteConfirm1('');
+        setDeleteConfirm2('');
+        setAdminActionResult(null);
+    };
+
+    const closeUserManagement = () => {
+        setManagingUser(null);
+        setAdminAction(null);
+        setNewPassword('');
+        setDeleteConfirm1('');
+        setDeleteConfirm2('');
+        setAdminActionResult(null);
+    };
+
+    const handleChangePassword = async () => {
+        if (!managingUser || !newPassword) return;
+        if (newPassword.length < 6) {
+            setAdminActionResult({ success: false, message: 'Das Passwort muss mindestens 6 Zeichen lang sein.' });
+            return;
+        }
+        setAdminActionLoading(true);
+        setAdminActionResult(null);
+        try {
+            const { data: { session } } = await supabase.auth.getSession();
+            const res = await fetch(`${SUPABASE_URL}/functions/v1/admin-user-management`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${session?.access_token}`,
+                    'apikey': SUPABASE_ANON_KEY,
+                },
+                body: JSON.stringify({
+                    action: 'change_password',
+                    targetUserId: managingUser.user_id,
+                    newPassword
+                })
+            });
+            const result = await res.json();
+            if (result.success) {
+                setAdminActionResult({ success: true, message: 'Passwort wurde erfolgreich geändert.' });
+                setNewPassword('');
+            } else {
+                setAdminActionResult({ success: false, message: result.error || 'Fehler beim Ändern des Passworts.' });
+            }
+        } catch (err) {
+            setAdminActionResult({ success: false, message: 'Netzwerkfehler beim Ändern des Passworts.' });
+        } finally {
+            setAdminActionLoading(false);
+        }
+    };
+
+    const handleDeleteUser = async () => {
+        if (!managingUser) return;
+        if (deleteConfirm1 !== 'LÖSCHEN' || deleteConfirm2 !== 'LÖSCHEN') {
+            setAdminActionResult({ success: false, message: 'Bitte gib zweimal "LÖSCHEN" ein, um den Benutzer zu löschen.' });
+            return;
+        }
+        setAdminActionLoading(true);
+        setAdminActionResult(null);
+        try {
+            const { data: { session } } = await supabase.auth.getSession();
+            const res = await fetch(`${SUPABASE_URL}/functions/v1/admin-user-management`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${session?.access_token}`,
+                    'apikey': SUPABASE_ANON_KEY,
+                },
+                body: JSON.stringify({
+                    action: 'delete',
+                    targetUserId: managingUser.user_id
+                })
+            });
+            const result = await res.json();
+            if (result.success) {
+                setAdminActionResult({ success: true, message: 'Benutzer wurde erfolgreich gelöscht.' });
+                setTimeout(() => {
+                    closeUserManagement();
+                    fetchAllUsers();
+                }, 1500);
+            } else {
+                setAdminActionResult({ success: false, message: result.error || 'Fehler beim Löschen des Benutzers.' });
+            }
+        } catch (err) {
+            setAdminActionResult({ success: false, message: 'Netzwerkfehler beim Löschen des Benutzers.' });
+        } finally {
+            setAdminActionLoading(false);
         }
     };
 
@@ -805,12 +924,43 @@ const OfficeUserListPage: React.FC = () => {
                                                                     <Shield size={10} /> {user.role}
                                                                 </span>
                                                             )}
+                                                            {isAdmin && (
+                                                                <>
+                                                                    <button
+                                                                        onClick={(e) => {
+                                                                            e.stopPropagation();
+                                                                            openUserManagement(user, 'password');
+                                                                        }}
+                                                                        className="p-1.5 rounded-full bg-amber-500/10 text-amber-400 hover:bg-amber-500/20 hover:text-amber-300 transition-colors"
+                                                                        title="Passwort ändern"
+                                                                    >
+                                                                        <KeyRound size={14} />
+                                                                    </button>
+                                                                    <button
+                                                                        onClick={(e) => {
+                                                                            e.stopPropagation();
+                                                                            openUserManagement(user, 'delete');
+                                                                        }}
+                                                                        className="p-1.5 rounded-full bg-red-500/10 text-red-400 hover:bg-red-500/20 hover:text-red-300 transition-colors"
+                                                                        title="Benutzer löschen"
+                                                                    >
+                                                                        <Trash2 size={14} />
+                                                                    </button>
+                                                                </>
+                                                            )}
                                                             <button
                                                                 onClick={(e) => {
                                                                     e.stopPropagation();
-                                                                    if (confirm(`Möchten Sie den Benutzer ${user.display_name} wirklich ${user.is_active === false ? 'aktivieren' : 'deaktivieren'}?`)) {
-                                                                        updateOfficeUserSettings(user.user_id!, { is_active: user.is_active === false ? true : false });
-                                                                    }
+                                                                    setConfirmDialog({
+                                                                        isOpen: true,
+                                                                        title: user.is_active === false ? 'Benutzer aktivieren' : 'Benutzer deaktivieren',
+                                                                        message: `Möchten Sie den Benutzer ${user.display_name} wirklich ${user.is_active === false ? 'aktivieren' : 'deaktivieren'}?`,
+                                                                        action: () => {
+                                                                            updateOfficeUserSettings(user.user_id!, { is_active: user.is_active === false ? true : false });
+                                                                            setConfirmDialog(p => ({ ...p, isOpen: false }));
+                                                                            showToast(`Benutzer wurde ${user.is_active === false ? 'aktiviert' : 'deaktiviert'}.`, "success");
+                                                                        }
+                                                                    });
                                                                 }}
                                                                 className={`p-1.5 rounded-full transition-colors order-last ${user.is_active === false
                                                                     ? 'bg-red-500/10 text-red-400 border-red-500/30 hover:bg-emerald-500/20 hover:text-emerald-300 hover:border-emerald-500/30'
@@ -1079,6 +1229,144 @@ const OfficeUserListPage: React.FC = () => {
                     onClose={() => setShowExportModal(false)}
                 />
             )}
+
+            {/* ADMIN USER MANAGEMENT MODAL */}
+            {managingUser && adminAction && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
+                    <GlassCard className="w-full max-w-md !p-0 overflow-hidden shadow-2xl ring-1 ring-white/20">
+                        {/* Header */}
+                        <div className={`p-5 border-b border-white/10 ${adminAction === 'delete' ? 'bg-gradient-to-b from-red-900/30 to-transparent' : 'bg-gradient-to-b from-amber-900/20 to-transparent'}`}>
+                            <div className="flex justify-between items-start">
+                                <div className="flex items-center gap-3">
+                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center text-lg font-bold text-white shadow-lg ${adminAction === 'delete' ? 'bg-gradient-to-br from-red-600 to-red-800' : 'bg-gradient-to-br from-amber-500 to-amber-700'
+                                        }`}>
+                                        {managingUser.display_name.charAt(0)}
+                                    </div>
+                                    <div>
+                                        <h3 className="text-lg font-bold text-white">{managingUser.display_name}</h3>
+                                        <p className={`text-xs font-bold uppercase tracking-wider ${adminAction === 'delete' ? 'text-red-300' : 'text-amber-300'}`}>
+                                            {adminAction === 'password' ? 'Passwort ändern' : 'Benutzer löschen'}
+                                        </p>
+                                    </div>
+                                </div>
+                                <button onClick={closeUserManagement} className="text-white/50 hover:text-white p-1 hover:bg-white/10 rounded-full transition-colors">
+                                    <X size={20} />
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Body */}
+                        <div className="p-5">
+                            {adminAction === 'password' && (
+                                <div className="space-y-4">
+                                    <p className="text-sm text-white/60">
+                                        Setze ein neues Passwort für <span className="font-bold text-white">{managingUser.display_name}</span>.
+                                    </p>
+                                    <div>
+                                        <label className="text-xs font-bold text-white/50 uppercase tracking-wider block mb-2">Neues Passwort</label>
+                                        <div className="relative">
+                                            <GlassInput
+                                                type={showPassword ? 'text' : 'password'}
+                                                value={newPassword}
+                                                onChange={(e) => setNewPassword(e.target.value)}
+                                                placeholder="Mindestens 6 Zeichen..."
+                                                className="!pr-10"
+                                            />
+                                            <button
+                                                type="button"
+                                                onClick={() => setShowPassword(!showPassword)}
+                                                className="absolute right-3 top-1/2 -translate-y-1/2 text-white/30 hover:text-white transition-colors"
+                                            >
+                                                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {adminAction === 'delete' && (
+                                <div className="space-y-4">
+                                    <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4">
+                                        <p className="text-sm text-red-200 font-bold mb-2">⚠️ Achtung:</p>
+                                        <p className="text-sm text-red-200/80">
+                                            Diese Aktion löscht den Benutzer <span className="font-bold text-white">{managingUser.display_name}</span> <strong>unwiderruflich</strong> aus dem System.
+                                            Alle Anmeldedaten werden entfernt.
+                                        </p>
+                                    </div>
+                                    <div>
+                                        <label className="text-xs font-bold text-red-300/70 uppercase tracking-wider block mb-2">Gib "LÖSCHEN" ein (1. Bestätigung)</label>
+                                        <GlassInput
+                                            type="text"
+                                            value={deleteConfirm1}
+                                            onChange={(e) => setDeleteConfirm1(e.target.value.toUpperCase())}
+                                            placeholder='LÖSCHEN'
+                                            className={`${deleteConfirm1 === 'LÖSCHEN' ? '!border-red-500/50 !bg-red-500/10' : ''}`}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="text-xs font-bold text-red-300/70 uppercase tracking-wider block mb-2">Gib "LÖSCHEN" ein (2. Bestätigung)</label>
+                                        <GlassInput
+                                            type="text"
+                                            value={deleteConfirm2}
+                                            onChange={(e) => setDeleteConfirm2(e.target.value.toUpperCase())}
+                                            placeholder='LÖSCHEN'
+                                            className={`${deleteConfirm2 === 'LÖSCHEN' ? '!border-red-500/50 !bg-red-500/10' : ''}`}
+                                        />
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Result Message */}
+                            {adminActionResult && (
+                                <div className={`mt-4 p-3 rounded-xl text-sm font-bold flex items-center gap-2 ${adminActionResult.success
+                                    ? 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-300'
+                                    : 'bg-red-500/10 border border-red-500/20 text-red-300'
+                                    }`}>
+                                    {adminActionResult.success ? <CheckCircle size={16} /> : <AlertTriangle size={16} />}
+                                    {adminActionResult.message}
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Footer */}
+                        <div className="p-4 bg-black/20 flex justify-end gap-3 border-t border-white/5">
+                            <button
+                                onClick={closeUserManagement}
+                                className="px-4 py-2 rounded-xl text-sm font-bold text-white/50 hover:text-white hover:bg-white/5 transition-colors"
+                            >
+                                Abbrechen
+                            </button>
+                            {adminAction === 'password' && (
+                                <button
+                                    onClick={handleChangePassword}
+                                    disabled={adminActionLoading || !newPassword}
+                                    className="px-4 py-2 rounded-xl text-sm font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30 hover:bg-amber-500/30 transition-colors flex items-center gap-2 disabled:opacity-50"
+                                >
+                                    {adminActionLoading ? <><CheckCircle size={16} className="animate-spin" /> Speichern...</> : <><KeyRound size={16} /> Passwort ändern</>}
+                                </button>
+                            )}
+                            {adminAction === 'delete' && (
+                                <button
+                                    onClick={handleDeleteUser}
+                                    disabled={adminActionLoading || deleteConfirm1 !== 'LÖSCHEN' || deleteConfirm2 !== 'LÖSCHEN'}
+                                    className="px-4 py-2 rounded-xl text-sm font-bold bg-red-500/20 text-red-300 border border-red-500/30 hover:bg-red-500/30 transition-colors flex items-center gap-2 disabled:opacity-50"
+                                >
+                                    {adminActionLoading ? <><CheckCircle size={16} className="animate-spin" /> Löschen...</> : <><Trash2 size={16} /> Endgültig löschen</>}
+                                </button>
+                            )}
+                        </div>
+                    </GlassCard>
+                </div>
+            )}
+
+            <ConfirmDialog
+                isOpen={confirmDialog.isOpen}
+                title={confirmDialog.title}
+                message={confirmDialog.message}
+                onConfirm={confirmDialog.action}
+                onCancel={() => setConfirmDialog(p => ({ ...p, isOpen: false }))}
+                variant="warning"
+            />
         </div>
     );
 };

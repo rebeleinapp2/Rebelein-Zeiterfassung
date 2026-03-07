@@ -3,11 +3,13 @@ import { useTimeEntries, useSettings, useDailyLogs, useAbsences, getDailyTargetF
 import { GlassCard, GlassButton, GlassInput } from '../components/GlassCard';
 import { Trash2, FileDown, X, Edit2, Save, CalendarDays, Briefcase, Clock, ChevronLeft, ChevronRight, CheckCircle, Calendar, UserCheck, List, FileText, StickyNote, Coffee, Lock, Hourglass, Building2, Building, Warehouse, Car, Palmtree, Stethoscope, Ban, PartyPopper, TrendingDown, AlertTriangle, Check, Siren, History as HistoryIcon, ThumbsUp, ThumbsDown, RefreshCw, ShieldAlert, Hash } from 'lucide-react';
 import GlassDatePicker from '../components/GlassDatePicker';
+import { useToast } from '../components/Toast';
 import { TimeEntry, DailyLog, UserAbsence } from '../types';
 import { supabase } from '../services/supabaseClient';
 import { formatDuration } from '../services/utils/timeUtils';
 
 const HistoryPage: React.FC = () => {
+    const { showToast } = useToast();
     const { entries, deleteEntry, updateEntry, markAsSubmitted, loading, lockedDays, entryHistory, fetchEntryHistory, addEntry } = useTimeEntries();
     const { settings } = useSettings();
     const { dailyLogs, fetchDailyLogs } = useDailyLogs();
@@ -54,7 +56,7 @@ const HistoryPage: React.FC = () => {
             p_action: 'confirm'
         });
 
-        if (error) alert("Fehler beim Bestätigen: " + error.message);
+        if (error) showToast("Fehler beim Bestätigen: " + error.message, "error");
         else {
             fetchEntryHistory(entryId);
         }
@@ -66,7 +68,7 @@ const HistoryPage: React.FC = () => {
         if (!historyModal.entryId) return;
 
         if (!rejectionNote.trim()) {
-            alert("Bitte Begründung angeben.");
+            showToast("Bitte Begründung angeben.", "warning");
             return;
         }
 
@@ -76,7 +78,7 @@ const HistoryPage: React.FC = () => {
             p_note: rejectionNote
         });
 
-        if (error) alert("Fehler beim Ablehnen: " + error.message);
+        if (error) showToast("Fehler beim Ablehnen: " + error.message, "error");
         else {
             setRejectingHistoryId(null);
             setRejectionNote('');
@@ -384,11 +386,11 @@ const HistoryPage: React.FC = () => {
 
         if (error) {
             console.error('Error creating change request:', error);
-            alert('Fehler beim Erstellen des Änderungsantrags: ' + error.message);
+            showToast('Fehler beim Erstellen des Änderungsantrags: ' + error.message, "error");
         } else {
             setChangeRequestModal({ isOpen: false, reason: '' });
             setEditingEntry(null);
-            alert('Änderungsantrag wurde an das Büro gesendet. Die Änderung wird nach Genehmigung wirksam.');
+            showToast('Änderungsantrag wurde an das Büro gesendet. Die Änderung wird nach Genehmigung wirksam.', "success");
         }
     };
 
@@ -488,14 +490,14 @@ const HistoryPage: React.FC = () => {
                 // Even if no entries, we might need to check for auto-breaks? 
                 // If there are NO entries, there is NO work > 6h, so no auto break needed.
                 // So Safe to return.
-                alert("Keine Einträge im gewählten Zeitraum.");
+                showToast("Keine Einträge im gewählten Zeitraum.", "warning");
                 return;
             }
         } else {
             // "Alle Einträge" Logic: We take everything that is NOT submitted yet
             entriesToProcess = entries.filter(e => !e.submitted);
             if (entriesToProcess.length === 0) {
-                alert("Keine offenen Einträge gefunden.");
+                showToast("Keine offenen Einträge gefunden.", "warning");
                 return;
             }
             // Get unique dates from the unsubmitted entries
@@ -512,7 +514,7 @@ const HistoryPage: React.FC = () => {
             )
         ).length;
         if (blockedCount > 0) {
-            alert(`${blockedCount} Einträge sind abgelehnt oder noch in Prüfung und werden NICHT als abgegeben markiert.`);
+            showToast(`${blockedCount} Einträge sind abgelehnt oder noch in Prüfung und werden NICHT als abgegeben markiert.`, "warning");
         }
 
         const idsToMark = entriesToProcess
@@ -583,7 +585,7 @@ const HistoryPage: React.FC = () => {
             const userId = user.data.user?.id;
 
             if (!userId) {
-                alert("Kein Benutzer gefunden.");
+                showToast("Kein Benutzer gefunden.", "error");
                 return;
             }
 
@@ -611,7 +613,7 @@ const HistoryPage: React.FC = () => {
 
         } catch (error) {
             console.error("PDF Export failed:", error);
-            alert("Fehler beim Exportieren des PDFs.");
+            showToast("Fehler beim Exportieren des PDFs.", "error");
         }
     };
 
@@ -630,7 +632,7 @@ const HistoryPage: React.FC = () => {
             const user = await supabase.auth.getUser();
             const userId = user.data.user?.id;
             if (!userId) {
-                alert("Kein Benutzer gefunden.");
+                showToast("Kein Benutzer gefunden.", "error");
                 return;
             }
 
@@ -649,7 +651,7 @@ const HistoryPage: React.FC = () => {
 
         } catch (error) {
             console.error("Attendance Export failed:", error);
-            alert("Fehler beim Exportieren des Anwesenheits-PDFs.");
+            showToast("Fehler beim Exportieren des Anwesenheits-PDFs.", "error");
         }
     };
 

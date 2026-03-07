@@ -9,6 +9,8 @@ import GlassDatePicker from '../components/GlassDatePicker';
 import { TimeEntry, UserSettings, UserAbsence } from '../types';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { useToast } from '../components/Toast';
+import ConfirmDialog from '../components/ConfirmDialog';
 
 // Typen für die Auswertung
 interface AnalysisStats {
@@ -47,6 +49,7 @@ const TYPE_LABELS: Record<string, string> = {
 };
 
 const AdvancedAnalysisPage: React.FC = () => {
+    const { showToast } = useToast();
     const { users, fetchAllUsers } = useOfficeService();
 
     // --- STATE ---
@@ -71,6 +74,7 @@ const AdvancedAnalysisPage: React.FC = () => {
     // Presets (Database Backed)
     const [presets, setPresets] = useState<FilterPreset[]>([]);
     const [presetName, setPresetName] = useState('');
+    const [confirmDeleteDialog, setConfirmDeleteDialog] = useState<{ isOpen: boolean, presetId: string | null }>({ isOpen: false, presetId: null });
 
     // --- INITIALIZATION ---
     useEffect(() => {
@@ -127,7 +131,7 @@ const AdvancedAnalysisPage: React.FC = () => {
 
         if (entError || absError) {
             console.error(entError, absError);
-            alert("Fehler beim Laden der Daten.");
+            showToast("Fehler beim Laden der Daten.", "error");
         } else {
             setRawData({
                 entries: entriesData as TimeEntry[],
@@ -246,7 +250,7 @@ const AdvancedAnalysisPage: React.FC = () => {
     };
 
     const savePreset = async () => {
-        if (!presetName) return alert("Bitte Namen eingeben");
+        if (!presetName) return showToast("Bitte Namen eingeben", "warning");
 
         const filters = { startDate, endDate, selectedUserIds, selectedTypes };
 
@@ -256,7 +260,7 @@ const AdvancedAnalysisPage: React.FC = () => {
         });
 
         if (error) {
-            alert("Fehler beim Speichern: " + error.message);
+            showToast("Fehler beim Speichern: " + error.message, "error");
         } else {
             setPresetName('');
         }
@@ -269,10 +273,14 @@ const AdvancedAnalysisPage: React.FC = () => {
         if (preset.filters.selectedTypes) setSelectedTypes(preset.filters.selectedTypes);
     };
 
-    const deletePreset = async (id: string) => {
-        if (!confirm("Vorlage wirklich löschen?")) return;
+    const deletePreset = async (id: string, confirmed: boolean = false) => {
+        if (!confirmed) {
+            setConfirmDeleteDialog({ isOpen: true, presetId: id });
+            return;
+        }
         const { error } = await supabase.from('analysis_presets').delete().eq('id', id);
-        if (error) alert("Fehler beim Löschen: " + error.message);
+        if (error) showToast("Fehler beim Löschen: " + error.message, "error");
+        setConfirmDeleteDialog({ isOpen: false, presetId: null });
     };
 
     // --- EXPORT FUNCTIONALITY ---
@@ -611,6 +619,18 @@ const AdvancedAnalysisPage: React.FC = () => {
                     <p className="text-white/50">Die erweiterte Analyse ist für große Bildschirme optimiert. Bitte öffne diese Seite auf einem PC oder Mac.</p>
                 </div>
             </div>
+
+            <ConfirmDialog
+                isOpen={confirmDeleteDialog.isOpen}
+                title="Vorlage löschen"
+                message="Möchten Sie diese Vorlage wirklich löschen? Sie ist dann für alle Benutzer entfernt."
+                confirmLabel="Löschen"
+                variant="danger"
+                onConfirm={() => {
+                    if (confirmDeleteDialog.presetId) deletePreset(confirmDeleteDialog.presetId, true);
+                }}
+                onCancel={() => setConfirmDeleteDialog({ isOpen: false, presetId: null })}
+            />
         </div>
     );
 };

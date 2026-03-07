@@ -3,9 +3,11 @@ import { useSettings } from '../services/dataService';
 import { GlassCard, GlassInput, GlassButton } from '../components/GlassCard';
 import { User, Clock, Save, LogOut, Calendar, Lock } from 'lucide-react';
 import GlassDatePicker from '../components/GlassDatePicker';
+import { useToast } from '../components/Toast';
 import { DailyTarget, WorkConfig } from '../types';
 
 const SettingsPage: React.FC = () => {
+  const { showToast } = useToast();
   const { settings, updateSettings, logout } = useSettings();
   const [name, setName] = useState(settings.display_name);
   const [targets, setTargets] = useState(settings.target_hours);
@@ -45,9 +47,8 @@ const SettingsPage: React.FC = () => {
     });
 
     if (error) {
-      // Zeige den tatsächlichen Fehlertext an
       // @ts-ignore - Error object might vary, handled safely in alert
-      alert("Fehler beim Speichern der Einstellungen:\n" + (error.message || JSON.stringify(error)));
+      showToast("Fehler beim Speichern der Einstellungen:\n" + (error.message || JSON.stringify(error)), "error");
     } else {
       setIsSaved(true);
       setTimeout(() => setIsSaved(false), 2000);

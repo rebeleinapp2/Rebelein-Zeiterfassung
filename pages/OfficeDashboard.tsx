@@ -11,8 +11,10 @@ import {
 import { generateSearchReport } from '../services/pdfExportService';
 import { TimeEntry, UserSettings, UserAbsence, VacationRequest } from '../types';
 import EmergencyCalendar from '../components/EmergencyCalendar';
+import { useToast } from '../components/Toast';
 
 const OfficeDashboard: React.FC = () => {
+    const { showToast } = useToast();
     const { users, fetchAllUsers } = useOfficeService();
     const { departments } = useDepartments();
     const navigate = useNavigate();
@@ -79,7 +81,7 @@ const OfficeDashboard: React.FC = () => {
             setSearchResults(data as TimeEntry[]);
         } catch (err) {
             console.error("Search error:", err);
-            alert("Fehler bei der Suche");
+            showToast("Fehler bei der Suche", "error");
         } finally {
             setIsSearching(false);
         }
@@ -396,7 +398,7 @@ const OfficeDashboard: React.FC = () => {
 
         if (error) {
             console.error('Error approving change request:', error);
-            alert('Fehler beim Genehmigen: ' + error.message);
+            showToast('Fehler beim Genehmigen: ' + error.message, "error");
         } else {
             setPendingChangeRequests(prev => prev.filter(r => r.id !== historyId));
         }
@@ -414,7 +416,7 @@ const OfficeDashboard: React.FC = () => {
 
         if (error) {
             console.error('Error rejecting change request:', error);
-            alert('Fehler beim Ablehnen: ' + error.message);
+            showToast('Fehler beim Ablehnen: ' + error.message, "error");
         } else {
             setPendingChangeRequests(prev => prev.filter(r => r.id !== changeRequestRejection.historyId));
             setChangeRequestRejection({ historyId: null, reason: '' });

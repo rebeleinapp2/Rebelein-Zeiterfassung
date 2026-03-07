@@ -1,16 +1,21 @@
 import React, { useState, useEffect } from 'react';
 import { ChevronLeft, ChevronRight, Siren, CheckCircle, UserCheck, X, List, Clock } from 'lucide-react';
 import { supabase } from '../services/supabaseClient';
+import { format, startOfWeek, addDays, getISOWeek, startOfMonth, endOfMonth, isSameDay } from 'date-fns';
+import { de } from 'date-fns/locale';
+import { useToast } from './Toast';
 import { EmergencySchedule, UserSettings } from '../types';
 import { GlassCard } from './GlassCard';
 
-interface Props {
+interface EmergencyCalendarProps {
     isAdmin?: boolean;
     users: UserSettings[];
     currentUserId?: string;
+    fetchUsers?: () => void; // Added fetchUsers based on the instruction's component signature
 }
 
-const EmergencyCalendar: React.FC<Props> = ({ isAdmin, users, currentUserId }) => {
+const EmergencyCalendar: React.FC<EmergencyCalendarProps> = ({ users, fetchUsers, isAdmin, currentUserId }) => {
+    const { showToast } = useToast();
     const [currentDate, setCurrentDate] = useState(new Date());
     const [schedule, setSchedule] = useState<EmergencySchedule[]>([]);
     const [loading, setLoading] = useState(true);
@@ -147,7 +152,7 @@ const EmergencyCalendar: React.FC<Props> = ({ isAdmin, users, currentUserId }) =
                 }
             } else {
                 if (!existing) {
-                    alert('Du kannst keinen neuen Notdienst erstellen, sondern nur prüfen oder tauchen.');
+                    showToast('Du kannst keinen neuen Notdienst erstellen, sondern nur prüfen oder tauchen.', "warning");
                     setIsSaving(false);
                     return;
                 }
@@ -155,7 +160,7 @@ const EmergencyCalendar: React.FC<Props> = ({ isAdmin, users, currentUserId }) =
                     await supabase.from('emergency_schedule').update({ proposed_user_id: null, swap_status: null, swap_requested_at: null }).eq('id', existing.id);
                 } else {
                     if (!selectedUserForDay) {
-                        alert('Bitte wähle einen Kollegen aus, dem du den Dienst übergeben möchtest.');
+                        showToast('Bitte wähle einen Kollegen aus, dem du den Dienst übergeben möchtest.', "warning");
                         setIsSaving(false);
                         return;
                     }
@@ -170,7 +175,7 @@ const EmergencyCalendar: React.FC<Props> = ({ isAdmin, users, currentUserId }) =
             await fetchUserYearlySchedule();
             setIsModalOpen(false);
         } catch (err) {
-            alert('Fehler beim Speichern des Notdienstes.');
+            showToast('Fehler beim Speichern des Notdienstes.', "error");
         } finally {
             setIsSaving(false);
         }
@@ -208,11 +213,7 @@ const EmergencyCalendar: React.FC<Props> = ({ isAdmin, users, currentUserId }) =
 
     return (
         <GlassCard className="mt-8 flex flex-col items-center">
-            <div className="w-full flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
-                <h2 className="text-xl font-bold text-white flex items-center gap-2">
-                    <Siren size={24} className="text-rose-400" />
-                    Notdienst Plan
-                </h2>
+            <div className="w-full flex flex-col md:flex-row md:items-center justify-end gap-4 mb-6">
 
                 <div className="flex items-center justify-between md:justify-center gap-2 md:gap-4 bg-white/5 rounded-full px-2 md:px-4 py-2 border border-white/10 w-full md:w-auto">
                     <button onClick={prevMonth} className="p-2 hover:bg-white/10 rounded-full text-white/50 hover:text-white transition-colors">
@@ -266,8 +267,8 @@ const EmergencyCalendar: React.FC<Props> = ({ isAdmin, users, currentUserId }) =
                                     </span>
 
                                     {assignedUser && (
-                                        <div className={`mt-auto rounded content-center py-1 md:px-2 shadow-sm truncate overflow-hidden flex items-center gap-1 justify-center border ${assigned?.swap_status === 'pending' ? 'bg-orange-500/20 border-orange-500/30' : 'bg-rose-500/20 border-rose-500/30'}`}>
-                                            <p className={`text-[10px] md:text-xs font-bold truncate ${assigned?.swap_status === 'pending' ? 'text-orange-200' : 'text-rose-200'}`}>
+                                        <div className={`mt-auto rounded content-center py-1 md:px-2 shadow-sm lg:overflow-visible overflow-hidden flex items-center gap-1 justify-center border ${assigned?.swap_status === 'pending' ? 'bg-orange-500/20 border-orange-500/30' : 'bg-rose-500/20 border-rose-500/30'}`}>
+                                            <p className={`text-[10px] md:text-xs font-bold truncate lg:whitespace-normal lg:text-clip ${assigned?.swap_status === 'pending' ? 'text-orange-200' : 'text-rose-200'}`}>
                                                 <span className="lg:hidden">{assignedUser.display_name.split(' ')[0]}</span>
                                                 <span className="hidden lg:inline">{assignedUser.display_name}</span>
                                                 {assigned?.swap_status === 'pending' && <span className="hidden md:inline ml-1 text-orange-400">?</span>}

@@ -4,6 +4,7 @@ import { X, FileDown, CheckSquare, Square, ChevronLeft, ChevronRight, Download, 
 import { useOfficeService, getLocalISOString } from '../services/dataService';
 import { fetchExportData, generateProjectPdfBlob, generateAttendancePdfBlob, generateMonthlyReportPdfBlob } from '../services/pdfExportService';
 import JSZip from 'jszip';
+import { useToast } from './Toast';
 
 // Helper for download
 const saveBlob = (blob: Blob, fileName: string) => {
@@ -21,6 +22,7 @@ interface BatchExportModalProps {
 }
 
 const BatchExportModal: React.FC<BatchExportModalProps> = ({ isOpen, onClose }) => {
+    const { showToast } = useToast();
     const { users, fetchAllUsers } = useOfficeService();
     const [selectedMonth, setSelectedMonth] = useState(new Date());
     const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
@@ -126,7 +128,7 @@ const BatchExportModal: React.FC<BatchExportModalProps> = ({ isOpen, onClose }) 
             onClose();
         } catch (error) {
             console.error("Export failed:", error);
-            alert("Fehler beim Exportieren. Bitte Konsole prüfen.");
+            showToast("Fehler beim Exportieren. Bitte Konsole prüfen.", "error");
         } finally {
             setIsGenerating(false);
             setProgress('');

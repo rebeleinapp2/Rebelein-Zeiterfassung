@@ -2,6 +2,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { TimeEntry, UserSettings, DEFAULT_SETTINGS, DailyLog, LockedDay, UserAbsence, VacationRequest, DailyTarget, EntryChangeHistory, Department, OvertimeBalanceEntry, DailySummary } from '../types';
 import { supabase } from './supabaseClient';
+import { useToast } from '../components/Toast';
 import { calculateWorkingDays, calculateWorkingDaysWithHolidays } from './utils/timeUtils';
 
 // --- Helper Functions ---
@@ -140,6 +141,7 @@ export const useInstallers = () => {
 };
 
 export const usePeerReviews = () => {
+  const { showToast } = useToast();
   const [reviews, setReviews] = useState<TimeEntry[]>([]);
 
   const fetchReviews = useCallback(async () => {
@@ -190,7 +192,7 @@ export const usePeerReviews = () => {
 
       if (error) {
         console.error("Error rejecting review:", error);
-        alert("Fehler beim Ablehnen: " + error.message);
+        showToast("Fehler beim Ablehnen: " + error.message, "error");
       }
     }
     await fetchReviews();
@@ -200,6 +202,7 @@ export const usePeerReviews = () => {
 };
 
 export const useProposals = () => {
+  const { showToast } = useToast();
   const [proposals, setProposals] = useState<TimeEntry[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -239,7 +242,7 @@ export const useProposals = () => {
     }).eq('id', entryId);
 
     if (error) {
-      alert("Fehler beim Übernehmen: " + error.message);
+      showToast("Fehler beim Übernehmen: " + error.message, "error");
     } else {
       await fetchProposals();
     }
@@ -248,7 +251,7 @@ export const useProposals = () => {
   const discardProposal = async (entryId: string) => {
     const { error } = await supabase.from('time_entries').delete().eq('id', entryId);
     if (error) {
-      alert("Fehler beim Verwerfen: " + error.message);
+      showToast("Fehler beim Verwerfen: " + error.message, "error");
     } else {
       await fetchProposals();
     }
@@ -258,6 +261,7 @@ export const useProposals = () => {
 };
 
 export const useTimeEntries = (customUserId?: string) => {
+  const { showToast } = useToast();
   const [entries, setEntries] = useState<TimeEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [lockedDays, setLockedDays] = useState<string[]>([]); // Array of date strings
@@ -376,7 +380,7 @@ export const useTimeEntries = (customUserId?: string) => {
 
   const addEntry = async (entry: Omit<TimeEntry, 'id' | 'created_at' | 'user_id'>, overrideTargetUserId?: string) => {
     if (lockedDays.includes(entry.date) && !overrideTargetUserId) {
-      alert("Dieser Tag ist gesperrt und kann nicht bearbeitet werden.");
+      showToast("Dieser Tag ist gesperrt und kann nicht bearbeitet werden.", "warning");
       return;
     }
 
@@ -461,7 +465,7 @@ export const useTimeEntries = (customUserId?: string) => {
 
     if (error) {
       console.error("Supabase Error:", error);
-      alert("Fehler beim Speichern: " + (error.message || JSON.stringify(error)));
+      showToast("Fehler beim Speichern: " + (error.message || JSON.stringify(error)), "error");
     } else {
       await fetchEntries();
     }
@@ -474,11 +478,11 @@ export const useTimeEntries = (customUserId?: string) => {
     if (!entry) return;
 
     if (lockedDays.includes(entry.date)) {
-      alert("Dieser Tag ist gesperrt.");
+      showToast("Dieser Tag ist gesperrt.", "warning");
       return;
     }
     if (updates.date && lockedDays.includes(updates.date)) {
-      alert("Ziel-Datum ist gesperrt.");
+      showToast("Ziel-Datum ist gesperrt.", "warning");
       return;
     }
 
@@ -597,7 +601,7 @@ export const useTimeEntries = (customUserId?: string) => {
 
     if (error) {
       console.error("Update Error:", error);
-      alert("Fehler beim Aktualisieren: " + (error.message || JSON.stringify(error)));
+      showToast("Fehler beim Aktualisieren: " + (error.message || JSON.stringify(error)), "error");
     } else {
       // --- HISTORY LOGGING ---
       // Admin/Office changes are auto-confirmed (no user confirmation required)
@@ -623,7 +627,7 @@ export const useTimeEntries = (customUserId?: string) => {
     if (!entry) return;
 
     if (lockedDays.includes(entry.date)) {
-      alert("Dieser Tag ist gesperrt.");
+      showToast("Dieser Tag ist gesperrt.", "warning");
       return;
     }
 
@@ -648,14 +652,14 @@ export const useTimeEntries = (customUserId?: string) => {
       const { error } = await supabase.from('time_entries').delete().eq('id', id);
       if (error) {
         console.error("Delete Error:", error.message || JSON.stringify(error));
-        alert("Löschen fehlgeschlagen: " + (error.message || "Unbekannter Fehler"));
+        showToast("Löschen fehlgeschlagen: " + (error.message || "Unbekannter Fehler"), "error");
       } else {
         await fetchEntries();
       }
     } else {
       // SOFT DELETE
       if (!reason) {
-        alert("Löschung erfordert eine Begründung."); // Should be caught by UI ideally
+        showToast("Löschung erfordert eine Begründung.", "warning"); // Should be caught by UI ideally
         return;
       }
 
@@ -672,7 +676,7 @@ export const useTimeEntries = (customUserId?: string) => {
 
       if (error) {
         console.error("Soft Delete Error:", error.message || JSON.stringify(error));
-        alert("Löschen fehlgeschlagen: " + (error.message || "Unbekannter Fehler"));
+        showToast("Löschen fehlgeschlagen: " + (error.message || "Unbekannter Fehler"), "error");
       } else {
         await fetchEntries();
       }
@@ -780,7 +784,7 @@ export const useTimeEntries = (customUserId?: string) => {
 
     if (error) {
       console.error("Reject Error:", error);
-      alert("Fehler beim Ablehnen: " + error.message);
+      showToast("Fehler beim Ablehnen: " + error.message, "error");
     } else {
       await fetchEntries();
     }
@@ -1050,6 +1054,7 @@ export const useSettings = () => {
 };
 
 export const useAbsences = (customUserId?: string) => {
+  const { showToast } = useToast();
   const [absences, setAbsences] = useState<UserAbsence[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -1110,7 +1115,7 @@ export const useAbsences = (customUserId?: string) => {
       ...absence,
       user_id: targetUserId
     }]);
-    if (error) alert("Fehler beim Speichern der Abwesenheit: " + (error.message || JSON.stringify(error)));
+    if (error) showToast("Fehler beim Speichern der Abwesenheit: " + (error.message || JSON.stringify(error)), "error");
   };
 
   const deleteAbsence = async (id: string, reason?: string): Promise<{ success: boolean; message?: string }> => {
@@ -1226,7 +1231,7 @@ export const useAbsences = (customUserId?: string) => {
         });
       }
     } catch (err: any) {
-      alert("Fehler beim Anpassen der Abwesenheit: " + (err.message || JSON.stringify(err)));
+      showToast("Fehler beim Anpassen der Abwesenheit: " + (err.message || JSON.stringify(err)), "error");
     }
   };
 
@@ -1234,6 +1239,7 @@ export const useAbsences = (customUserId?: string) => {
 };
 
 export const useVacationRequests = (customUserId?: string) => {
+  const { showToast } = useToast();
   const [requests, setRequests] = useState<VacationRequest[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -1286,12 +1292,12 @@ export const useVacationRequests = (customUserId?: string) => {
       status: 'pending'
     });
 
-    if (error) alert("Fehler beim Erstellen des Antrags: " + (error.message || JSON.stringify(error)));
+    if (error) showToast("Fehler beim Erstellen des Antrags: " + (error.message || JSON.stringify(error)), "error");
   };
 
   const deleteRequest = async (id: string) => {
     const { error } = await supabase.from('vacation_requests').delete().eq('id', id);
-    if (error) alert("Löschen fehlgeschlagen: " + (error.message || JSON.stringify(error)));
+    if (error) showToast("Löschen fehlgeschlagen: " + (error.message || JSON.stringify(error)), "error");
   }
 
   const approveRequest = async (request: VacationRequest) => {
@@ -1316,7 +1322,7 @@ export const useVacationRequests = (customUserId?: string) => {
       .eq('id', request.id);
 
     if (updateError) {
-      alert("Genehmigung fehlgeschlagen: " + (updateError.message || JSON.stringify(updateError)));
+      showToast("Genehmigung fehlgeschlagen: " + (updateError.message || JSON.stringify(updateError)), "error");
       return;
     }
 
@@ -1329,7 +1335,7 @@ export const useVacationRequests = (customUserId?: string) => {
     });
 
     if (insertError) {
-      alert("Warnung: Status aktualisiert, aber Kalendereintrag fehlgeschlagen: " + (insertError.message || JSON.stringify(insertError)));
+      showToast("Warnung: Status aktualisiert, aber Kalendereintrag fehlgeschlagen: " + (insertError.message || JSON.stringify(insertError)), "warning");
     }
   };
 
@@ -1338,13 +1344,14 @@ export const useVacationRequests = (customUserId?: string) => {
       .from('vacation_requests')
       .update({ status: 'rejected' })
       .eq('id', id);
-    if (error) alert("Ablehnung fehlgeschlagen: " + (error.message || JSON.stringify(error)));
+    if (error) showToast("Ablehnung fehlgeschlagen: " + (error.message || JSON.stringify(error)), "error");
   }
 
   return { requests, createRequest, deleteRequest, approveRequest, rejectRequest, loading };
 };
 
 export const useDepartments = () => {
+  const { showToast } = useToast();
   const [departments, setDepartments] = useState<Department[]>([]);
 
   const fetchDepartments = useCallback(async () => {
@@ -1372,7 +1379,7 @@ export const useDepartments = () => {
       .eq('id', id);
 
     if (error) {
-      alert("Fehler beim Aktualisieren der Abteilung: " + error.message);
+      showToast("Fehler beim Aktualisieren der Abteilung: " + error.message, "error");
     } else {
       await fetchDepartments();
     }
@@ -1393,6 +1400,7 @@ export const useDepartments = () => {
 };
 
 export const useOfficeService = () => {
+  const { showToast } = useToast();
   const [users, setUsers] = useState<UserSettings[]>([]);
 
   const fetchAllUsers = useCallback(async () => {
@@ -1425,7 +1433,7 @@ export const useOfficeService = () => {
       .eq('user_id', userId);
 
     if (error) {
-      alert("Fehler beim Aktualisieren: " + error.message);
+      showToast("Fehler beim Aktualisieren: " + error.message, "error");
     } else {
       await fetchAllUsers();
     }
@@ -1523,10 +1531,10 @@ export const useOfficeService = () => {
       });
 
       if (error) {
-        alert("Fehler beim Erstellen des Vorschlags: " + error.message);
+        showToast("Fehler beim Erstellen des Vorschlags: " + error.message, "error");
         console.error(error);
       } else {
-        alert("Änderungsvorschlag gesendet! Der Mitarbeiter muss bestätigen.");
+        showToast("Änderungsvorschlag gesendet! Der Mitarbeiter muss bestätigen.", "info");
       }
       return; // STOP HERE - Do not write to quota table yet
     }
@@ -1548,7 +1556,7 @@ export const useOfficeService = () => {
 
     if (error) {
       console.error("Quota update error:", error);
-      alert("Fehler beim Speichern des Jahresanspruchs: " + error.message);
+      showToast("Fehler beim Speichern des Jahresanspruchs: " + error.message, "error");
       return;
     }
 
@@ -1625,7 +1633,7 @@ export const useOfficeService = () => {
         .single();
 
       if (quotaError) {
-        alert("Fehler beim Anwenden der Quote: " + quotaError.message);
+        showToast("Fehler beim Anwenden der Quote: " + quotaError.message, "error");
         return;
       }
 

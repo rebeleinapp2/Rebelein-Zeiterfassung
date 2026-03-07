@@ -20,12 +20,14 @@ import { TimeEntry, UserAbsence, VacationRequest, DailySummary, LifetimeStats, M
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import GlassDatePicker from '../components/GlassDatePicker';
+import { useToast } from '../components/Toast';
 import { formatDuration, calculateOverlapInMinutes } from '../services/utils/timeUtils';
 // @ts-ignore
 // import logoRebelein from '../logo/Logo Rebelein.jpeg';
 const logoRebelein = '/logo/Logo Rebelein.jpeg';
 
 const OfficeUserPage: React.FC = () => {
+    const { showToast } = useToast();
     // Debug: OfficeUserPage loaded
     const { userId } = useParams();
     const navigate = useNavigate();
@@ -530,7 +532,7 @@ const OfficeUserPage: React.FC = () => {
         else if (type === 'sick_pay') note = 'Krankengeld';
         else if (type === 'unpaid') {
             if (!unpaidReason) {
-                alert("Bitte eine Begründung für den unbezahlten Tag angeben.");
+                showToast("Bitte eine Begründung für den unbezahlten Tag angeben.", "warning");
                 return;
             }
             note = unpaidReason;
@@ -594,7 +596,7 @@ const OfficeUserPage: React.FC = () => {
         if (!editingEntry) return;
 
         if (!editForm.reason || editForm.reason.trim() === '') {
-            alert("Bitte geben Sie einen Änderungsgrund an.");
+            showToast("Bitte geben Sie einen Änderungsgrund an.", "warning");
             return;
         }
 
@@ -943,7 +945,7 @@ const OfficeUserPage: React.FC = () => {
 
         if (error) {
             console.error("Error requesting deletion:", error);
-            alert("Fehler beim Anfordern der Löschung.");
+            showToast("Fehler beim Anfordern der Löschung.", "error");
         } else {
             // Optimistic update
             // await fetchUserEntries(userId, selectedMonth); // Not exposed, relies on subscription
@@ -1551,7 +1553,7 @@ const OfficeUserPage: React.FC = () => {
                                                                 fetchVacationAuditLog(data.id).then(setQuotaAuditLogs);
                                                                 setShowQuotaHistory(true);
                                                             } else {
-                                                                alert("Keine Historie vorhanden.");
+                                                                showToast("Keine Historie vorhanden.", "warning");
                                                             }
                                                         });
                                                 }
@@ -2538,7 +2540,7 @@ const OfficeUserPage: React.FC = () => {
                                 <div className="flex gap-2 pt-2">
                                     <button
                                         onClick={() => {
-                                            if (!deletionModal.reason) { alert("Bitte erst einen Grund angeben."); return; }
+                                            if (!deletionModal.reason) { showToast("Bitte erst einen Grund angeben.", "warning"); return; }
                                             const absence = absences?.find(a => a.id === deletionModal.absenceId);
                                             if (absence) generateDeletionRequestPDF(absence, deletionModal.reason);
                                         }}
@@ -2709,10 +2711,10 @@ const OfficeUserPage: React.FC = () => {
                     if (!historyModal.entryId) return;
                     try {
                         await supabase.from('time_entries').update({ updated_at: new Date().toISOString() }).eq('id', historyModal.entryId);
-                        alert('Benachrichtigung erneut gesendet!');
+                        showToast('Benachrichtigung erneut gesendet!', "success");
                     } catch (err) {
                         console.error('Retrigger failed:', err);
-                        alert('Fehler beim erneuten Senden.');
+                        showToast('Fehler beim erneuten Senden.', "error");
                     }
                 };
 
@@ -2752,8 +2754,8 @@ const OfficeUserPage: React.FC = () => {
                                             )}
                                             {/* Step Circle */}
                                             <div className={`absolute left-[-24px] top-0.5 w-4 h-4 rounded-full flex items-center justify-center border-2 ${step.status === 'done' ? 'bg-emerald-500 border-emerald-400' :
-                                                    step.status === 'current' ? 'bg-yellow-500 border-yellow-400 animate-pulse' :
-                                                        'bg-white/10 border-white/20'
+                                                step.status === 'current' ? 'bg-yellow-500 border-yellow-400 animate-pulse' :
+                                                    'bg-white/10 border-white/20'
                                                 }`}>
                                                 {step.status === 'done' && <Check size={10} className="text-white" />}
                                                 {step.status === 'current' && <Clock size={8} className="text-white" />}
