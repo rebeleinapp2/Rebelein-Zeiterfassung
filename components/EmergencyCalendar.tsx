@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ChevronLeft, ChevronRight, Siren, CheckCircle, UserCheck, X, List } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Siren, CheckCircle, UserCheck, X, List, Clock } from 'lucide-react';
 import { supabase } from '../services/supabaseClient';
 import { EmergencySchedule, UserSettings } from '../types';
 import { GlassCard } from './GlassCard';
@@ -21,6 +21,7 @@ const EmergencyCalendar: React.FC<Props> = ({ isAdmin, users, currentUserId }) =
     const [selectedUserForDay, setSelectedUserForDay] = useState<string>(''); // user_id or ''
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
+    const [selectedAllowanceHours, setSelectedAllowanceHours] = useState<string>('');
 
     const fetchSchedule = async () => {
         setLoading(true);
@@ -81,6 +82,13 @@ const EmergencyCalendar: React.FC<Props> = ({ isAdmin, users, currentUserId }) =
     const days = Array.from({ length: daysInMonth }, (_, i) => i + 1);
     const blanks = Array.from({ length: firstDay }, (_, i) => i);
 
+    const getDefaultAllowance = (d: Date): number => {
+        const dow = d.getDay(); // 0=Sun, 5=Fri, 6=Sat
+        if (dow === 5) return 0.5;
+        if (dow === 6 || dow === 0) return 1;
+        return 0;
+    };
+
     const handleDayClick = (day: number) => {
         const d = new Date(currentDate.getFullYear(), currentDate.getMonth(), day, 12);
         const dateStr = d.toISOString().split('T')[0];
@@ -93,6 +101,12 @@ const EmergencyCalendar: React.FC<Props> = ({ isAdmin, users, currentUserId }) =
         } else {
             setSelectedUserForDay(assigned ? assigned.user_id : '');
         }
+        // Pre-populate allowance: use stored value or compute default
+        if (assigned?.allowance_hours != null) {
+            setSelectedAllowanceHours(assigned.allowance_hours.toString());
+        } else {
+            setSelectedAllowanceHours(getDefaultAllowance(d).toString());
+        }
         setIsModalOpen(true);
     };
 
@@ -104,6 +118,9 @@ const EmergencyCalendar: React.FC<Props> = ({ isAdmin, users, currentUserId }) =
         // Find existing to know if we need to update/delete/insert
         const existing = schedule.find(s => s.date === dateStr);
 
+        const parsedAllowance = parseFloat(selectedAllowanceHours.replace(',', '.'));
+        const allowanceVal = isNaN(parsedAllowance) ? null : parsedAllowance;
+
         try {
             if (isAdmin) {
                 if (!selectedUserForDay) {
@@ -112,13 +129,20 @@ const EmergencyCalendar: React.FC<Props> = ({ isAdmin, users, currentUserId }) =
                     }
                 } else {
                     if (existing) {
+                        const updates: any = { allowance_hours: allowanceVal };
                         if (existing.user_id !== selectedUserForDay) {
-                            await supabase.from('emergency_schedule').update({ user_id: selectedUserForDay, proposed_user_id: null, swap_status: null, swap_requested_at: null }).eq('id', existing.id);
+                            updates.user_id = selectedUserForDay;
+                            updates.proposed_user_id = null;
+                            updates.swap_status = null;
+                            updates.swap_requested_at = null;
                         } else if (existing.swap_status === 'pending') {
-                            await supabase.from('emergency_schedule').update({ proposed_user_id: null, swap_status: null, swap_requested_at: null }).eq('id', existing.id);
+                            updates.proposed_user_id = null;
+                            updates.swap_status = null;
+                            updates.swap_requested_at = null;
                         }
+                        await supabase.from('emergency_schedule').update(updates).eq('id', existing.id);
                     } else {
-                        await supabase.from('emergency_schedule').insert({ date: dateStr, user_id: selectedUserForDay });
+                        await supabase.from('emergency_schedule').insert({ date: dateStr, user_id: selectedUserForDay, allowance_hours: allowanceVal });
                     }
                 }
             } else {
@@ -244,7 +268,8 @@ const EmergencyCalendar: React.FC<Props> = ({ isAdmin, users, currentUserId }) =
                                     {assignedUser && (
                                         <div className={`mt-auto rounded content-center py-1 md:px-2 shadow-sm truncate overflow-hidden flex items-center gap-1 justify-center border ${assigned?.swap_status === 'pending' ? 'bg-orange-500/20 border-orange-500/30' : 'bg-rose-500/20 border-rose-500/30'}`}>
                                             <p className={`text-[10px] md:text-xs font-bold truncate ${assigned?.swap_status === 'pending' ? 'text-orange-200' : 'text-rose-200'}`}>
-                                                {assignedUser.display_name.split(' ')[0]}
+                                                <span className="lg:hidden">{assignedUser.display_name.split(' ')[0]}</span>
+                                                <span className="hidden lg:inline">{assignedUser.display_name}</span>
                                                 {assigned?.swap_status === 'pending' && <span className="hidden md:inline ml-1 text-orange-400">?</span>}
                                             </p>
                                         </div>
@@ -332,6 +357,37 @@ const EmergencyCalendar: React.FC<Props> = ({ isAdmin, users, currentUserId }) =
                                         </option>
                                     ))}
                                 </select>
+
+                                {isAdmin && selectedUserForDay && (
+                                    <div className="mt-4">
+                                        <label className="text-xs font-bold text-white/50 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                                            <Clock size={14} /> Pauschale (Stunden)
+                                        </label>
+                                        <div className="flex items-center gap-2 mt-1">
+                                            {['0', '0.5', '1'].map(val => (
+                                                <button
+                                                    key={val}
+                                                    type="button"
+                                                    onClick={() => setSelectedAllowanceHours(val)}
+                                                    className={`flex-1 px-3 py-2.5 rounded-xl text-sm font-bold border transition-all ${selectedAllowanceHours === val
+                                                        ? 'bg-rose-500/20 text-rose-300 border-rose-500/40'
+                                                        : 'bg-white/5 text-white/50 border-white/10 hover:bg-white/10 hover:text-white'
+                                                        }`}
+                                                >
+                                                    {val === '0' ? '0h' : val === '0.5' ? '0,5h' : '1,0h'}
+                                                </button>
+                                            ))}
+                                            <input
+                                                type="text"
+                                                inputMode="decimal"
+                                                value={selectedAllowanceHours}
+                                                onChange={(e) => setSelectedAllowanceHours(e.target.value)}
+                                                placeholder="...h"
+                                                className="w-20 bg-slate-900/50 border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white text-center focus:outline-none focus:border-rose-500 transition-colors"
+                                            />
+                                        </div>
+                                    </div>
+                                )}
                             </div>
 
                             <div className="p-4 bg-black/20 flex justify-end gap-3 border-t border-white/5">

@@ -712,21 +712,29 @@ export const generateMonthlyReportPdfBlob = (data: ExportData, startDate: string
         const dayBreaks = entries.filter(e => e.date === dateStr && e.type === 'break');
         const dayEntries = entries.filter(e => e.date === dateStr && e.type !== 'break' && !absenceTypes.includes(e.type || ''));
         const dayHours = dayEntries.reduce((sum, e) => {
-            let h = e.hours;
-            // Fallback if hours is NaN (e.g. from old malformed entry)
-            if (isNaN(h)) {
-                h = calculateDurationInMinutes(e.start_time || '', e.end_time || '', 0) / 60;
-            }
+            let h = 0;
+            // Use server-calculated duration as primary source (matching AnalysisPage)
+            if (e.calc_duration_minutes !== undefined) {
+                h = Math.abs(e.calc_duration_minutes) / 60;
+                if (e.type === 'emergency_service') {
+                    if (e.calc_surcharge_hours !== undefined && e.calc_surcharge_hours > 0) h += e.calc_surcharge_hours;
+                    else if (e.surcharge) h *= (1 + e.surcharge / 100);
+                }
+            } else {
+                // Fallback: use stored hours
+                h = e.hours;
+                if (isNaN(h)) {
+                    h = calculateDurationInMinutes(e.start_time || '', e.end_time || '', 0) / 60;
+                }
 
-            // Deduct Overlaps
-            dayBreaks.forEach(b => {
-                const overlap = calculateOverlapInMinutes(e.start_time || '', e.end_time || '', b.start_time || '', b.end_time || '');
-                h -= (overlap / 60);
-            });
-            h = Math.max(0, h);
+                // Deduct Overlaps with breaks (only needed in fallback path)
+                dayBreaks.forEach(b => {
+                    const overlap = calculateOverlapInMinutes(e.start_time || '', e.end_time || '', b.start_time || '', b.end_time || '');
+                    h -= (overlap / 60);
+                });
+                h = Math.max(0, h);
 
-            if (e.type === 'emergency_service' && e.surcharge) {
-                return sum + (h * (1 + e.surcharge / 100));
+                if (e.type === 'emergency_service' && e.surcharge) h *= (1 + e.surcharge / 100);
             }
             return sum + h;
         }, 0);
@@ -1058,7 +1066,32 @@ export const generateMonthlyReportPdfBlob = (data: ExportData, startDate: string
             if (isUnpaid) dTarget = 0;
 
             const dEntries = data.historyEntries.filter(e => e.date === dStr && e.type !== 'break' && !absenceTypes.includes(e.type || ''));
-            const dHours = dEntries.reduce((s, e) => s + e.hours, 0);
+            const dBreaks = data.historyEntries.filter(e => e.date === dStr && e.type === 'break');
+            const dHours = dEntries.reduce((s, e) => {
+                let h = 0;
+                // Use server-calculated duration as primary source (matching AnalysisPage)
+                if (e.calc_duration_minutes !== undefined) {
+                    h = Math.abs(e.calc_duration_minutes) / 60;
+                    if (e.type === 'emergency_service') {
+                        if (e.calc_surcharge_hours !== undefined && e.calc_surcharge_hours > 0) h += e.calc_surcharge_hours;
+                        else if (e.surcharge) h *= (1 + e.surcharge / 100);
+                    }
+                } else {
+                    // Fallback: use stored hours
+                    h = e.hours;
+                    if (isNaN(h)) h = 0;
+
+                    // Deduct Overlaps with BREAKS
+                    dBreaks.forEach(b => {
+                        const overlap = calculateOverlapInMinutes(e.start_time || '', e.end_time || '', b.start_time || '', b.end_time || '');
+                        h -= (overlap / 60);
+                    });
+                    h = Math.max(0, h);
+
+                    if (e.type === 'emergency_service' && e.surcharge) h *= (1 + e.surcharge / 100);
+                }
+                return s + h;
+            }, 0);
             const dCredits = getHistoryCredits(dStr);
 
             cumulativeBalance += (dHours + dCredits - dTarget);

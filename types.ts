@@ -289,4 +289,5 @@ export interface EmergencySchedule {
   proposed_user_id?: string;
   swap_status?: string;
   swap_requested_at?: string;
+  allowance_hours?: number;
 }
