@@ -233,6 +233,12 @@ export interface LockedDay {
   locked_by: string;
 }
 
+export interface ClosedMonth {
+  month: string; // 'YYYY-MM'
+  closed_by: string;
+  created_at: string;
+}
+
 export const DEFAULT_SETTINGS: UserSettings = {
   display_name: "Benutzer",
   role: 'installer',

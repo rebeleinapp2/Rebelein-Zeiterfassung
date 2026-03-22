@@ -29,6 +29,7 @@ const OfficeDashboard: React.FC = () => {
     const [loading, setLoading] = useState(true);
 
     const [currentUser, setCurrentUser] = useState<UserSettings | null>(null);
+    const [closedMonths, setClosedMonths] = useState<string[]>([]);
 
     // Modal State
     const [reviewModal, setReviewModal] = useState<{ isOpen: boolean, userId: string | null }>({ isOpen: false, userId: null });
@@ -246,12 +247,41 @@ const OfficeDashboard: React.FC = () => {
 
             if (swapReqError) console.error("Error fetching swap requests:", swapReqError);
             else setPendingSwapRequests(swapReqs || []);
+
+            // 7. CLOSED MONTHS
+            const { data: closed, error: closedError } = await supabase.from('closed_months').select('month').order('month', { ascending: false });
+            if (closedError) console.error("Error fetching closed months:", closedError);
+            else if (closed) setClosedMonths(closed.map(c => c.month));
         }
 
         setLoading(false);
     };
 
     // --- Actions ---
+
+    // Toggle Closed Month
+    const handleToggleMonth = async (monthStr: string, isCurrentlyClosed: boolean) => {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+
+        if (isCurrentlyClosed) {
+            const { error } = await supabase.from('closed_months').delete().eq('month', monthStr);
+            if (error) {
+                showToast("Fehler beim Öffnen des Monats: " + error.message, "error");
+            } else {
+                showToast(`Monat ${monthStr} wieder geöffnet`, "success");
+                setClosedMonths(prev => prev.filter(m => m !== monthStr));
+            }
+        } else {
+            const { error } = await supabase.from('closed_months').insert({ month: monthStr, closed_by: user.id });
+            if (error) {
+                showToast("Fehler beim Abschließen des Monats: " + error.message, "error");
+            } else {
+                showToast(`Monat ${monthStr} abgeschlossen`, "success");
+                setClosedMonths(prev => [...prev, monthStr]);
+            }
+        }
+    };
 
     // Confirm Change (User accepts Admin edit)
     const handleConfirmChange = async (entry: TimeEntry) => {
@@ -1023,6 +1053,58 @@ const OfficeDashboard: React.FC = () => {
                             </>
                         )}
                     </div>
+
+                    {/* SECTION 6: MONATSABSCHLUSS (Admin/Office Only) */}
+                    {isOfficeOrAdmin && (
+                        <div className="animate-in slide-in-from-bottom-7">
+                            <div
+                                className="flex items-center justify-between cursor-pointer mb-4"
+                                onClick={() => toggleSection('monthClosing')}
+                            >
+                                <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                                    <Shield size={24} className="text-indigo-400" />
+                                    <span className="text-indigo-100">Monatsabschluss & Sperrungen</span>
+                                </h2>
+                                <div className={`p-2 rounded-lg transition-colors ${collapsedSections['monthClosing'] ? 'bg-white/5' : 'bg-white/10'}`}>
+                                    <ChevronRight size={20} className={`text-white/50 transition-transform ${!collapsedSections['monthClosing'] ? 'rotate-90' : ''}`} />
+                                </div>
+                            </div>
+
+                            {!collapsedSections['monthClosing'] && (
+                                <GlassCard className="border-indigo-500/20 bg-indigo-900/5 p-4 mb-8">
+                                    <p className="text-sm text-indigo-200/70 mb-4">
+                                        Schließen Sie Monate ab, um zu verhindern, dass Monteure oder Azubis nachträglich Zeiten ändern oder hinzufügen. Admins und Office-Mitarbeiter können geschlossene Monate weiterhin bearbeiten.
+                                    </p>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                                        {[...Array(12)].map((_, i) => {
+                                            const d = new Date();
+                                            d.setMonth(d.getMonth() - i);
+                                            const monthStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+                                            const isClosed = closedMonths.includes(monthStr);
+                                            const monthName = d.toLocaleDateString('de-DE', { month: 'long', year: 'numeric' });
+
+                                            return (
+                                                <div key={monthStr} className="flex items-center justify-between bg-white/5 border border-white/5 p-3 rounded-lg hover:bg-white/10 transition-colors">
+                                                    <div>
+                                                        <div className="font-bold text-white">{monthName}</div>
+                                                        <div className={`text-xs ${isClosed ? 'text-red-400' : 'text-emerald-400'}`}>
+                                                            {isClosed ? 'Abgeschlossen' : 'Offen'}
+                                                        </div>
+                                                    </div>
+                                                    <button
+                                                        onClick={(e) => { e.stopPropagation(); handleToggleMonth(monthStr, isClosed); }}
+                                                        className={`px-3 py-1.5 rounded text-xs font-bold transition-colors ${isClosed ? 'bg-red-500/20 text-red-300 hover:bg-red-500 hover:text-white' : 'bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500 hover:text-white'}`}
+                                                    >
+                                                        {isClosed ? 'Öffnen' : 'Abschließen'}
+                                                    </button>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </GlassCard>
+                            )}
+                        </div>
+                    )}
                 </>
             )}
 

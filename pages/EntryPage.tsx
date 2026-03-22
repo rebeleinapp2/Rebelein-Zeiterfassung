@@ -86,10 +86,13 @@ const DebouncedSegmentNote: React.FC<{
 
 const EntryPage: React.FC = () => {
     const { showToast } = useToast();
-    const { addEntry, entries, updateEntry } = useTimeEntries();
-    const { addAbsence, absences, confirmAbsenceDeletion, rejectAbsenceDeletion } = useAbsences();
-    const { settings, updateSettings } = useSettings();
-    const { getLogForDate, saveDailyLog } = useDailyLogs();
+    const { addEntry, entries, updateEntry, loading: entriesLoading } = useTimeEntries();
+    const { addAbsence, absences, confirmAbsenceDeletion, rejectAbsenceDeletion, loading: absencesLoading } = useAbsences();
+    const { settings, updateSettings, loading: settingsLoading } = useSettings();
+    const { getLogForDate, saveDailyLog, loading: logsLoading } = useDailyLogs();
+
+    // Combined initial loading state
+    const isInitialLoading = entriesLoading || absencesLoading || settingsLoading || logsLoading;
 
     // Notification & Office Services
     const { fetchQuotaNotifications, respondToQuotaNotification } = useOfficeService();
@@ -2024,12 +2027,22 @@ const EntryPage: React.FC = () => {
 
                 <form
                     onSubmit={(e) => {
-                        if (settings?.is_active === false) { e.preventDefault(); return; }
+                        if (settings?.is_active === false || isInitialLoading) { e.preventDefault(); return; }
                         handleSubmit(e);
                     }}
-                    className={`grid gap-6 w-full ${settings?.is_active === false ? 'opacity-50 pointer-events-none grayscale' : ''}`}
+                    className={`grid gap-6 w-full ${(settings?.is_active === false || isInitialLoading) ? 'opacity-50 pointer-events-none' : ''}`}
                 >
                     <GlassCard className={`!p-3 space-y-3 transition-all duration-300 relative z-20 !overflow-visible ${getTypeColor()}`}>
+                        {/* SYNC LOADER OVERLAY */}
+                        {isInitialLoading && (
+                            <div className="absolute inset-0 z-[60] bg-black/20 backdrop-blur-[1px] rounded-2xl flex items-center justify-center animate-in fade-in duration-300">
+                                <div className="flex items-center gap-2 bg-black/40 px-4 py-2 rounded-full border border-white/10 shadow-2xl">
+                                    <Loader2 size={18} className="animate-spin text-teal-400" />
+                                    <span className="text-xs font-bold text-white uppercase tracking-wider">Daten werden synchronisiert...</span>
+                                </div>
+                            </div>
+                        )}
+
                         {/* LATE ENTRY WARNING & REASON */}
                         {isLateEntry && (
                             <div className="bg-orange-500/10 border border-orange-500/30 rounded-xl p-3 mb-2 animate-in slide-in-from-top-2">

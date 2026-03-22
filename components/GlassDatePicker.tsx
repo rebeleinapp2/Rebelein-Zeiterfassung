@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { ChevronLeft, ChevronRight, X } from 'lucide-react';
 import { GlassCard } from './GlassCard';
+import { supabase } from '../services/supabaseClient';
 
 interface GlassDatePickerProps {
   value: string; // YYYY-MM-DD
@@ -19,6 +20,30 @@ const GlassDatePicker: React.FC<GlassDatePickerProps> = ({ value, onChange, onCl
   const [currentViewDate, setCurrentViewDate] = useState(() => {
     return value ? new Date(value) : new Date();
   });
+
+  // DB State for Closed Months
+  const [closedMonths, setClosedMonths] = useState<string[]>([]);
+  const [isPrivileged, setIsPrivileged] = useState(true);
+
+  useEffect(() => {
+    const checkRoleAndMonths = async () => {
+      // Wenn wir in einem Bereich-Modus (z.B. für Auswertungen) sind, sperren wir nichts.
+      if (rangeMode) {
+        setIsPrivileged(true);
+        return;
+      }
+
+      // Einträge dürfen nur noch über /office/user für gesperrte Monate bearbeitet werden
+      const isOfficeUserPage = window.location.pathname.includes('/office/user');
+      setIsPrivileged(isOfficeUserPage);
+
+      if (!isOfficeUserPage) {
+        const { data: closed } = await supabase.from('closed_months').select('month');
+        if (closed) setClosedMonths(closed.map(c => c.month));
+      }
+    };
+    checkRoleAndMonths();
+  }, [rangeMode]);
 
   // Range selection state: first click = start, second click = end
   const [rangeSelectionStep, setRangeSelectionStep] = useState<'start' | 'end'>(
@@ -81,6 +106,13 @@ const GlassDatePicker: React.FC<GlassDatePickerProps> = ({ value, onChange, onCl
     if (!value) return false;
     const [vYear, vMonth, vDay] = value.split('-').map(Number);
     return vYear === year && vMonth - 1 === month && vDay === day;
+  };
+
+  // Check if a day falls in a closed month for restricted users
+  const isClosedMonth = (day: number) => {
+    if (isPrivileged) return false;
+    const monthStr = formatDay(day).substring(0, 7);
+    return closedMonths.includes(monthStr);
   };
 
   // Range highlight checks
@@ -170,26 +202,31 @@ const GlassDatePicker: React.FC<GlassDatePickerProps> = ({ value, onChange, onCl
               const rStart = isRangeStart(day);
               const rEnd = isRangeEnd(day);
               const inRange = isInRange(day);
+              const closed = isClosedMonth(day);
 
               return (
                 <button
                   key={day}
-                  onClick={() => handleDayClick(day)}
+                  onClick={() => !closed && handleDayClick(day)}
+                  disabled={closed}
+                  title={closed ? 'Dieser Monat ist bereits für Änderungen gesperrt' : ''}
                   className={`
                     aspect-square flex items-center justify-center rounded-full text-sm font-medium transition-all duration-200
-                    ${selected
-                      ? 'bg-gradient-to-tr from-emerald-500 to-teal-400 text-white shadow-[0_0_15px_rgba(20,184,166,0.5)] scale-105'
-                      : rStart
-                        ? 'bg-gradient-to-tr from-blue-500 to-blue-400 text-white shadow-[0_0_15px_rgba(59,130,246,0.5)] scale-105'
-                        : rEnd
-                          ? 'bg-gradient-to-tr from-indigo-500 to-indigo-400 text-white shadow-[0_0_15px_rgba(99,102,241,0.5)] scale-105'
-                          : inRange
-                            ? 'bg-blue-500/20 text-blue-200 border border-blue-500/30'
-                            : late
-                              ? 'bg-orange-500/10 text-orange-200 hover:bg-orange-500/20 border border-orange-500/30'
-                              : 'hover:bg-white/10 text-white'
+                    ${closed
+                      ? 'bg-red-900/20 text-red-500/50 cursor-not-allowed border border-red-500/20'
+                      : selected
+                        ? 'bg-gradient-to-tr from-emerald-500 to-teal-400 text-white shadow-[0_0_15px_rgba(20,184,166,0.5)] scale-105'
+                        : rStart
+                          ? 'bg-gradient-to-tr from-blue-500 to-blue-400 text-white shadow-[0_0_15px_rgba(59,130,246,0.5)] scale-105'
+                          : rEnd
+                            ? 'bg-gradient-to-tr from-indigo-500 to-indigo-400 text-white shadow-[0_0_15px_rgba(99,102,241,0.5)] scale-105'
+                            : inRange
+                              ? 'bg-blue-500/20 text-blue-200 border border-blue-500/30'
+                              : late
+                                ? 'bg-orange-500/10 text-orange-200 hover:bg-orange-500/20 border border-orange-500/30'
+                                : 'hover:bg-white/10 text-white'
                     }
-                    ${!selected && !rStart && !rEnd && !inRange && today ? `border ${rangeMode ? 'border-blue-400 text-blue-300' : 'border-teal-400 text-teal-300'}` : ''}
+                    ${!closed && !selected && !rStart && !rEnd && !inRange && today ? `border ${rangeMode ? 'border-blue-400 text-blue-300' : 'border-teal-400 text-teal-300'}` : ''}
                   `}
                 >
                   {day}

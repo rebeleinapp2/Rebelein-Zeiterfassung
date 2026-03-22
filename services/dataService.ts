@@ -265,6 +265,7 @@ export const useTimeEntries = (customUserId?: string) => {
   const [entries, setEntries] = useState<TimeEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [lockedDays, setLockedDays] = useState<string[]>([]); // Array of date strings
+  const [closedMonths, setClosedMonths] = useState<string[]>([]); // Array of 'YYYY-MM'
 
   const fetchEntries = useCallback(async () => {
     setLoading(true);
@@ -375,16 +376,32 @@ export const useTimeEntries = (customUserId?: string) => {
       if (locks) setLockedDays(locks.map(l => l.date));
     }
 
+    const { data: closed } = await supabase.from('closed_months').select('month');
+    if (closed) setClosedMonths(closed.map(c => c.month));
+
     setLoading(false);
   }, [customUserId]);
 
   const addEntry = async (entry: Omit<TimeEntry, 'id' | 'created_at' | 'user_id'>, overrideTargetUserId?: string) => {
+    const { data: { user } } = await supabase.auth.getUser();
+    let currentUserRole = 'installer';
+    if (user?.id) {
+      const { data: mySettings } = await supabase.from('user_settings').select('role').eq('user_id', user.id).single();
+      if (mySettings) currentUserRole = mySettings.role;
+    }
+    const isAdminOrOffice = currentUserRole === 'admin' || currentUserRole === 'office' || currentUserRole === 'super_admin';
+
+    const entryMonth = entry.date.substring(0, 7);
+    if (closedMonths.includes(entryMonth) && !isAdminOrOffice) {
+      showToast("Dieser Monat ist abgeschlossen und kann nicht bearbeitet werden.", "warning");
+      return;
+    }
+
     if (lockedDays.includes(entry.date) && !overrideTargetUserId) {
       showToast("Dieser Tag ist gesperrt und kann nicht bearbeitet werden.", "warning");
       return;
     }
 
-    const { data: { user } } = await supabase.auth.getUser();
     const targetUserId = overrideTargetUserId || customUserId || user?.id;
 
     if (!targetUserId) {
@@ -477,6 +494,23 @@ export const useTimeEntries = (customUserId?: string) => {
     const entry = entries.find(e => e.id === id);
     if (!entry) return;
 
+    const { data: { user } } = await supabase.auth.getUser();
+
+    // Fetch current user role to see if they are admin/office
+    let currentUserRole = 'installer';
+    if (user?.id) {
+      const { data: mySettings } = await supabase.from('user_settings').select('role').eq('user_id', user.id).single();
+      if (mySettings) currentUserRole = mySettings.role;
+    }
+    const isAdminOrOffice = currentUserRole === 'admin' || currentUserRole === 'office' || currentUserRole === 'super_admin';
+
+    const entryMonth = entry.date.substring(0, 7);
+    const updateMonth = updates.date ? updates.date.substring(0, 7) : null;
+    if ((closedMonths.includes(entryMonth) || (updateMonth && closedMonths.includes(updateMonth))) && !isAdminOrOffice) {
+      showToast("Dieser Monat ist abgeschlossen.", "warning");
+      return;
+    }
+
     if (lockedDays.includes(entry.date)) {
       showToast("Dieser Tag ist gesperrt.", "warning");
       return;
@@ -486,19 +520,9 @@ export const useTimeEntries = (customUserId?: string) => {
       return;
     }
 
-    const { data: { user } } = await supabase.auth.getUser();
-
     // Modification Tracking
     let changeTrackingData: Partial<TimeEntry> = {};
     const isOwner = user?.id === entry.user_id;
-
-    // Fetch current user role to see if they are admin/office
-    let currentUserRole = 'installer';
-    if (user?.id) {
-      const { data: mySettings } = await supabase.from('user_settings').select('role').eq('user_id', user.id).single();
-      if (mySettings) currentUserRole = mySettings.role;
-    }
-    const isAdminOrOffice = currentUserRole === 'admin' || currentUserRole === 'office' || currentUserRole === 'super_admin';
 
     if (!isOwner) {
       // Modification by Admin/Office -> Require Reason & Track
@@ -626,11 +650,6 @@ export const useTimeEntries = (customUserId?: string) => {
     const entry = entries.find(e => e.id === id);
     if (!entry) return;
 
-    if (lockedDays.includes(entry.date)) {
-      showToast("Dieser Tag ist gesperrt.", "warning");
-      return;
-    }
-
     const { data: { user } } = await supabase.auth.getUser();
 
     // Fetch current user role to see if they are admin/office
@@ -640,6 +659,17 @@ export const useTimeEntries = (customUserId?: string) => {
       if (mySettings) currentUserRole = mySettings.role;
     }
     const isAdminOrOffice = currentUserRole === 'admin' || currentUserRole === 'office' || currentUserRole === 'super_admin';
+
+    const entryMonth = entry.date.substring(0, 7);
+    if (closedMonths.includes(entryMonth) && !isAdminOrOffice) {
+      showToast("Dieser Monat ist abgeschlossen.", "warning");
+      return;
+    }
+
+    if (lockedDays.includes(entry.date)) {
+      showToast("Dieser Tag ist gesperrt.", "warning");
+      return;
+    }
 
     // Check Handling: Hard vs Soft Delete
     // Hard Delete allowed if: Entry is NOT submitted AND Current User is Owner
