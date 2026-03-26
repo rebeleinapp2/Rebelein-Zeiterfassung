@@ -256,3 +256,33 @@ export const getGracePeriodDate = (today: Date = new Date()): Date => {
   return currentDate;
 };
 
+/**
+ * Calculates earned vacation based on passed workdays in the year.
+ * Formula: earned_vacation = (passed_workdays / total_workdays_in_year) * annual_vacation
+ */
+export const calculateEarnedVacation = (annualVacation: number, year: number = new Date().getFullYear()): number => {
+  const startOfYear = new Date(year, 0, 1);
+  const endOfYear = new Date(year, 11, 31);
+  const today = new Date();
+  
+  // If year is in the past, all days are passed
+  // If year is in the future, no days are passed
+  const currentYear = today.getFullYear();
+  let limitDate: Date;
+  
+  if (year < currentYear) {
+    limitDate = endOfYear;
+  } else if (year > currentYear) {
+    return 0;
+  } else {
+    limitDate = today;
+  }
+
+  const totalWorkdays = calculateWorkingDaysWithHolidays(startOfYear, endOfYear);
+  const passedWorkdays = calculateWorkingDaysWithHolidays(startOfYear, limitDate);
+
+  if (totalWorkdays === 0) return 0;
+  
+  return (passedWorkdays / totalWorkdays) * annualVacation;
+};
+

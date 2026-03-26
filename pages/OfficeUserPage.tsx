@@ -21,7 +21,7 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import GlassDatePicker from '../components/GlassDatePicker';
 import { useToast } from '../components/Toast';
-import { formatDuration, calculateOverlapInMinutes } from '../services/utils/timeUtils';
+import { formatDuration, calculateOverlapInMinutes, calculateEarnedVacation } from '../services/utils/timeUtils';
 // @ts-ignore
 // import logoRebelein from '../logo/Logo Rebelein.jpeg';
 const logoRebelein = '/logo/Logo Rebelein.jpeg';
@@ -391,6 +391,10 @@ const OfficeUserPage: React.FC = () => {
         const reduction = (unpaidDaysInYear / 260) * base; // Reduction applies to base only typically
         return Math.max(0, (base - reduction) + carryover);
     }, [vacationDaysEdit, vacationCarryoverEdit, unpaidDaysInYear]);
+
+    const earnedVacation = useMemo(() => {
+        return calculateEarnedVacation(vacationDaysEdit || 30, vacationViewYear);
+    }, [vacationDaysEdit, vacationViewYear]);
 
     const takenVacationDays = useMemo(() => {
         if (!absences) return 0;
@@ -1481,10 +1485,20 @@ const OfficeUserPage: React.FC = () => {
 
                     {!collapsedTiles['vacation'] ? (
                         <>
-                            <div className="flex justify-between items-end mb-4">
+                            <div className="flex flex-col mb-4">
                                 <div className="text-right w-full">
                                     <span className="text-3xl font-bold text-purple-100">{takenVacationDays}</span>
                                     <span className="text-purple-300/50 text-sm"> / {effectiveVacationClaim.toFixed(1)} Tage</span>
+                                </div>
+                                <div className="flex justify-between items-center mt-2 px-2 py-1.5 bg-emerald-900/10 border border-emerald-500/10 rounded">
+                                    <div className="flex flex-col">
+                                        <span className="text-[10px] text-emerald-400 uppercase font-bold">Verdienter Urlaub</span>
+                                        <span className="text-sm font-bold text-white">{earnedVacation.toFixed(2)} Tage</span>
+                                    </div>
+                                    <div className="text-right flex flex-col">
+                                        <span className="text-[10px] text-white/40 uppercase font-bold">Jahresurlaub gesamt</span>
+                                        <span className="text-sm font-bold text-white/70">{(vacationDaysEdit || 30).toFixed(1)} Tage</span>
+                                    </div>
                                 </div>
                             </div>
                             {unpaidDaysInYear > 0 && (
@@ -1811,21 +1825,23 @@ const OfficeUserPage: React.FC = () => {
                     // Calculate hours (Ist) - EXCLUDE DELETED
                     // Calculate hours (Ist) - EXCLUDE DELETED & DEDUCT BREAK OVERLAPS
                     const dayEntries = monthEntries.filter(e => e.date === dateStr && !e.is_deleted && !e.deleted_at);
+                    const isEmergency = dayEntries.some(e => e.type === 'emergency_service');
                     let hours = 0;
                     if (dayEntries.length > 0) {
                         const workEntries = dayEntries.filter(e => e.type !== 'break');
                         const breakEntries = dayEntries.filter(e => e.type === 'break');
 
                         let workSum = workEntries.reduce((acc, e) => {
-                            const duration = e.calc_duration_minutes !== undefined
+                            const duration = (e.calc_duration_minutes !== undefined && e.calc_duration_minutes !== 0)
                                 ? e.calc_duration_minutes / 60
-                                : (isNaN(e.hours) ? 0 : e.hours);
-                            const surcharge = e.calc_surcharge_hours || 0;
-
-                            // If user manually entered surcharge via percentage but calc_surcharge_hours is missing (offline/legacy),
-                            // try to estimate it? No, rely on server. 
-                            // Fallback: If calc_surcharge_hours is 0 but we have e.surcharge > 0 and e.hours > 0...
-                            // But usually, clean data has calc fields.
+                                : (Number(e.hours) || 0);
+                            
+                            let surcharge = e.calc_surcharge_hours || 0;
+                            
+                            // Fallback for emergency surcharge if server hasn't calculated it yet
+                            if (e.type === 'emergency_service' && surcharge === 0 && e.surcharge) {
+                                surcharge = duration * (e.surcharge / 100);
+                            }
 
                             return acc + duration + surcharge;
                         }, 0);
@@ -1870,18 +1886,24 @@ const OfficeUserPage: React.FC = () => {
                     else if (status === 'sick_pay') { bg = 'bg-rose-500/20 border-rose-500/40'; text = 'text-rose-200'; icon = <Stethoscope size={12} className="text-rose-300 mt-1" />; }
                     else if (status === 'partial') { bg = 'bg-yellow-500/20 border-yellow-500/40'; text = 'text-yellow-200'; }
 
+                    if (isEmergency) {
+                        bg = 'bg-rose-500/20 border-rose-500/40 shadow-[0_0_10px_rgba(244,63,94,0.1)]';
+                        text = 'text-rose-200';
+                    }
+
                     return (
                         <div
                             key={day}
                             onClick={() => handleDayClick(day)}
                             className={`aspect-square rounded-lg border ${bg} flex flex-col items-center justify-center cursor-pointer hover:scale-105 transition-transform relative p-0.5`}
                         >
+                            {isEmergency && <Siren size={10} className="absolute top-1 right-1 text-rose-400" />}
                             <span className={`text-sm font-bold ${text}`}>{day}</span>
 
-                            {(target > 0 || hours > 0) && (
+                            {(target > 0 || hours > 0 || isEmergency) && (
                                 <div className="flex flex-col items-center leading-none mt-0.5 space-y-0 w-full">
                                     {target > 0 && <span className="text-[10px] text-white/60 font-medium">Soll: {target.toLocaleString('de-DE', { maximumFractionDigits: 1 })}</span>}
-                                    {hours > 0 && (
+                                    {(hours > 0 || isEmergency) && (
                                         <span className={`text-[10px] font-bold ${hours >= target ? 'text-emerald-400' : 'text-red-400'}`}>
                                             Ist: {hours >= target && !['vacation', 'sick', 'holiday', 'sick_child', 'sick_pay'].includes(status) ? '+' : ''}{hours.toLocaleString('de-DE', { maximumFractionDigits: 2 })}
                                         </span>
