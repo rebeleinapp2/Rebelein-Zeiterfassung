@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { differenceInCalendarDays } from 'date-fns';
 import { useProposals, useTimeEntries, useSettings, useDailyLogs, useAbsences, useInstallers, usePeerReviews, getLocalISOString, useOfficeService, useDepartments } from '../services/dataService'; // Added useDepartments
 import { supabase } from '../services/supabaseClient'; // Ensure supabase is imported
@@ -87,7 +87,7 @@ const DebouncedSegmentNote: React.FC<{
 const EntryPage: React.FC = () => {
     const { showToast } = useToast();
     const { addEntry, entries, updateEntry, loading: entriesLoading } = useTimeEntries();
-    const { addAbsence, absences, confirmAbsenceDeletion, rejectAbsenceDeletion, loading: absencesLoading } = useAbsences();
+    const { addAbsence, absences, deleteAbsence, confirmAbsenceDeletion, rejectAbsenceDeletion, loading: absencesLoading } = useAbsences();
     const { settings, updateSettings, loading: settingsLoading } = useSettings();
     const { getLogForDate, saveDailyLog, loading: logsLoading } = useDailyLogs();
 
@@ -579,7 +579,7 @@ const EntryPage: React.FC = () => {
     const [showDatePicker, setShowDatePicker] = useState(false);
 
     // --- DELETE CONFIRMATION MODAL STATE ---
-    const [deleteConfirm, setDeleteConfirm] = useState<{ isOpen: boolean; entryId: string | null; entryName: string }>({ isOpen: false, entryId: null, entryName: '' });
+    const [deleteConfirm, setDeleteConfirm] = useState<{ isOpen: boolean; entryId: string | null; entryName: string; isAbsence?: boolean }>({ isOpen: false, entryId: null, entryName: '' });
 
     // --- OVERLAP DETECTION STATE ---
     const [overlapWarning, setOverlapWarning] = useState<{
@@ -1192,6 +1192,15 @@ const EntryPage: React.FC = () => {
             order_number: orderNumber || undefined
         };
 
+        // --- NEW: SICK ENTRY VALIDATION ---
+        if (entryType === 'sick') {
+            const alreadySick = entries.some(e => e.date === date && e.type === 'sick' && !e.is_deleted && e.id !== editingEntryId);
+            if (alreadySick) {
+                showToast("Für diesen Tag wurde bereits 'Krank' eingetragen.", "error");
+                return;
+            }
+        }
+
 
         // --- CHECK LATE ENTRY ---
         // If we haven't already confirmed the reason (isOpen is false check usually implies we are in initial submit, 
@@ -1518,9 +1527,22 @@ const EntryPage: React.FC = () => {
     };
 
     // --- HISTORY HELPERS ---
-    const historyEntries = entries
-        .filter(e => e.date === date && !e.is_deleted)
-        .sort((a, b) => new Date(b.created_at || '').getTime() - new Date(a.created_at || '').getTime());
+    const historyEntries = useMemo(() => {
+        const dayEntries = entries.filter(e => e.date === date && !e.is_deleted);
+        const dayAbsences = absences.filter(a => (date >= a.start_date && date <= a.end_date) && !a.is_deleted);
+
+        const mappedAbsences = dayAbsences.map(a => ({
+            ...a,
+            client_name: ENTRY_TYPES_CONFIG[a.type as EntryType]?.label || a.type,
+            hours: 0,
+            isAbsence: true,
+            // Fallback for sorting if created_at is missing (absences might not have it)
+            created_at: (a as any).created_at || a.id 
+        })) as any[];
+
+        return [...dayEntries, ...mappedAbsences]
+            .sort((a, b) => new Date(b.created_at || '').getTime() - new Date(a.created_at || '').getTime());
+    }, [entries, absences, date]);
 
     const handleEditEntry = (entry: TimeEntry) => {
         setEditingEntryId(entry.id);
@@ -1534,18 +1556,26 @@ const EntryPage: React.FC = () => {
         setShowOrderInput(!!entry.order_number);
     };
 
-    const handleDeleteEntry = async (id: string) => {
-        // Find the entry to check if it's submitted
-        const entry = entries.find(e => e.id === id);
-        const isUnsubmitted = !entry?.submitted;
-        const { error } = await supabase.from('time_entries').update({
-            is_deleted: true,
-            deleted_at: new Date().toISOString(),
-            // Unsubmitted entries: auto-confirm deletion (no notification needed)
-            ...(isUnsubmitted ? { deletion_confirmed_by_user: true } : {})
-        }).eq('id', id);
-        if (error) showToast('Fehler beim Löschen', "error");
-        setDeleteConfirm({ isOpen: false, entryId: null, entryName: '' });
+    const handleDeleteEntry = async (id: string, isAbsence?: boolean) => {
+        if (isAbsence) {
+            // Absences have their own deletion logic in dataService (including soft-delete support)
+            const res = await deleteAbsence(id);
+            if (!res.success) {
+                showToast(res.message || 'Fehler beim Löschen der Abwesenheit', "error");
+            }
+        } else {
+            // Find the entry to check if it's submitted
+            const entry = entries.find(e => e.id === id);
+            const isUnsubmitted = !entry?.submitted;
+            const { error } = await supabase.from('time_entries').update({
+                is_deleted: true,
+                deleted_at: new Date().toISOString(),
+                // Unsubmitted entries: auto-confirm deletion (no notification needed)
+                ...(isUnsubmitted ? { deletion_confirmed_by_user: true } : {})
+            }).eq('id', id);
+            if (error) showToast('Fehler beim Löschen', "error");
+        }
+        setDeleteConfirm({ isOpen: false, entryId: null, entryName: '', isAbsence: false });
     };
 
     return (
@@ -2482,28 +2512,30 @@ const EntryPage: React.FC = () => {
                                                 <div className="flex justify-between items-baseline mb-1">
                                                     <h4 className="font-bold text-white text-sm truncate">{entry.client_name}</h4>
                                                     <span className="font-mono font-bold text-teal-300 text-sm ml-2">
-                                                        {formatDuration(entry.calc_duration_minutes ? entry.calc_duration_minutes / 60 : entry.hours)}h
+                                                        {(entry as any).isAbsence ? 'GANZTÄGIG' : `${formatDuration(entry.calc_duration_minutes ? entry.calc_duration_minutes / 60 : entry.hours)}h`}
                                                     </span>
                                                 </div>
                                                 <div className="text-xs text-white/40 flex flex-wrap gap-2 mb-1">
                                                     <span>{new Date(entry.date).toLocaleDateString()}</span>
-                                                    {entry.start_time && <span>• {entry.start_time} - {entry.end_time}</span>}
+                                                    {! (entry as any).isAbsence && entry.start_time && <span>• {entry.start_time} - {entry.end_time}</span>}
                                                     {entry.order_number && <span className="text-white/30">• #{entry.order_number}</span>}
                                                 </div>
                                                 {entry.note && <p className="text-sm text-white/60 italic truncate">"{entry.note}"</p>}
 
                                                 {/* Entry Actions */}
                                                 <div className="mt-2 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                    {!(entry as any).isAbsence && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleEditEntry(entry)}
+                                                            className="px-2 py-1 rounded bg-blue-500/20 text-blue-300 text-[10px] font-bold hover:bg-blue-500/30"
+                                                        >
+                                                            EDIT
+                                                        </button>
+                                                    )}
                                                     <button
                                                         type="button"
-                                                        onClick={() => handleEditEntry(entry)}
-                                                        className="px-2 py-1 rounded bg-blue-500/20 text-blue-300 text-[10px] font-bold hover:bg-blue-500/30"
-                                                    >
-                                                        EDIT
-                                                    </button>
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => setDeleteConfirm({ isOpen: true, entryId: entry.id, entryName: entry.client_name || 'Eintrag' })}
+                                                        onClick={() => setDeleteConfirm({ isOpen: true, entryId: entry.id, entryName: entry.client_name || 'Eintrag', isAbsence: (entry as any).isAbsence })}
                                                         className="px-2 py-1 rounded bg-red-500/20 text-red-300 text-[10px] font-bold hover:bg-red-500/30"
                                                     >
                                                         LÖSCHEN
@@ -2763,7 +2795,7 @@ const EntryPage: React.FC = () => {
                                 Abbrechen
                             </button>
                             <button
-                                onClick={() => deleteConfirm.entryId && handleDeleteEntry(deleteConfirm.entryId)}
+                                onClick={() => deleteConfirm.entryId && handleDeleteEntry(deleteConfirm.entryId, deleteConfirm.isAbsence)}
                                 className="flex-1 py-3 text-sm font-bold text-red-400 hover:text-red-300 hover:bg-red-500/10 transition-colors uppercase tracking-wider border-l border-white/10"
                             >
                                 Löschen
