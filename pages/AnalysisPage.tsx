@@ -1,9 +1,9 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { useTimeEntries, useSettings, useDailyLogs, useAbsences, useVacationRequests, getDailyTargetForDate, getLocalISOString, getYearlyQuota, fetchMonthlyStats, fetchLifetimeStats, useOfficeService } from '../services/dataService';
-import { formatDuration } from '../services/utils/timeUtils';
+import { formatDuration, calculateEarnedVacation } from '../services/utils/timeUtils';
 import { GlassCard, GlassButton, GlassInput } from '../components/GlassCard';
-import { ChevronLeft, ChevronRight, TrendingUp, TrendingDown, Clock, UserCheck, Palmtree, Stethoscope, Ban, PartyPopper, CalendarHeart, X, CheckCircle, Calendar, CalendarDays, BarChart3, List, Grid3X3, ArrowRight, AlertTriangle, Scale } from 'lucide-react';
+import { ChevronLeft, ChevronRight, TrendingUp, TrendingDown, Clock, UserCheck, Palmtree, Stethoscope, Ban, PartyPopper, CalendarHeart, X, CheckCircle, Calendar, CalendarDays, BarChart3, List, Grid3X3, ArrowRight, AlertTriangle, Scale, Siren } from 'lucide-react';
 import GlassDatePicker from '../components/GlassDatePicker';
 import { YearlyVacationQuota, MonthlyStats, LifetimeStats } from '../types';
 import EmergencyCalendar from '../components/EmergencyCalendar';
@@ -236,6 +236,7 @@ const AnalysisPage: React.FC = () => {
 
         const totalAllowance = yearlyAllowance + carryover; // Total available
         const remainingVacation = totalAllowance - vacationDays;
+        const earnedVacation = calculateEarnedVacation(yearlyAllowance, year);
 
         return {
             vacationDays,
@@ -245,7 +246,9 @@ const AnalysisPage: React.FC = () => {
             unpaidDays,
             uniqueNotes,
             yearlyAllowance: totalAllowance, // Show TOTAL
-            remainingVacation
+            baseAllowance: yearlyAllowance,
+            remainingVacation,
+            earnedVacation
         };
     }, [absences, year, settings.target_hours, settings.vacation_days_yearly, settings.vacation_days_carryover, currentYearQuota]);
 
@@ -450,88 +453,79 @@ const AnalysisPage: React.FC = () => {
                 continue;
             }
 
+            const target = getDailyTargetForDate(dateStr, settings.target_hours);
             const absence = absences.find(a => dateStr >= a.start_date && dateStr <= a.end_date);
-            if (absence) {
-                const target = getDailyTargetForDate(dateStr, settings.target_hours);
-                // Only credit hours for paid absences
-                const isPaid = ['vacation', 'sick', 'holiday', 'special_holiday'].includes(absence.type);
-                const hours = isPaid ? target : 0;
-                grid.push({ day: d, type: 'absence', absenceType: absence.type, hours });
-                continue;
-            }
-
             const entryAbsence = entries.find(e => !e.is_deleted && e.date === dateStr && ['vacation', 'sick', 'holiday', 'unpaid', 'special_holiday'].includes(e.type || ''));
-            if (entryAbsence) {
-                const target = getDailyTargetForDate(dateStr, settings.target_hours);
-                // Only credit hours for paid absences
-                const isPaid = ['vacation', 'sick', 'holiday', 'special_holiday'].includes(entryAbsence.type as string);
-                const hours = isPaid ? target : 0;
-                grid.push({ day: d, type: 'absence', absenceType: entryAbsence.type as any, hours });
-                continue;
-            }
+            const effectiveAbsence = absence || (entryAbsence ? { type: entryAbsence.type } : null);
 
-            const dayEntries = entries.filter(e => !e.is_deleted && e.date === dateStr && e.type !== 'break' && e.type !== 'special_holiday');
+            const dayEntries = entries.filter(e => !e.is_deleted && e.date === dateStr && e.type !== 'break' && e.type !== 'special_holiday' && !['vacation', 'sick', 'holiday', 'unpaid'].includes(e.type || ''));
 
             // Calculate stats
-            const totalHours = dayEntries.reduce((sum, e) => {
-                let h = 0;
-                if (e.calc_duration_minutes !== undefined) {
-                    h = Math.abs(e.calc_duration_minutes) / 60;
-                    if (e.type === 'emergency_service') {
-                        if (e.calc_surcharge_hours !== undefined) h += e.calc_surcharge_hours;
-                        else if (e.surcharge) h *= (1 + e.surcharge / 100);
+            let totalHours = dayEntries.reduce((sum, e) => {
+                const duration = (e.calc_duration_minutes !== undefined && e.calc_duration_minutes !== 0)
+                    ? Math.abs(e.calc_duration_minutes) / 60
+                    : (Number(e.hours) || 0);
+                
+                let h = duration;
+                if (e.type === 'emergency_service') {
+                    if (e.calc_surcharge_hours !== undefined && e.calc_surcharge_hours !== 0) {
+                        h += e.calc_surcharge_hours;
+                    } else if (e.surcharge) {
+                        h += (duration * e.surcharge / 100);
                     }
-                } else {
-                    h = e.hours;
-                    if (e.type === 'emergency_service' && e.surcharge) h *= (1 + e.surcharge / 100);
-                }
-                return sum + h;
-            }, 0); // Includes Overtime Reduction!
-
-            const workHours = dayEntries.filter(e => e.type !== 'overtime_reduction').reduce((sum, e) => {
-                let h = 0;
-                if (e.calc_duration_minutes !== undefined) {
-                    h = Math.abs(e.calc_duration_minutes) / 60;
-                    if (e.type === 'emergency_service') {
-                        if (e.calc_surcharge_hours !== undefined) h += e.calc_surcharge_hours;
-                        else if (e.surcharge) h *= (1 + e.surcharge / 100);
-                    }
-                } else {
-                    h = e.hours;
-                    if (e.type === 'emergency_service' && e.surcharge) h *= (1 + e.surcharge / 100);
                 }
                 return sum + h;
             }, 0);
-            const hasReduction = dayEntries.some(e => e.type === 'overtime_reduction');
 
-            const target = getDailyTargetForDate(dateStr, settings.target_hours);
+            // Add paid absence hours
+            if (effectiveAbsence) {
+                const isPaid = ['vacation', 'sick', 'holiday', 'special_holiday'].includes(effectiveAbsence.type as string);
+                if (isPaid && target > 0) totalHours += target;
+            }
+
+            const workHours = dayEntries.filter(e => e.type !== 'overtime_reduction').reduce((sum, e) => {
+                const duration = (e.calc_duration_minutes !== undefined && e.calc_duration_minutes !== 0)
+                    ? Math.abs(e.calc_duration_minutes) / 60
+                    : (Number(e.hours) || 0);
+                
+                let h = duration;
+                if (e.type === 'emergency_service') {
+                    if (e.calc_surcharge_hours !== undefined && e.calc_surcharge_hours !== 0) {
+                        h += e.calc_surcharge_hours;
+                    } else if (e.surcharge) {
+                        h += (duration * e.surcharge / 100);
+                    }
+                }
+                return sum + h;
+            }, 0);
+
+            const hasReduction = dayEntries.some(e => e.type === 'overtime_reduction');
+            const isEmergency = dayEntries.some(e => e.type === 'emergency_service');
 
             let status = 'empty';
 
             if (totalHours >= target && target > 0) {
                 // Target Reached
                 if (workHours === 0 && hasReduction) {
-                    status = 'overtime_reduction'; // Pure reduction -> Pink
+                    status = 'overtime_reduction';
                 } else {
-                    status = 'full'; // Work or Mixed -> Green
+                    status = 'full';
                 }
             } else if (totalHours > 0) {
                 // Partial
                 status = 'partial';
                 if (workHours === 0 && hasReduction) {
-                    status = 'overtime_reduction'; // Partial Reduction Only
+                    status = 'overtime_reduction';
                 }
             } else if (target === 0) {
                 status = 'weekend';
             }
 
-            // Calculate Difference for Display
-            // Note: For regular days, diff = totalHours - target
-            // But if target is 0 (weekend), we don't necessarily show "overtime" unless desired.
-            // Requirement says: "minus hours based on target working time".
-            const diff = totalHours - target;
-
-            grid.push({ day: d, type: 'work', status, hours: totalHours, diff, target }); // Added diff and target
+            if (effectiveAbsence && !isEmergency) {
+                grid.push({ day: d, type: 'absence', absenceType: effectiveAbsence.type as any, hours: totalHours });
+            } else {
+                grid.push({ day: d, type: 'work', status, hours: totalHours, diff: totalHours - target, target, isEmergency });
+            }
         }
         return grid;
     }, [viewMode, year, month, entries, absences, settings.target_hours, effectiveStartDate]);
@@ -547,25 +541,30 @@ const AnalysisPage: React.FC = () => {
 
     const getDayColor = (item: any) => {
         if (item.type === 'pre-employment') return 'bg-gray-800/20 border-gray-700/20 text-white/10';
+        
+        let color = 'bg-white/5 border-white/10 text-white/50';
         if (item.type === 'absence') {
             switch (item.absenceType) {
-                case 'vacation': return 'bg-purple-500/20 border-purple-500/40 text-purple-200';
-                case 'sick': return 'bg-red-500/20 border-red-500/40 text-red-200';
-                case 'holiday': return 'bg-blue-500/20 border-blue-500/40 text-blue-200';
-                case 'special_holiday': return 'bg-teal-500/20 border-teal-500/40 text-teal-200'; // Special Color for Special Holiday
-                case 'unpaid': return 'bg-gray-700/40 border-gray-500/40 text-gray-400';
+                case 'vacation': color = 'bg-purple-500/20 border-purple-500/40 text-purple-200'; break;
+                case 'sick': color = 'bg-red-500/20 border-red-500/40 text-red-200'; break;
+                case 'holiday': color = 'bg-blue-500/20 border-blue-500/40 text-blue-200'; break;
+                case 'special_holiday': color = 'bg-teal-500/20 border-teal-500/40 text-teal-200'; break;
+                case 'unpaid': color = 'bg-gray-700/40 border-gray-500/40 text-gray-400'; break;
             }
-        }
-        if (item.type === 'work') {
+        } else if (item.type === 'work') {
             switch (item.status) {
-                case 'full': return 'bg-emerald-500/20 border-emerald-500/40 text-emerald-200';
-                case 'partial': return 'bg-yellow-500/20 border-yellow-500/40 text-yellow-200';
-                case 'overtime_reduction': return 'bg-pink-500/20 border-pink-500/40 text-pink-200';
-                case 'weekend': return 'bg-white/5 border-white/5 text-white/20';
-                default: return 'bg-white/5 border-white/10 text-white/50';
+                case 'full': color = 'bg-emerald-500/20 border-emerald-500/40 text-emerald-200'; break;
+                case 'partial': color = 'bg-yellow-500/20 border-yellow-500/40 text-yellow-200'; break;
+                case 'overtime_reduction': color = 'bg-pink-500/20 border-pink-500/40 text-pink-200'; break;
+                case 'weekend': color = 'bg-white/5 border-white/5 text-white/20'; break;
+                default: color = 'bg-white/5 border-white/10 text-white/50'; break;
             }
         }
-        return 'invisible';
+
+        if (item.isEmergency) {
+            return 'bg-rose-500/20 border-rose-500/40 text-rose-200 shadow-[0_0_10px_rgba(244,63,94,0.1)]';
+        }
+        return color;
     };
 
     const getMonthColor = (m: any) => {
@@ -770,7 +769,18 @@ const AnalysisPage: React.FC = () => {
                                                 <div className="text-right">
                                                     <span className="text-purple-300 font-bold">{yearAbsenceStats.vacationDays}</span>
                                                     <span className="text-white/30 text-xs"> / {yearAbsenceStats.yearlyAllowance}</span>
-                                                    <div className="text-[10px] text-emerald-400/80">Rest: {yearAbsenceStats.remainingVacation}</div>
+                                                    <div className="text-[10px] text-emerald-400/80 font-bold">Rest: {yearAbsenceStats.remainingVacation}</div>
+                                                </div>
+                                            </div>
+
+                                            <div className="flex flex-col bg-emerald-900/10 border border-emerald-500/10 p-2 rounded-lg">
+                                                <div className="flex justify-between items-center mb-1">
+                                                    <span className="text-[10px] text-emerald-400 uppercase font-bold">Verdienter Urlaub</span>
+                                                    <span className="text-sm font-bold text-white">{yearAbsenceStats.earnedVacation.toFixed(2)} Tage</span>
+                                                </div>
+                                                <div className="flex justify-between items-center">
+                                                    <span className="text-[10px] text-white/40 uppercase font-bold">Jahresurlaub gesamt</span>
+                                                    <span className="text-xs font-bold text-white/60">{yearAbsenceStats.baseAllowance.toFixed(1)} Tage</span>
                                                 </div>
                                             </div>
 
@@ -827,8 +837,9 @@ const AnalysisPage: React.FC = () => {
                                             key={idx}
                                             className={`h-12 md:h-14 rounded-lg border flex flex-col items-center justify-center relative ${getDayColor(item)} transition-transform hover:scale-105`}
                                         >
-                                            <span className="font-bold text-sm leading-none">{item.day}</span>
-                                            {item.type === 'work' && (item as any).status !== 'overtime_reduction' && (item as any).hours > 0 && (
+                                            {item.isEmergency && <Siren size={10} className="absolute top-1 right-1 text-rose-400" />}
+                        <span className="font-bold text-sm leading-none">{item.day}</span>
+                                            {(item.type === 'work' || item.isEmergency) && (item as any).status !== 'overtime_reduction' && (item as any).hours > 0 && (
                                                 <div className="flex flex-col items-center">
                                                     <span className="text-[10px] opacity-70 mt-1">{(item as any).hours.toFixed(2).replace('.', ',')}</span>
                                                     {(item as any).target > 0 && (item as any).diff !== 0 && (
@@ -836,6 +847,11 @@ const AnalysisPage: React.FC = () => {
                                                             {(item as any).diff > 0 ? '+' : ''}{(item as any).diff.toFixed(2).replace('.', ',')}
                                                         </span>
                                                     )}
+                                                </div>
+                                            )}
+                                            {item.isEmergency && (item as any).status === 'overtime_reduction' && (item as any).hours > 0 && (
+                                                <div className="flex flex-col items-center">
+                                                    <span className="text-[10px] opacity-70 mt-1">{(item as any).hours.toFixed(2).replace('.', ',')}</span>
                                                 </div>
                                             )}
                                             {item.type === 'work' && (item as any).status === 'overtime_reduction' && <div className="mt-1"><TrendingDown size={10} className="opacity-70" /></div>}
