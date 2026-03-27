@@ -17,6 +17,7 @@ const OfficeDashboard = React.lazy(() => import('./pages/OfficeDashboard'));
 const OfficeUserListPage = React.lazy(() => import('./pages/OfficeUserListPage'));
 const OfficeUserPage = React.lazy(() => import('./pages/OfficeUserPage'));
 const AdvancedAnalysisPage = React.lazy(() => import('./pages/AdvancedAnalysisPage'));
+const OfficeSettingsPage = React.lazy(() => import('./pages/OfficeSettingsPage'));
 
 // Ladekomponente für den Seitenübergang
 const PageLoader = () => (
@@ -112,6 +113,7 @@ const App: React.FC = () => {
               <Route path="/office/users" element={<OfficeUserListPage />} />
               <Route path="/office/user/:userId" element={<OfficeUserPage />} />
               <Route path="/office/analysis" element={<AdvancedAnalysisPage />} />
+              <Route path="/office/management" element={<OfficeSettingsPage />} />
 
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>

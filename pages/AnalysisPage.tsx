@@ -50,6 +50,23 @@ const AnalysisPage: React.FC = () => {
     const [showStartPicker, setShowStartPicker] = useState(false);
     const [showEndPicker, setShowEndPicker] = useState(false);
 
+    // School Holidays for Highlighting
+    const [schoolHolidays, setSchoolHolidays] = useState<any[]>([]);
+
+    useEffect(() => {
+        const fetchSchoolHolidays = async () => {
+            const { data } = await supabase
+                .from('global_config')
+                .select('*')
+                .eq('id', 'school_holidays')
+                .maybeSingle();
+            if (data && data.config) {
+                setSchoolHolidays(data.config.holidays || []);
+            }
+        };
+        fetchSchoolHolidays();
+    }, []);
+
     useEffect(() => {
         fetchDailyLogs();
     }, [fetchDailyLogs]);
@@ -501,6 +518,7 @@ const AnalysisPage: React.FC = () => {
 
             const hasReduction = dayEntries.some(e => e.type === 'overtime_reduction');
             const isEmergency = dayEntries.some(e => e.type === 'emergency_service');
+            const isSchoolHoliday = schoolHolidays.some(h => dateStr >= h.startDate && dateStr <= h.endDate);
 
             let status = 'empty';
 
@@ -522,9 +540,9 @@ const AnalysisPage: React.FC = () => {
             }
 
             if (effectiveAbsence && !isEmergency) {
-                grid.push({ day: d, type: 'absence', absenceType: effectiveAbsence.type as any, hours: totalHours });
+                grid.push({ day: d, type: 'absence', absenceType: effectiveAbsence.type as any, hours: totalHours, isSchoolHoliday });
             } else {
-                grid.push({ day: d, type: 'work', status, hours: totalHours, diff: totalHours - target, target, isEmergency });
+                grid.push({ day: d, type: 'work', status, hours: totalHours, diff: totalHours - target, target, isEmergency, isSchoolHoliday });
             }
         }
         return grid;
@@ -542,7 +560,7 @@ const AnalysisPage: React.FC = () => {
     const getDayColor = (item: any) => {
         if (item.type === 'pre-employment') return 'bg-gray-800/20 border-gray-700/20 text-white/10';
         
-        let color = 'bg-white/5 border-white/10 text-white/50';
+        let color = item.isSchoolHoliday ? 'bg-blue-400/10 border-blue-400/20 text-white/50' : 'bg-white/5 border-white/10 text-white/50';
         if (item.type === 'absence') {
             switch (item.absenceType) {
                 case 'vacation': color = 'bg-purple-500/20 border-purple-500/40 text-purple-200'; break;
@@ -837,6 +855,9 @@ const AnalysisPage: React.FC = () => {
                                             key={idx}
                                             className={`h-12 md:h-14 rounded-lg border flex flex-col items-center justify-center relative ${getDayColor(item)} transition-transform hover:scale-105`}
                                         >
+                                            {item.isSchoolHoliday && item.type !== 'absence' && !item.isEmergency && item.status === 'empty' && (
+                                                <div className="absolute top-1 left-1 w-1.5 h-1.5 bg-blue-400 rounded-full opacity-50" title="Schulferien" />
+                                            )}
                                             {item.isEmergency && <Siren size={10} className="absolute top-1 right-1 text-rose-400" />}
                         <span className="font-bold text-sm leading-none">{item.day}</span>
                                             {(item.type === 'work' || item.isEmergency) && (item as any).status !== 'overtime_reduction' && (item as any).hours > 0 && (

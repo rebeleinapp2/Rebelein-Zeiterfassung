@@ -123,6 +123,7 @@ export interface UserSettings {
   is_visible_to_others?: boolean; // Neu: Sichtbar für Azubi/Installer
   department_id?: string; // Neu: Zugehörige Abteilung
   invoice_keyword?: string; // Neu: Suchbegriff für PDF-Erkennung
+  holiday_config?: Record<string, boolean>; // Neu: Feiertags-Konfiguration
 }
 
 export interface UserAbsence {

@@ -554,29 +554,6 @@ const OfficeUserListPage: React.FC = () => {
 
                 {/* Controls Group */}
                 <div className="flex flex-col md:flex-row gap-4 w-full md:w-auto">
-                    {/* Department Toggle */}
-                    {(isAdmin || responsibleDepartments.length > 0) && (
-                        <button
-                            onClick={() => setIsDeptMgmtOpen(!isDeptMgmtOpen)}
-                            className={`flex items-center justify-center gap-2 border rounded-xl px-4 py-2 font-medium transition-colors ${isDeptMgmtOpen
-                                ? 'bg-teal-500/20 text-teal-300 border-teal-500/30'
-                                : 'bg-white/5 text-white/70 border-white/10 hover:bg-white/10 hover:text-white'
-                                }`}
-                        >
-                            <Settings2 size={20} />
-                            <span>Verwaltung</span>
-                        </button>
-                    )}
-
-                    {/* Export Button */}
-                    <button
-                        onClick={() => setShowExportModal(true)}
-                        className="flex items-center justify-center gap-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl px-4 py-2 text-white font-medium transition-colors"
-                    >
-                        <FileDown size={20} className="text-teal-400" />
-                        <span>Export</span>
-                    </button>
-
                     {/* Month Selector */}
                     <div className="flex items-center justify-between bg-white/5 border border-white/10 rounded-xl p-1 backdrop-blur-md w-full md:w-auto min-w-[250px]">
                         <button onClick={prevMonth} className="p-2 hover:bg-white/10 rounded-lg text-white transition-colors">

@@ -9,7 +9,7 @@ import {
     Palmtree, Briefcase, Plus, TrendingDown, Trash2, X, Check, Send,
     AlertTriangle, Layout, Coffee, Siren, Percent, MoreVertical,
     Lock, Unlock, Edit2, RotateCcw, Scale, Calculator, CalendarHeart, Stethoscope, UserCheck, Ban, Info, XCircle, History as HistoryIcon,
-    Printer, StickyNote, CheckCircle, TrendingUp, ChevronDown, ChevronUp, CalendarCheck, ShieldAlert, List, Hash
+    Printer, StickyNote, CheckCircle, TrendingUp, ChevronDown, ChevronUp, CalendarCheck, ShieldAlert, List, Hash, PartyPopper
 } from 'lucide-react';
 import {
     useTimeEntries, useDailyLogs, useOfficeService, useAbsences, useVacationRequests,
@@ -22,6 +22,7 @@ import autoTable from 'jspdf-autotable';
 import GlassDatePicker from '../components/GlassDatePicker';
 import { useToast } from '../components/Toast';
 import { formatDuration, calculateOverlapInMinutes, calculateEarnedVacation } from '../services/utils/timeUtils';
+import { getBavarianHolidays, DEFAULT_HOLIDAY_CONFIG, Holiday } from '../services/utils/holidayUtils';
 // @ts-ignore
 // import logoRebelein from '../logo/Logo Rebelein.jpeg';
 const logoRebelein = '/logo/Logo Rebelein.jpeg';
@@ -96,8 +97,25 @@ const OfficeUserPage: React.FC = () => {
     // Generic Alert Modal
     const [alertModal, setAlertModal] = useState<{ isOpen: boolean; title: string; message: string; type: 'info' | 'warning' | 'error' }>({ isOpen: false, title: '', message: '', type: 'info' });
 
+    // School Holidays for Highlighting
+    const [schoolHolidays, setSchoolHolidays] = useState<any[]>([]);
+
     // Print Enforcement State for Deletion
     const [deletionPrintStatus, setDeletionPrintStatus] = useState(false);
+
+    useEffect(() => {
+        const fetchSchoolHolidays = async () => {
+            const { data } = await supabase
+                .from('global_config')
+                .select('*')
+                .eq('id', 'school_holidays')
+                .maybeSingle();
+            if (data && data.config) {
+                setSchoolHolidays(data.config.holidays || []);
+            }
+        };
+        fetchSchoolHolidays();
+    }, []);
 
 
 
@@ -110,6 +128,7 @@ const OfficeUserPage: React.FC = () => {
     const [initialBalanceEdit, setInitialBalanceEdit] = useState<number>(0);
     const [workModelConfirmation, setWorkModelConfirmation] = useState(true);
     const [visibleToOthers, setVisibleToOthers] = useState(true);
+    const [holidayConfig, setHolidayConfig] = useState<Record<string, boolean>>({});
 
     // Collapsible Tiles State
     const [collapsedTiles, setCollapsedTiles] = useState<Record<string, boolean>>(() => {
@@ -146,6 +165,7 @@ const OfficeUserPage: React.FC = () => {
                 setWorkModelConfig(u.work_config || { 1: "07:00", 2: "07:00", 3: "07:00", 4: "07:00", 5: "07:00", 6: "07:00", 0: "07:00" });
                 setWorkModelConfirmation(u.require_confirmation !== false);
                 setVisibleToOthers(u.is_visible_to_others !== false);
+                setHolidayConfig(u.holiday_config || DEFAULT_HOLIDAY_CONFIG);
 
                 // Automatic Vacation Roll-Over Check (Legacy Support / Carryover Calc)
                 if (u.user_id) {
@@ -463,7 +483,8 @@ const OfficeUserPage: React.FC = () => {
             target_hours: workModelTargets,
             work_config: workModelConfig,
             require_confirmation: workModelConfirmation,
-            is_visible_to_others: visibleToOthers
+            is_visible_to_others: visibleToOthers,
+            holiday_config: holidayConfig
         });
 
         if (currentUser) {
@@ -472,10 +493,62 @@ const OfficeUserPage: React.FC = () => {
                 target_hours: workModelTargets,
                 work_config: workModelConfig,
                 require_confirmation: workModelConfirmation,
-                is_visible_to_others: visibleToOthers
+                is_visible_to_others: visibleToOthers,
+                holiday_config: holidayConfig
             });
         }
         setIsEditingWorkModel(false);
+    };
+
+    const handleAutoApplyHolidays = async () => {
+        if (!userId || !currentUser) return;
+
+        const year = new Date().getFullYear();
+        const holidays = getBavarianHolidays(year);
+        const config = holidayConfig || DEFAULT_HOLIDAY_CONFIG;
+
+        // Find enabled holidays
+        const enabledHolidays = holidays.filter(h => config[h.id]);
+
+        if (enabledHolidays.length === 0) {
+            showToast("Keine Feiertage in der Konfiguration aktiviert.", "info");
+            return;
+        }
+
+        let addedCount = 0;
+        let skippedCount = 0;
+
+        for (const h of enabledHolidays) {
+            const dateStr = getLocalISOString(h.date);
+
+            // Check if entry already exists (exclude deleted)
+            const existing = entries.find(e => e.date === dateStr && e.type === 'holiday' && !e.is_deleted);
+
+            if (!existing) {
+                // Determine target hours for this day
+                const dow = h.date.getDay();
+                const targetHours = currentUser.target_hours?.[dow] || 0;
+
+                if (targetHours > 0) {
+                    await addEntry({
+                        date: dateStr,
+                        client_name: 'Feiertag: ' + h.name,
+                        hours: targetHours,
+                        type: 'holiday',
+                        submitted: true,
+                        confirmed_at: new Date().toISOString(),
+                        confirmed_by: viewerSettings?.user_id
+                    });
+                    addedCount++;
+                } else {
+                    skippedCount++;
+                }
+            } else {
+                skippedCount++;
+            }
+        }
+
+        showToast(`${addedCount} Feiertage für ${year} eingetragen.`, "success");
     };
 
     const handleWorkModelTargetChange = (day: number, val: string) => {
@@ -1821,6 +1894,7 @@ const OfficeUserPage: React.FC = () => {
                     const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
                     const target = getDailyTargetForDate(dateStr, currentUser?.target_hours || {});
                     const absence = absences.find(a => dateStr >= a.start_date && dateStr <= a.end_date);
+                    const isSchoolHoliday = schoolHolidays.some(h => dateStr >= h.startDate && dateStr <= h.endDate);
 
                     // Calculate hours (Ist) - EXCLUDE DELETED
                     // Calculate hours (Ist) - EXCLUDE DELETED & DEDUCT BREAK OVERLAPS
@@ -1874,7 +1948,7 @@ const OfficeUserPage: React.FC = () => {
                         }
                     }
 
-                    let bg = 'bg-white/5 border-white/5';
+                    let bg = isSchoolHoliday ? 'bg-blue-400/10 border-blue-400/20' : 'bg-white/5 border-white/5';
                     let text = 'text-white/50';
                     let icon = null;
                     if (status === 'vacation') { bg = 'bg-purple-500/20 border-purple-500/40'; text = 'text-purple-200'; icon = <Palmtree size={12} className="text-purple-300 mt-1" />; }
@@ -1897,6 +1971,9 @@ const OfficeUserPage: React.FC = () => {
                             onClick={() => handleDayClick(day)}
                             className={`aspect-square rounded-lg border ${bg} flex flex-col items-center justify-center cursor-pointer hover:scale-105 transition-transform relative p-0.5`}
                         >
+                            {isSchoolHoliday && status === 'empty' && !isEmergency && (
+                                <div className="absolute top-1 left-1 w-1.5 h-1.5 bg-blue-400 rounded-full opacity-50" title="Schulferien" />
+                            )}
                             {isEmergency && <Siren size={10} className="absolute top-1 right-1 text-rose-400" />}
                             <span className={`text-sm font-bold ${text}`}>{day}</span>
 

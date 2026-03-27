@@ -6,7 +6,7 @@ import { useNavigate } from 'react-router-dom';
 import {
     Activity, ArrowRight, CheckCircle, Clock, FileText,
     LayoutDashboard, UserCheck, Shield, ChevronRight, AlertTriangle,
-    Palmtree, Briefcase, Truck, Home, Calculator, X, MessageCircle, Hash, ChevronDown, Search, Download
+    Palmtree, Briefcase, Truck, Home, Calculator, X, MessageCircle, Hash, ChevronDown, Search, Download, Settings
 } from 'lucide-react';
 import { generateSearchReport } from '../services/pdfExportService';
 import { TimeEntry, UserSettings, UserAbsence, VacationRequest } from '../types';
@@ -466,14 +466,25 @@ const OfficeDashboard: React.FC = () => {
                         {isOfficeOrAdmin ? 'Kommandozentrale & Übersicht' : 'Meine Aufgaben'}
                     </p>
                 </div>
-                {/* Search Button */}
-                <button
-                    onClick={() => setSearchModalOpen(true)}
-                    className="p-3 bg-white/5 hover:bg-white/10 rounded-xl border border-white/10 text-white/70 hover:text-white transition-all group"
-                    title="Suche öffnen"
-                >
-                    <Search size={22} className="group-hover:scale-110 transition-transform" />
-                </button>
+                {/* Search & Management Buttons */}
+                <div className="flex gap-2">
+                    {isOfficeOrAdmin && (
+                        <button
+                            onClick={() => navigate('/office/management')}
+                            className="p-3 bg-white/5 hover:bg-white/10 rounded-xl border border-white/10 text-white/70 hover:text-white transition-all group"
+                            title="System-Verwaltung"
+                        >
+                            <Settings size={22} className="group-hover:rotate-90 transition-transform duration-500" />
+                        </button>
+                    )}
+                    <button
+                        onClick={() => setSearchModalOpen(true)}
+                        className="p-3 bg-white/5 hover:bg-white/10 rounded-xl border border-white/10 text-white/70 hover:text-white transition-all group"
+                        title="Suche öffnen"
+                    >
+                        <Search size={22} className="group-hover:scale-110 transition-transform" />
+                    </button>
+                </div>
             </div>
 
             {/* SECTION 1: MY PENDING CONFIRMATIONS (Everyone) */}
@@ -1054,57 +1065,6 @@ const OfficeDashboard: React.FC = () => {
                         )}
                     </div>
 
-                    {/* SECTION 6: MONATSABSCHLUSS (Admin/Office Only) */}
-                    {isOfficeOrAdmin && (
-                        <div className="animate-in slide-in-from-bottom-7">
-                            <div
-                                className="flex items-center justify-between cursor-pointer mb-4"
-                                onClick={() => toggleSection('monthClosing')}
-                            >
-                                <h2 className="text-xl font-bold text-white flex items-center gap-2">
-                                    <Shield size={24} className="text-indigo-400" />
-                                    <span className="text-indigo-100">Monatsabschluss & Sperrungen</span>
-                                </h2>
-                                <div className={`p-2 rounded-lg transition-colors ${collapsedSections['monthClosing'] ? 'bg-white/5' : 'bg-white/10'}`}>
-                                    <ChevronRight size={20} className={`text-white/50 transition-transform ${!collapsedSections['monthClosing'] ? 'rotate-90' : ''}`} />
-                                </div>
-                            </div>
-
-                            {!collapsedSections['monthClosing'] && (
-                                <GlassCard className="border-indigo-500/20 bg-indigo-900/5 p-4 mb-8">
-                                    <p className="text-sm text-indigo-200/70 mb-4">
-                                        Schließen Sie Monate ab, um zu verhindern, dass Monteure oder Azubis nachträglich Zeiten ändern oder hinzufügen. Admins und Office-Mitarbeiter können geschlossene Monate weiterhin bearbeiten.
-                                    </p>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                                        {[...Array(12)].map((_, i) => {
-                                            const d = new Date();
-                                            d.setMonth(d.getMonth() - i);
-                                            const monthStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-                                            const isClosed = closedMonths.includes(monthStr);
-                                            const monthName = d.toLocaleDateString('de-DE', { month: 'long', year: 'numeric' });
-
-                                            return (
-                                                <div key={monthStr} className="flex items-center justify-between bg-white/5 border border-white/5 p-3 rounded-lg hover:bg-white/10 transition-colors">
-                                                    <div>
-                                                        <div className="font-bold text-white">{monthName}</div>
-                                                        <div className={`text-xs ${isClosed ? 'text-red-400' : 'text-emerald-400'}`}>
-                                                            {isClosed ? 'Abgeschlossen' : 'Offen'}
-                                                        </div>
-                                                    </div>
-                                                    <button
-                                                        onClick={(e) => { e.stopPropagation(); handleToggleMonth(monthStr, isClosed); }}
-                                                        className={`px-3 py-1.5 rounded text-xs font-bold transition-colors ${isClosed ? 'bg-red-500/20 text-red-300 hover:bg-red-500 hover:text-white' : 'bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500 hover:text-white'}`}
-                                                    >
-                                                        {isClosed ? 'Öffnen' : 'Abschließen'}
-                                                    </button>
-                                                </div>
-                                            );
-                                        })}
-                                    </div>
-                                </GlassCard>
-                            )}
-                        </div>
-                    )}
                 </>
             )}
 
