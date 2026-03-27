@@ -98,7 +98,7 @@ const OfficeUserPage: React.FC = () => {
     const [alertModal, setAlertModal] = useState<{ isOpen: boolean; title: string; message: string; type: 'info' | 'warning' | 'error' }>({ isOpen: false, title: '', message: '', type: 'info' });
 
     // School Holidays for Highlighting
-    const [schoolHolidays, setSchoolHolidays] = useState<any[]>([]);
+    const [schoolHolidays, setSchoolHolidays] = useState<{start: string, end: string}[]>([]);
 
     // Print Enforcement State for Deletion
     const [deletionPrintStatus, setDeletionPrintStatus] = useState(false);
@@ -111,7 +111,26 @@ const OfficeUserPage: React.FC = () => {
                 .eq('id', 'school_holidays')
                 .maybeSingle();
             if (data && data.config) {
-                setSchoolHolidays(data.config.holidays || []);
+                // Prüfe showInCalendar Flag
+                if (data.config.showInCalendar === false) {
+                    setSchoolHolidays([]);
+                    return;
+                }
+                // Neues Format: { holidays: { "2026": { winterferien: { start, end }, ... } } }
+                if (data.config.holidays && !Array.isArray(data.config.holidays)) {
+                    const allPeriods: {start: string, end: string}[] = [];
+                    for (const yearData of Object.values(data.config.holidays) as any[]) {
+                        for (const period of Object.values(yearData) as any[]) {
+                            if (period?.start && period?.end) {
+                                allPeriods.push({ start: period.start, end: period.end });
+                            }
+                        }
+                    }
+                    setSchoolHolidays(allPeriods);
+                } else if (Array.isArray(data.config.holidays)) {
+                    // Altes Format: [{startDate, endDate, ...}]
+                    setSchoolHolidays(data.config.holidays.map((h: any) => ({ start: h.startDate, end: h.endDate })));
+                }
             }
         };
         fetchSchoolHolidays();
@@ -1894,7 +1913,7 @@ const OfficeUserPage: React.FC = () => {
                     const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
                     const target = getDailyTargetForDate(dateStr, currentUser?.target_hours || {});
                     const absence = absences.find(a => dateStr >= a.start_date && dateStr <= a.end_date);
-                    const isSchoolHoliday = schoolHolidays.some(h => dateStr >= h.startDate && dateStr <= h.endDate);
+                    const isSchoolHoliday = schoolHolidays.some(h => dateStr >= h.start && dateStr <= h.end);
 
                     // Calculate hours (Ist) - EXCLUDE DELETED
                     // Calculate hours (Ist) - EXCLUDE DELETED & DEDUCT BREAK OVERLAPS

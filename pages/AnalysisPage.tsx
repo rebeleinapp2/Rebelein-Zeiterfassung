@@ -52,7 +52,7 @@ const AnalysisPage: React.FC = () => {
     const [showEndPicker, setShowEndPicker] = useState(false);
 
     // School Holidays for Highlighting
-    const [schoolHolidays, setSchoolHolidays] = useState<any[]>([]);
+    const [schoolHolidays, setSchoolHolidays] = useState<{start: string, end: string}[]>([]);
 
     useEffect(() => {
         const fetchSchoolHolidays = async () => {
@@ -62,7 +62,26 @@ const AnalysisPage: React.FC = () => {
                 .eq('id', 'school_holidays')
                 .maybeSingle();
             if (data && data.config) {
-                setSchoolHolidays(data.config.holidays || []);
+                // Prüfe showInCalendar Flag
+                if (data.config.showInCalendar === false) {
+                    setSchoolHolidays([]);
+                    return;
+                }
+                // Neues Format: { holidays: { "2026": { winterferien: { start, end }, ... } } }
+                if (data.config.holidays && !Array.isArray(data.config.holidays)) {
+                    const allPeriods: {start: string, end: string}[] = [];
+                    for (const yearData of Object.values(data.config.holidays) as any[]) {
+                        for (const period of Object.values(yearData) as any[]) {
+                            if (period?.start && period?.end) {
+                                allPeriods.push({ start: period.start, end: period.end });
+                            }
+                        }
+                    }
+                    setSchoolHolidays(allPeriods);
+                } else if (Array.isArray(data.config.holidays)) {
+                    // Altes Format: [{startDate, endDate, ...}]
+                    setSchoolHolidays(data.config.holidays.map((h: any) => ({ start: h.startDate, end: h.endDate })));
+                }
             }
         };
         fetchSchoolHolidays();
@@ -519,7 +538,7 @@ const AnalysisPage: React.FC = () => {
 
             const hasReduction = dayEntries.some(e => e.type === 'overtime_reduction');
             const isEmergency = dayEntries.some(e => e.type === 'emergency_service');
-            const isSchoolHoliday = schoolHolidays.some(h => dateStr >= h.startDate && dateStr <= h.endDate);
+            const isSchoolHoliday = schoolHolidays.some(h => dateStr >= h.start && dateStr <= h.end);
 
             let status = 'empty';
 

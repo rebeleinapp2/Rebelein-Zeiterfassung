@@ -23,12 +23,24 @@ const CATEGORIES = [
     { id: 'roles', name: 'Rollen & Rechte', icon: Shield },
 ];
 
-interface SchoolHoliday {
-    id: string;
-    name: string;
-    startDate: string;
-    endDate: string;
-    year: number;
+// Bayerische Schulferien-Vorlagen
+const SCHOOL_HOLIDAY_TEMPLATES = [
+    { id: 'winterferien', name: 'Winterferien', icon: '🏔️' },
+    { id: 'osterferien', name: 'Osterferien', icon: '🐣' },
+    { id: 'pfingstferien', name: 'Pfingstferien', icon: '🌸' },
+    { id: 'sommerferien', name: 'Sommerferien', icon: '☀️' },
+    { id: 'herbstferien', name: 'Herbstferien', icon: '🍂' },
+    { id: 'weihnachtsferien', name: 'Weihnachtsferien', icon: '🎄' },
+] as const;
+
+interface SchoolHolidayPeriod {
+    start: string;
+    end: string;
+}
+type YearHolidays = Record<string, SchoolHolidayPeriod>;
+interface SchoolHolidayConfig {
+    showInCalendar: boolean;
+    holidays: Record<string, YearHolidays>;
 }
 
 const OfficeSettingsPage: React.FC = () => {
@@ -47,9 +59,8 @@ const OfficeSettingsPage: React.FC = () => {
     const [holidayOverrides, setHolidayOverrides] = useState<Record<string, Record<string, string>>>({});
 
     // --- SCHOOL HOLIDAY STATE ---
-    const [schoolHolidays, setSchoolHolidays] = useState<SchoolHoliday[]>([]);
-    const [isAddingHoliday, setIsAddingHoliday] = useState(false);
-    const [newHoliday, setNewHoliday] = useState<Partial<SchoolHoliday>>({ name: '', startDate: '', endDate: '' });
+    const [schoolHolidayConfig, setSchoolHolidayConfig] = useState<SchoolHolidayConfig>({ showInCalendar: true, holidays: {} });
+    const [schoolHolidayDirty, setSchoolHolidayDirty] = useState(false);
 
     // --- MONTH CLOSING STATE ---
     const [closedMonths, setClosedMonths] = useState<string[]>([]);
@@ -105,7 +116,33 @@ const OfficeSettingsPage: React.FC = () => {
                     .maybeSingle();
                 
                 if (schoolHolidayData && schoolHolidayData.config) {
-                    setSchoolHolidays(schoolHolidayData.config.holidays || []);
+                    // Migriere altes Format (holidays Array) zu neuem Format (holidays Object pro Jahr)
+                    if (Array.isArray(schoolHolidayData.config.holidays)) {
+                        // Altes Format: [{id, name, startDate, endDate, year}]
+                        const oldHolidays = schoolHolidayData.config.holidays;
+                        const migrated: Record<string, YearHolidays> = {};
+                        for (const h of oldHolidays) {
+                            const year = h.year?.toString() || new Date(h.startDate).getFullYear().toString();
+                            if (!migrated[year]) migrated[year] = {};
+                            // Versuche den Namen auf eine Vorlage zu mappen
+                            const template = SCHOOL_HOLIDAY_TEMPLATES.find(t => 
+                                h.name.toLowerCase().includes(t.id.replace('ferien', '')) ||
+                                t.name.toLowerCase().includes(h.name.toLowerCase().replace('ferien', ''))
+                            );
+                            if (template) {
+                                migrated[year][template.id] = { start: h.startDate, end: h.endDate };
+                            }
+                        }
+                        setSchoolHolidayConfig({
+                            showInCalendar: schoolHolidayData.config.showInCalendar ?? true,
+                            holidays: migrated
+                        });
+                    } else {
+                        setSchoolHolidayConfig({
+                            showInCalendar: schoolHolidayData.config.showInCalendar ?? true,
+                            holidays: schoolHolidayData.config.holidays || {}
+                        });
+                    }
                 }
 
             } catch (err) {
@@ -143,18 +180,18 @@ const OfficeSettingsPage: React.FC = () => {
 
 
     // --- HANDLERS: SCHOOL HOLIDAYS ---
-    const handleSaveSchoolHolidays = async (updatedHolidays: SchoolHoliday[]) => {
+    const handleSaveSchoolHolidays = async () => {
         setSaving(true);
         try {
             const { error } = await supabase
                 .from('global_config')
                 .upsert({ 
                     id: 'school_holidays', 
-                    config: { holidays: updatedHolidays },
+                    config: schoolHolidayConfig,
                     updated_at: new Date().toISOString()
                 });
             if (error) throw error;
-            setSchoolHolidays(updatedHolidays);
+            setSchoolHolidayDirty(false);
             showToast("Ferien-Konfiguration gespeichert.", "success");
         } catch (err: any) {
             showToast("Fehler: " + err.message, "error");
@@ -163,27 +200,26 @@ const OfficeSettingsPage: React.FC = () => {
         }
     };
 
-    const handleAddSchoolHoliday = () => {
-        if (!newHoliday.name || !newHoliday.startDate || !newHoliday.endDate) {
-            showToast("Bitte alle Felder ausfüllen.", "error");
-            return;
-        }
-        const holiday: SchoolHoliday = {
-            id: Math.random().toString(36).substr(2, 9),
-            name: newHoliday.name!,
-            startDate: newHoliday.startDate!,
-            endDate: newHoliday.endDate!,
-            year: new Date(newHoliday.startDate!).getFullYear()
-        };
-        const updated = [...schoolHolidays, holiday].sort((a, b) => a.startDate.localeCompare(b.startDate));
-        handleSaveSchoolHolidays(updated);
-        setIsAddingHoliday(false);
-        setNewHoliday({ name: '', startDate: '', endDate: '' });
+    const updateSchoolHolidayDate = (year: number, holidayId: string, field: 'start' | 'end', value: string) => {
+        setSchoolHolidayConfig(prev => ({
+            ...prev,
+            holidays: {
+                ...prev.holidays,
+                [year.toString()]: {
+                    ...(prev.holidays[year.toString()] || {}),
+                    [holidayId]: {
+                        ...(prev.holidays[year.toString()]?.[holidayId] || { start: '', end: '' }),
+                        [field]: value
+                    }
+                }
+            }
+        }));
+        setSchoolHolidayDirty(true);
     };
 
-    const handleDeleteSchoolHoliday = (id: string) => {
-        const updated = schoolHolidays.filter(h => h.id !== id);
-        handleSaveSchoolHolidays(updated);
+    const toggleSchoolHolidayVisibility = () => {
+        setSchoolHolidayConfig(prev => ({ ...prev, showInCalendar: !prev.showInCalendar }));
+        setSchoolHolidayDirty(true);
     };
 
     // --- HANDLERS: MONTH CLOSING ---
@@ -482,94 +518,86 @@ const OfficeSettingsPage: React.FC = () => {
         </div>
     );
 
-    const renderSchoolHolidays = () => (
-        <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
-            <div className="flex justify-between items-start">
-                <div>
-                    <h3 className="text-xl font-bold text-white mb-1">Schulferien (Bayern)</h3>
-                    <p className="text-white/50 text-sm">Hinterlegte Zeiträume werden in den Kalendern farblich markiert.</p>
+    const renderSchoolHolidays = () => {
+        const yearData = schoolHolidayConfig.holidays[viewYear.toString()] || {};
+        const filledCount = SCHOOL_HOLIDAY_TEMPLATES.filter(t => yearData[t.id]?.start && yearData[t.id]?.end).length;
+
+        return (
+            <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
+                <div className="flex flex-col md:flex-row justify-between items-start gap-4">
+                    <div>
+                        <h3 className="text-xl font-bold text-white mb-1">Schulferien (Bayern)</h3>
+                        <div className="flex items-center gap-2">
+                            <p className="text-white/50 text-sm">Zeiträume werden in den Kalendern farblich markiert.</p>
+                            <div className="flex items-center bg-white/5 border border-white/10 rounded-lg px-2 py-0.5 gap-2 ml-2">
+                                <button onClick={() => setViewYear(y => y - 1)} className="text-teal-400 hover:text-white transition-colors"><ChevronLeft size={14} /></button>
+                                <span className="text-xs font-bold text-white w-10 text-center">{viewYear}</span>
+                                <button onClick={() => setViewYear(y => y + 1)} className="text-teal-400 hover:text-white transition-colors"><ChevronRight size={14} /></button>
+                            </div>
+                        </div>
+                    </div>
+                    <div className="flex flex-wrap gap-3 w-full md:w-auto shrink-0 items-center">
+                        {/* Toggle: In Kalendern anzeigen */}
+                        <div className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-xl px-3 py-2">
+                            <span className="text-xs font-bold text-white/50">Kalender</span>
+                            <button
+                                type="button"
+                                onClick={toggleSchoolHolidayVisibility}
+                                className={`w-10 h-5 rounded-full p-0.5 transition-colors duration-200 relative ${schoolHolidayConfig.showInCalendar ? 'bg-teal-500' : 'bg-white/10'}`}
+                            >
+                                <div className={`w-4 h-4 rounded-full bg-white shadow-sm transition-transform duration-200 ${schoolHolidayConfig.showInCalendar ? 'translate-x-5' : 'translate-x-0'}`} />
+                            </button>
+                        </div>
+                        <GlassButton onClick={handleSaveSchoolHolidays} disabled={saving || !schoolHolidayDirty} className={`flex-1 md:flex-none !w-auto flex items-center gap-2 !bg-emerald-500/20 hover:!bg-emerald-500/30 !border-emerald-500/30 text-emerald-300 ${!schoolHolidayDirty ? 'opacity-40' : ''}`}>
+                            {saving ? <RotateCcw size={18} className="animate-spin" /> : <Save size={18} />} Speichern
+                        </GlassButton>
+                    </div>
                 </div>
-                <GlassButton 
-                    onClick={() => setIsAddingHoliday(true)} 
-                    className="flex items-center gap-2 !bg-teal-500/20 hover:!bg-teal-500/30 !border-teal-500/30 text-teal-300"
-                >
-                    <Plus size={18} /> Ferien hinzufügen
-                </GlassButton>
-            </div>
 
-            {isAddingHoliday && (
-                <GlassCard className="bg-teal-500/5 border-teal-500/20 p-4 mb-6 animate-in slide-in-from-top-2">
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div>
-                            <label className="text-[10px] text-white/40 uppercase font-bold block mb-1">Bezeichnung</label>
-                            <GlassInput 
-                                placeholder="z.B. Sommerferien" 
-                                value={newHoliday.name} 
-                                onChange={e => setNewHoliday({...newHoliday, name: e.target.value})} 
-                            />
-                        </div>
-                        <div>
-                            <label className="text-[10px] text-white/40 uppercase font-bold block mb-1">Von</label>
-                            <GlassInput 
-                                type="date" 
-                                value={newHoliday.startDate} 
-                                onChange={e => setNewHoliday({...newHoliday, startDate: e.target.value})} 
-                            />
-                        </div>
-                        <div>
-                            <label className="text-[10px] text-white/40 uppercase font-bold block mb-1">Bis</label>
-                            <GlassInput 
-                                type="date" 
-                                value={newHoliday.endDate} 
-                                onChange={e => setNewHoliday({...newHoliday, endDate: e.target.value})} 
-                            />
-                        </div>
-                    </div>
-                    <div className="flex justify-end gap-2 mt-4">
-                        <button onClick={() => setIsAddingHoliday(false)} className="px-4 py-2 text-xs font-bold text-white/50 hover:text-white transition-colors">Abbrechen</button>
-                        <GlassButton onClick={handleAddSchoolHoliday} className="!px-6 !py-2 !text-xs">Speichern</GlassButton>
-                    </div>
-                </GlassCard>
-            )}
+                <div className="text-xs text-white/30 font-bold uppercase tracking-widest">
+                    {filledCount} / {SCHOOL_HOLIDAY_TEMPLATES.length} Ferienzeiten eingetragen
+                </div>
 
-            <div className="space-y-2">
-                {schoolHolidays.filter(h => {
-                    const startYear = new Date(h.startDate).getFullYear();
-                    const endYear = new Date(h.endDate).getFullYear();
-                    return startYear === viewYear || endYear === viewYear;
-                }).map(h => (
-                    <div key={h.id} className="bg-white/5 border border-white/10 p-4 rounded-2xl flex items-center justify-between group hover:bg-white/10 transition-colors">
-                        <div className="flex items-center gap-4">
-                            <div className="w-10 h-10 rounded-xl bg-teal-500/20 flex items-center justify-center text-teal-300">
-                                <Palmtree size={20} />
-                            </div>
-                            <div>
-                                <div className="font-bold text-white">{h.name}</div>
-                                <div className="text-xs text-white/40 font-mono">
-                                    {new Date(h.startDate).toLocaleDateString('de-DE')} - {new Date(h.endDate).toLocaleDateString('de-DE')}
+                <div className="bg-white/5 rounded-2xl border border-white/10 overflow-hidden">
+                    <div className="divide-y divide-white/5">
+                        {SCHOOL_HOLIDAY_TEMPLATES.map((template) => {
+                            const period = yearData[template.id];
+                            const hasData = period?.start && period?.end;
+
+                            return (
+                                <div key={template.id} className={`p-4 flex flex-col md:flex-row md:items-center gap-3 transition-colors ${hasData ? 'bg-white/5' : ''}`}>
+                                    <div className="flex items-center gap-3 md:w-48 shrink-0">
+                                        <span className="text-xl">{template.icon}</span>
+                                        <span className={`font-bold transition-colors ${hasData ? 'text-white' : 'text-white/30'}`}>{template.name}</span>
+                                    </div>
+                                    <div className="flex items-center gap-2 flex-1">
+                                        <input
+                                            type="date"
+                                            value={period?.start || ''}
+                                            onChange={(e) => updateSchoolHolidayDate(viewYear, template.id, 'start', e.target.value)}
+                                            className="flex-1 bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm text-teal-400 font-mono outline-none focus:border-teal-500/50 transition-colors"
+                                        />
+                                        <span className="text-white/20 text-xs font-bold">—</span>
+                                        <input
+                                            type="date"
+                                            value={period?.end || ''}
+                                            onChange={(e) => updateSchoolHolidayDate(viewYear, template.id, 'end', e.target.value)}
+                                            className="flex-1 bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm text-teal-400 font-mono outline-none focus:border-teal-500/50 transition-colors"
+                                        />
+                                    </div>
+                                    {hasData && (
+                                        <div className="text-[10px] text-white/20 font-mono md:w-20 text-right">
+                                            {Math.ceil((new Date(period!.end).getTime() - new Date(period!.start).getTime()) / (1000 * 60 * 60 * 24)) + 1} Tage
+                                        </div>
+                                    )}
                                 </div>
-                            </div>
-                        </div>
-                        <button 
-                            onClick={() => handleDeleteSchoolHoliday(h.id)}
-                            className="p-2 text-white/20 hover:text-rose-400 hover:bg-rose-500/10 rounded-xl transition-all"
-                        >
-                            <Trash2 size={18} />
-                        </button>
+                            );
+                        })}
                     </div>
-                ))}
-                {schoolHolidays.filter(h => {
-                    const startYear = new Date(h.startDate).getFullYear();
-                    const endYear = new Date(h.endDate).getFullYear();
-                    return startYear === viewYear || endYear === viewYear;
-                }).length === 0 && (
-                    <div className="text-center py-12 text-white/20 italic border-2 border-dashed border-white/5 rounded-3xl">
-                        Keine Ferienzeiträume für {viewYear} definiert.
-                    </div>
-                )}
+                </div>
             </div>
-        </div>
-    );
+        );
+    };
 
     const renderContent = () => {
         switch (activeCategory) {
