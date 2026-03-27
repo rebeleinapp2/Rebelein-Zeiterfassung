@@ -1,0 +1,11 @@
+
+> zeiterfassung-app@1.1.35 dev
+> vite
+
+Port 3000 is in use, trying another one...
+
+  VITE v5.4.21  ready in 116 ms
+
+  ➜  Local:   http://localhost:3001/
+  ➜  Network: http://192.168.178.63:3001/
+  ➜  press h + enter to show help

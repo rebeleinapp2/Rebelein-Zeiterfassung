@@ -21,11 +21,12 @@ const HistoryPage: React.FC = () => {
 
 
     const [showPdfModal, setShowPdfModal] = useState(false);
-    // Nutzung von getLocalISOString für korrekte Vorbelegung
+    // Monats-basierte Abgabe: Standard = letzter Nicht-Holiday-Eintrag
+    const [submitMonth, setSubmitMonth] = useState(new Date());
+    // Für PDF Export brauchen wir weiterhin Start/End-Datum
     const [startDate, setStartDate] = useState(getLocalISOString());
     const [endDate, setEndDate] = useState(getLocalISOString());
     const [activePdfDatePicker, setActivePdfDatePicker] = useState<'start' | 'end' | null>(null);
-    const [submitAll, setSubmitAll] = useState(false);
 
     const [editingEntry, setEditingEntry] = useState<TimeEntry | null>(null);
     const [editForm, setEditForm] = useState<{
@@ -89,6 +90,19 @@ const HistoryPage: React.FC = () => {
     useEffect(() => {
         fetchDailyLogs();
     }, [fetchDailyLogs]);
+
+    // Standard-Monat für Abgabe berechnen: Monat des letzten Nicht-Holiday-Eintrags
+    useEffect(() => {
+        if (entries.length > 0) {
+            const lastNonHoliday = [...entries]
+                .filter(e => e.type !== 'holiday' && !e.is_deleted)
+                .sort((a, b) => b.date.localeCompare(a.date))[0];
+            if (lastNonHoliday) {
+                const d = new Date(lastNonHoliday.date);
+                setSubmitMonth(new Date(d.getFullYear(), d.getMonth(), 1));
+            }
+        }
+    }, [entries]);
 
     const nextMonth = () => {
         setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() + 1, 1));
@@ -462,55 +476,32 @@ const HistoryPage: React.FC = () => {
 
 
     const handleMarkSubmittedOnly = async () => {
-        let entriesToProcess = entries;
-        let datesToCheck: string[] = [];
+        // Monats-basierte Abgabe
+        const monthStart = new Date(submitMonth.getFullYear(), submitMonth.getMonth(), 1);
+        const monthEnd = new Date(submitMonth.getFullYear(), submitMonth.getMonth() + 1, 0);
+        monthStart.setHours(0, 0, 0, 0);
+        monthEnd.setHours(23, 59, 59, 999);
 
-        if (!submitAll) {
-            const start = new Date(startDate);
-            const end = new Date(endDate);
-            // ... (keep existing range logic for filtering entries, but also build date list)
-            start.setHours(0, 0, 0, 0);
-            end.setHours(23, 59, 59, 999);
-            const startMoment = start.getTime();
-            const endMoment = end.getTime();
+        const startMoment = monthStart.getTime();
+        const endMoment = monthEnd.getTime();
 
-            // Build Date List for Auto-Break Check
-            let current = new Date(start);
-            while (current <= end) {
-                datesToCheck.push(getLocalISOString(current));
-                current.setDate(current.getDate() + 1);
-            }
+        let entriesToProcess = entries.filter(e => {
+            const d = new Date(e.date).getTime();
+            return d >= startMoment && d <= endMoment && !e.submitted;
+        });
 
-            entriesToProcess = entries.filter(e => {
-                const d = new Date(e.date).getTime();
-                return d >= startMoment && d <= endMoment;
-            });
-
-            if (entriesToProcess.length === 0) {
-                // Even if no entries, we might need to check for auto-breaks? 
-                // If there are NO entries, there is NO work > 6h, so no auto break needed.
-                // So Safe to return.
-                showToast("Keine Einträge im gewählten Zeitraum.", "warning");
-                return;
-            }
-        } else {
-            // "Alle Einträge" Logic: We take everything that is NOT submitted yet
-            entriesToProcess = entries.filter(e => !e.submitted);
-            if (entriesToProcess.length === 0) {
-                showToast("Keine offenen Einträge gefunden.", "warning");
-                return;
-            }
-            // Get unique dates from the unsubmitted entries
-            datesToCheck = Array.from(new Set(entriesToProcess.map(e => e.date)));
+        if (entriesToProcess.length === 0) {
+            showToast(`Keine offenen Einträge im ${submitMonth.toLocaleDateString('de-DE', { month: 'long', year: 'numeric' })}.`, "warning");
+            return;
         }
 
+        const monthLabel = submitMonth.toLocaleDateString('de-DE', { month: 'long', year: 'numeric' });
+
         // Check for blocked entries (rejected or still awaiting peer review)
-        // FIXED: Entries with responsible_user_id that HAVE been confirmed (confirmed_at set) are NOT blocked
-        // This fixes the Azubi submission issue where confirmed peer-reviewed entries were wrongly excluded
         const blockedCount = entriesToProcess.filter(e =>
             !e.isAbsence && (
                 e.rejected_at ||
-                (e.responsible_user_id && !e.confirmed_at) // Only blocked if peer review is still pending
+                (e.responsible_user_id && !e.confirmed_at)
             )
         ).length;
         if (blockedCount > 0) {
@@ -519,32 +510,18 @@ const HistoryPage: React.FC = () => {
 
         const idsToMark = entriesToProcess
             .filter(e => !e.isAbsence && !e.id.startsWith('virtual-'))
-            .filter(e => !e.rejected_at && !(e.responsible_user_id && !e.confirmed_at) && !e.submitted) // Allow confirmed peer-reviewed entries
+            .filter(e => !e.rejected_at && !(e.responsible_user_id && !e.confirmed_at) && !e.submitted)
             .map(e => e.id);
 
         if (idsToMark.length > 0) {
             await markAsSubmitted(idsToMark);
         }
 
-        // Handle Absences
-        // Absences normally don't need 'submission' in the same way, but we have a 'submitted' flag on them too in the local mapped View model?
-        // Let's see... mapped absences have 'submitted' prop from DB.
-        // We need to find all UNsubmitted absences from the source absences list, not just the mapped ones
-        // But 'entries' contains mapped absences.
-        let absenceIds: string[] = [];
-
-        if (submitAll) {
-            absenceIds = entriesToProcess
-                .filter(e => e.isAbsence && e.id.startsWith('abs-') && !e.submitted)
-                .map(e => e.id.split('-')[1])
-                .filter((value, index, self) => self.indexOf(value) === index);
-
-        } else {
-            absenceIds = entriesToProcess
-                .filter(e => e.isAbsence && e.id.startsWith('abs-') && !e.submitted)
-                .map(e => e.id.split('-')[1])
-                .filter((value, index, self) => self.indexOf(value) === index);
-        }
+        // Handle Absences in the month
+        const absenceIds = entriesToProcess
+            .filter(e => e.isAbsence && e.id.startsWith('abs-') && !e.submitted)
+            .map(e => e.id.split('-')[1])
+            .filter((value, index, self) => self.indexOf(value) === index);
 
         if (absenceIds.length > 0) {
             const { error } = await supabase
@@ -556,6 +533,7 @@ const HistoryPage: React.FC = () => {
             else await fetchAbsences();
         }
 
+        showToast(`${idsToMark.length + absenceIds.length} Einträge im ${monthLabel} als abgegeben markiert.`, "success");
         setShowPdfModal(false);
     };
 
@@ -1213,38 +1191,43 @@ const HistoryPage: React.FC = () => {
                             <div className="flex items-center gap-3 text-teal-300 mb-6"><FileDown size={24} /><h3 className="text-xl font-bold">PDF Exportieren</h3></div>
                             <div className="space-y-4">
 
-                                {/* TOGGLE SWITCH FOR ALL ENTRIES */}
+                                {/* MONATS-SELEKTOR FÜR ABGABE */}
                                 <div className="flex items-center justify-between bg-white/5 p-3 rounded-lg border border-white/10">
                                     <div className="flex flex-col">
-                                        <span className="text-sm font-bold text-white">Alle Einträge abgeben</span>
-                                        <span className="text-[10px] text-white/50">Ignoriert Datumsbereich</span>
+                                        <span className="text-sm font-bold text-white">Monat abgeben</span>
+                                        <span className="text-[10px] text-white/50">Alle Einträge im Monat als abgegeben markieren</span>
                                     </div>
-                                    <button
-                                        type="button"
-                                        onClick={() => setSubmitAll(!submitAll)}
-                                        className={`w-12 h-6 rounded-full p-1 transition-colors duration-200 ease-in-out relative ${submitAll ? 'bg-teal-500' : 'bg-white/10'}`}
-                                    >
-                                        <div className={`w-4 h-4 rounded-full bg-white shadow-sm transition-transform duration-200 ${submitAll ? 'translate-x-6' : 'translate-x-0'}`} />
+                                </div>
+                                <div className="flex items-center justify-center bg-white/5 rounded-lg p-2 border border-white/10">
+                                    <button onClick={() => setSubmitMonth(new Date(submitMonth.getFullYear(), submitMonth.getMonth() - 1, 1))} className="p-1.5 hover:bg-white/10 rounded text-white">
+                                        <ChevronLeft size={18} />
+                                    </button>
+                                    <span className="mx-3 text-sm font-bold text-white w-36 text-center">
+                                        {submitMonth.toLocaleDateString('de-DE', { month: 'long', year: 'numeric' })}
+                                    </span>
+                                    <button onClick={() => setSubmitMonth(new Date(submitMonth.getFullYear(), submitMonth.getMonth() + 1, 1))} className="p-1.5 hover:bg-white/10 rounded text-white">
+                                        <ChevronRight size={18} />
                                     </button>
                                 </div>
 
-                                <div className={`grid transition-all duration-300 ease-in-out ${submitAll ? 'grid-rows-[0fr] opacity-0' : 'grid-rows-[1fr] opacity-100'}`}>
-                                    <div className="overflow-hidden space-y-4">
-                                        <hr className="border-white/10 my-2" />
-                                        <div>
-                                            <label className="text-xs uppercase font-bold text-white/50 mb-1 block">Von Datum</label>
-                                            <div onClick={() => setActivePdfDatePicker('start')} className="flex items-center justify-between w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white cursor-pointer hover:bg-white/10"><span>{formatDateDisplay(startDate)}</span><Calendar size={18} className="text-white/50" /></div>
-                                        </div>
-                                        <div>
-                                            <label className="text-xs uppercase font-bold text-white/50 mb-1 block">Bis Datum</label>
-                                            <div onClick={() => setActivePdfDatePicker('end')} className="flex items-center justify-between w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white cursor-pointer hover:bg-white/10"><span>{formatDateDisplay(endDate)}</span><Calendar size={18} className="text-white/50" /></div>
-                                        </div>
+                                <hr className="border-white/10" />
+                                
+                                {/* DATUMSBEREICH FÜR PDF EXPORT */}
+                                <div className="space-y-3">
+                                    <div>
+                                        <label className="text-xs uppercase font-bold text-white/50 mb-1 block">Von Datum</label>
+                                        <div onClick={() => setActivePdfDatePicker('start')} className="flex items-center justify-between w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white cursor-pointer hover:bg-white/10"><span>{formatDateDisplay(startDate)}</span><Calendar size={18} className="text-white/50" /></div>
+                                    </div>
+                                    <div>
+                                        <label className="text-xs uppercase font-bold text-white/50 mb-1 block">Bis Datum</label>
+                                        <div onClick={() => setActivePdfDatePicker('end')} className="flex items-center justify-between w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white cursor-pointer hover:bg-white/10"><span>{formatDateDisplay(endDate)}</span><Calendar size={18} className="text-white/50" /></div>
                                     </div>
                                 </div>
+
                                 <div className="bg-white/5 rounded-lg p-3 space-y-3">
                                     <button onClick={generateProjectPDF} className="w-full flex items-center gap-3 p-3 rounded-lg bg-teal-600/20 border border-teal-500/30 hover:bg-teal-600/40 group"><FileText className="text-teal-300" size={20} /><div className="text-left"><div className="text-sm font-bold text-teal-100">Projekte Exportieren</div><div className="text-[10px] text-teal-200/60">Querformat • Mit Start/Ende</div><div className="text-[10px] text-emerald-300 mt-0.5">Markiert Einträge als abgegeben</div></div></button>
                                     <button onClick={generateAttendancePDF} className="w-full flex items-center gap-3 p-3 rounded-lg bg-blue-600/20 border border-blue-500/30 hover:bg-blue-600/40 group"><UserCheck className="text-blue-300" size={20} /><div className="text-left"><div className="text-sm font-bold text-blue-100">Anwesenheit Exportieren</div><div className="text-[10px] text-blue-200/60">Hochformat • Detailübersicht</div></div></button>
-                                    <button onClick={handleMarkSubmittedOnly} className="w-full flex items-center gap-3 p-3 rounded-lg bg-emerald-600/20 border border-emerald-500/30 hover:bg-emerald-600/40 group"><CheckCircle className="text-emerald-300" size={20} /><div className="text-left"><div className="text-sm font-bold text-emerald-100">Zeitraum abschließen</div><div className="text-[10px] text-emerald-200/60">Nur als "Abgegeben" markieren</div></div></button>
+                                    <button onClick={handleMarkSubmittedOnly} className="w-full flex items-center gap-3 p-3 rounded-lg bg-emerald-600/20 border border-emerald-500/30 hover:bg-emerald-600/40 group"><CheckCircle className="text-emerald-300" size={20} /><div className="text-left"><div className="text-sm font-bold text-emerald-100">{submitMonth.toLocaleDateString('de-DE', { month: 'long' })} abschließen</div><div className="text-[10px] text-emerald-200/60">Nur als "Abgegeben" markieren</div></div></button>
                                 </div>
                             </div>
                         </GlassCard>

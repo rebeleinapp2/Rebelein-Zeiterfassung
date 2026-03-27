@@ -4,7 +4,7 @@ import { supabase } from '../services/supabaseClient';
 import { GlassCard, GlassButton, GlassInput } from '../components/GlassCard';
 import { 
     ChevronLeft, ChevronRight, Settings, PartyPopper, Users, Shield, 
-    Save, RotateCcw, Check, Info, Bell, Building2, LayoutDashboard, Database,
+    Save, RotateCcw, Check, Info, Bell, Building2, Database,
     Lock, Unlock, FileDown, CheckSquare, Square, Download, Loader2, Briefcase, ChevronDown, X, Clock, Plus, Trash2, Palmtree
 } from 'lucide-react';
 import { getBavarianHolidays, DEFAULT_HOLIDAY_CONFIG, Holiday } from '../services/utils/holidayUtils';
@@ -43,7 +43,7 @@ const OfficeSettingsPage: React.FC = () => {
     const [viewYear, setViewYear] = useState(new Date().getFullYear());
     
     // --- HOLIDAY STATE ---
-    const [holidayConfig, setHolidayConfig] = useState<Record<string, any>>({ active: DEFAULT_HOLIDAY_CONFIG, overrides: {} });
+    const [holidayConfig, setHolidayConfig] = useState<Record<string, boolean>>(DEFAULT_HOLIDAY_CONFIG);
     const [holidayOverrides, setHolidayOverrides] = useState<Record<string, Record<string, string>>>({});
 
     // --- SCHOOL HOLIDAY STATE ---
@@ -76,13 +76,21 @@ const OfficeSettingsPage: React.FC = () => {
                     .maybeSingle();
                 
                 if (configData && configData.config) {
-                    if (configData.config.active) {
-                        setHolidayConfig(configData.config.active);
-                        setHolidayOverrides(configData.config.overrides || {});
-                    } else {
-                        setHolidayConfig(configData.config);
-                        setHolidayOverrides({});
+                    // Extrahiere die flache Config (id -> boolean), egal wie tief verschachtelt
+                    let rawActive = configData.config.active || configData.config;
+                    // Falls active nochmals ein active-Objekt enthält (doppelte Verschachtelung), die tiefste Ebene nehmen
+                    while (rawActive.active && typeof rawActive.active === 'object' && !Array.isArray(rawActive.active)) {
+                        rawActive = rawActive.active;
                     }
+                    // Nur boolean-Werte übernehmen (alles andere ignorieren)
+                    const cleanConfig: Record<string, boolean> = {};
+                    for (const [key, value] of Object.entries(rawActive)) {
+                        if (typeof value === 'boolean') {
+                            cleanConfig[key] = value;
+                        }
+                    }
+                    setHolidayConfig({ ...DEFAULT_HOLIDAY_CONFIG, ...cleanConfig });
+                    setHolidayOverrides(configData.config.overrides || {});
                 }
 
                 // Fetch Closed Months
@@ -124,7 +132,7 @@ const OfficeSettingsPage: React.FC = () => {
                     updated_at: new Date().toISOString()
                 });
             if (error) throw error;
-            showToast("Feiertags-Konfiguration global gespeichert.", "success");
+            showToast("Feiertags-Konfiguration gespeichert. Einträge werden automatisch für alle Mitarbeiter aktualisiert.", "success");
         } catch (err: any) {
             showToast("Fehler beim Speichern: " + err.message, "error");
         } finally {
@@ -132,62 +140,7 @@ const OfficeSettingsPage: React.FC = () => {
         }
     };
 
-    const handleGlobalSyncHolidays = async () => {
-        if (!confirm(`MÖCHTEN SIE DIE FEIERTAGE FÜR DAS JAHR ${viewYear} JETZT EINTRAGEN?\n\n- Gilt für alle aktiven Mitarbeiter\n- Existierende Einträge werden übersprungen\n- Manuelle Datums-Korrekturen für ${viewYear} werden berücksichtigt`)) return;
-        
-        setSaving(true);
-        try {
-            const activeUsers = users.filter(u => u.is_active !== false && u.user_id);
-            const year = viewYear;
-            const holidays = getBavarianHolidays(year);
-            const activeConfig = holidayConfig.active ? (holidayConfig.active as any) : holidayConfig;
-            const enabledHolidays = holidays.filter(h => activeConfig[h.id] !== false);
-            const yearOverrides = holidayOverrides[year] || {};
 
-            let totalAdded = 0;
-
-            for (const user of activeUsers) {
-                const { data: existingEntries } = await supabase
-                    .from('time_entries')
-                    .select('date')
-                    .eq('user_id', user.user_id!)
-                    .eq('type', 'holiday')
-                    .is('is_deleted', false)
-                    .gte('date', `${year}-01-01`)
-                    .lte('date', `${year}-12-31`);
-                
-                const existingDates = new Set(existingEntries?.map(e => e.date) || []);
-
-                for (const h of enabledHolidays) {
-                    let finalDate = h.date;
-                    if (yearOverrides[h.id]) finalDate = new Date(yearOverrides[h.id]);
-                    const dateStr = finalDate.toISOString().split('T')[0];
-                    if (existingDates.has(dateStr)) continue;
-
-                    const dow = finalDate.getDay();
-                    const targetHours = user.target_hours?.[dow as keyof DailyTarget] || 0;
-
-                    if (targetHours > 0) {
-                        await supabase.from('time_entries').insert({
-                            user_id: user.user_id,
-                            date: dateStr,
-                            client_name: 'Feiertag: ' + h.name,
-                            hours: targetHours,
-                            type: 'holiday',
-                            submitted: true,
-                            confirmed_at: new Date().toISOString()
-                        });
-                        totalAdded++;
-                    }
-                }
-            }
-            showToast(`Fertig! Insgesamt ${totalAdded} Einträge für ${activeUsers.length} Mitarbeiter erstellt.`, "success");
-        } catch (err: any) {
-            showToast("Fehler beim globalen Sync: " + err.message, "error");
-        } finally {
-            setSaving(false);
-        }
-    };
 
     // --- HANDLERS: SCHOOL HOLIDAYS ---
     const handleSaveSchoolHolidays = async (updatedHolidays: SchoolHoliday[]) => {
@@ -313,11 +266,8 @@ const OfficeSettingsPage: React.FC = () => {
                         </div>
                     </div>
                 </div>
-                <div className="flex gap-3 w-full md:w-auto">
-                    <GlassButton onClick={handleGlobalSyncHolidays} disabled={saving} className="flex-1 md:flex-none flex items-center gap-2 !bg-blue-500/20 hover:!bg-blue-500/30 !border-blue-500/30 text-blue-300">
-                        <LayoutDashboard size={18} /> Sync {viewYear}
-                    </GlassButton>
-                    <GlassButton onClick={handleSaveHolidays} disabled={saving} className="flex-1 md:flex-none flex items-center gap-2 !bg-emerald-500/20 hover:!bg-emerald-500/30 !border-emerald-500/30 text-emerald-300">
+                <div className="flex flex-wrap gap-3 w-full md:w-auto shrink-0">
+                    <GlassButton onClick={handleSaveHolidays} disabled={saving} className="flex-1 md:flex-none !w-auto flex items-center gap-2 !bg-emerald-500/20 hover:!bg-emerald-500/30 !border-emerald-500/30 text-emerald-300">
                         {saving ? <RotateCcw size={18} className="animate-spin" /> : <Save size={18} />} Speichern
                     </GlassButton>
                 </div>
@@ -326,8 +276,7 @@ const OfficeSettingsPage: React.FC = () => {
             <div className="bg-white/5 rounded-2xl border border-white/10 overflow-hidden">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-px bg-white/5">
                     {getBavarianHolidays(viewYear).map((h) => {
-                        const activeConfig = holidayConfig.active ? (holidayConfig.active as any) : holidayConfig;
-                        const isActive = activeConfig[h.id] !== false;
+                        const isActive = holidayConfig[h.id] !== false;
                         const overrideDate = holidayOverrides[viewYear]?.[h.id];
                         const displayDate = overrideDate ? new Date(overrideDate) : h.date;
                         const isOverridden = !!overrideDate;
@@ -335,7 +284,7 @@ const OfficeSettingsPage: React.FC = () => {
                         return (
                             <div key={h.id} className={`bg-gray-900/40 p-4 flex items-center justify-between transition-colors ${isActive ? 'bg-white/5' : 'opacity-40'}`}>
                                 <div className="flex items-center gap-3">
-                                    <div onClick={() => setHolidayConfig(prev => ({ ...prev, active: { ...(prev.active || prev), [h.id]: !isActive } }))} className={`w-10 h-10 rounded-xl flex items-center justify-center border transition-all cursor-pointer ${isActive ? 'bg-rose-500/20 border-rose-500/40 text-rose-300' : 'bg-white/5 border-white/10 text-white/20'}`}>
+                                    <div onClick={() => setHolidayConfig(prev => ({ ...prev, [h.id]: !isActive }))} className={`w-10 h-10 rounded-xl flex items-center justify-center border transition-all cursor-pointer ${isActive ? 'bg-rose-500/20 border-rose-500/40 text-rose-300' : 'bg-white/5 border-white/10 text-white/20'}`}>
                                         <PartyPopper size={20} />
                                     </div>
                                     <div>
@@ -650,7 +599,7 @@ const OfficeSettingsPage: React.FC = () => {
                     ))}
                 </div>
                 <div className="flex-1 min-w-0 overflow-y-auto pr-2 custom-scrollbar">
-                    <GlassCard className="h-full !p-8 border-white/10 bg-black/20 backdrop-blur-xl relative overflow-hidden">
+                    <GlassCard className="h-full !p-8 border-white/10 bg-black/20 backdrop-blur-xl relative !overflow-visible">
                         <div className="absolute top-0 right-0 -mr-20 -mt-20 w-64 h-64 bg-teal-500/5 rounded-full blur-3xl pointer-events-none" />
                         {loading ? <div className="flex flex-col items-center justify-center h-full gap-4 text-white/30"><div className="w-10 h-10 border-2 border-teal-500 border-t-transparent rounded-full animate-spin"></div><span className="font-bold text-sm tracking-widest uppercase">Lade Konfiguration...</span></div> : renderContent()}
                     </GlassCard>
