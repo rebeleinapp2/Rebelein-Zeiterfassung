@@ -10,6 +10,7 @@ import {
 import { getBavarianHolidays, DEFAULT_HOLIDAY_CONFIG, Holiday } from '../services/utils/holidayUtils';
 import { useToast } from '../components/Toast';
 import { useOfficeService, useDepartments, getLocalISOString } from '../services/dataService';
+import { DailyTarget } from '../types';
 import { fetchExportData, generateProjectPdfBlob, generateAttendancePdfBlob, generateMonthlyReportPdfBlob } from '../services/pdfExportService';
 import JSZip from 'jszip';
 
@@ -164,7 +165,7 @@ const OfficeSettingsPage: React.FC = () => {
                     if (existingDates.has(dateStr)) continue;
 
                     const dow = finalDate.getDay();
-                    const targetHours = user.target_hours?.[dow] || 0;
+                    const targetHours = user.target_hours?.[dow as keyof DailyTarget] || 0;
 
                     if (targetHours > 0) {
                         await supabase.from('time_entries').insert({

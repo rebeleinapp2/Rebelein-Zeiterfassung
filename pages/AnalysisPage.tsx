@@ -1,5 +1,6 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
+import { supabase } from '../services/supabaseClient';
 import { useTimeEntries, useSettings, useDailyLogs, useAbsences, useVacationRequests, getDailyTargetForDate, getLocalISOString, getYearlyQuota, fetchMonthlyStats, fetchLifetimeStats, useOfficeService } from '../services/dataService';
 import { formatDuration, calculateEarnedVacation } from '../services/utils/timeUtils';
 import { GlassCard, GlassButton, GlassInput } from '../components/GlassCard';
