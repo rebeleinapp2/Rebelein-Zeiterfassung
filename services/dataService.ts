@@ -1141,10 +1141,64 @@ export const useAbsences = (customUserId?: string) => {
       return;
     }
 
-    const { error } = await supabase.from('user_absences').insert([{
-      ...absence,
-      user_id: targetUserId
-    }]);
+    // Fetch user settings for target hours to split by work days
+    const { data: userData } = await supabase
+      .from('user_settings')
+      .select('target_hours')
+      .eq('user_id', targetUserId)
+      .single();
+
+    if (!userData) {
+      // Fallback: just insert as requested if no settings found
+      const { error } = await supabase.from('user_absences').insert([{
+        ...absence,
+        user_id: targetUserId
+      }]);
+      if (error) showToast("Fehler beim Speichern der Abwesenheit: " + (error.message || JSON.stringify(error)), "error");
+      return;
+    }
+
+    // Split Range into Workday Blocks
+    const start = new Date(absence.start_date);
+    const end = new Date(absence.end_date);
+    let curr = new Date(start);
+    
+    let currentBlockStart: string | null = null;
+    let blocks: {start: string, end: string}[] = [];
+
+    while (curr <= end) {
+        const dStr = getLocalISOString(curr);
+        const target = getDailyTargetForDate(dStr, userData.target_hours);
+        
+        if (target > 0) {
+            if (!currentBlockStart) currentBlockStart = dStr;
+        } else {
+            if (currentBlockStart) {
+                const prev = new Date(curr);
+                prev.setDate(prev.getDate() - 1);
+                blocks.push({ start: currentBlockStart, end: getLocalISOString(prev) });
+                currentBlockStart = null;
+            }
+        }
+        curr.setDate(curr.getDate() + 1);
+    }
+    if (currentBlockStart) {
+        blocks.push({ start: currentBlockStart, end: getLocalISOString(end) });
+    }
+
+    if (blocks.length === 0) {
+        // No workdays in range -> skip
+        return;
+    }
+
+    const insertData = blocks.map(block => ({
+        ...absence,
+        user_id: targetUserId,
+        start_date: block.start,
+        end_date: block.end
+    }));
+
+    const { error } = await supabase.from('user_absences').insert(insertData);
     if (error) showToast("Fehler beim Speichern der Abwesenheit: " + (error.message || JSON.stringify(error)), "error");
   };
 
@@ -1334,6 +1388,17 @@ export const useVacationRequests = (customUserId?: string) => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
+    const { data: userData } = await supabase
+      .from('user_settings')
+      .select('*')
+      .eq('user_id', request.user_id)
+      .single();
+
+    if (!userData) {
+      showToast("Benutzerdaten nicht gefunden.", "error");
+      return;
+    }
+
     const { data: adminSettings } = await supabase
       .from('user_settings')
       .select('display_name')
@@ -1342,6 +1407,7 @@ export const useVacationRequests = (customUserId?: string) => {
 
     const adminName = adminSettings?.display_name || 'Admin';
 
+    // 1. Update Request Status
     const { error: updateError } = await supabase
       .from('vacation_requests')
       .update({
@@ -1356,13 +1422,50 @@ export const useVacationRequests = (customUserId?: string) => {
       return;
     }
 
-    const { error: insertError } = await supabase.from('user_absences').insert({
-      user_id: request.user_id,
-      start_date: request.start_date,
-      end_date: request.end_date,
-      type: 'vacation',
-      note: request.note || 'Urlaubsantrag genehmigt'
-    });
+    // 2. Split Range into Workday Blocks for 'user_absences'
+    const start = new Date(request.start_date);
+    const end = new Date(request.end_date);
+    let curr = new Date(start);
+    
+    let currentBlockStart: string | null = null;
+    let blocks: {start: string, end: string}[] = [];
+
+    while (curr <= end) {
+        const dStr = getLocalISOString(curr);
+        const target = getDailyTargetForDate(dStr, userData.target_hours);
+        
+        if (target > 0) {
+            if (!currentBlockStart) currentBlockStart = dStr;
+        } else {
+            if (currentBlockStart) {
+                const prev = new Date(curr);
+                prev.setDate(prev.getDate() - 1);
+                blocks.push({ start: currentBlockStart, end: getLocalISOString(prev) });
+                currentBlockStart = null;
+            }
+        }
+        curr.setDate(curr.getDate() + 1);
+    }
+    if (currentBlockStart) {
+        blocks.push({ start: currentBlockStart, end: getLocalISOString(end) });
+    }
+
+    if (blocks.length === 0) {
+        // Fallback: If no workdays found (shouldn't happen with new UI but for safety),
+        // we just don't insert anything or insert one entry if forced.
+        return;
+    }
+
+    // Insert each block as a separate absence entry
+    const insertData = blocks.map(block => ({
+        user_id: request.user_id,
+        start_date: block.start,
+        end_date: block.end,
+        type: 'vacation',
+        note: request.note || 'Urlaubsantrag genehmigt'
+    }));
+
+    const { error: insertError } = await supabase.from('user_absences').insert(insertData);
 
     if (insertError) {
       showToast("Warnung: Status aktualisiert, aber Kalendereintrag fehlgeschlagen: " + (insertError.message || JSON.stringify(insertError)), "warning");

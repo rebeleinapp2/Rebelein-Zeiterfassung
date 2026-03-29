@@ -337,33 +337,33 @@ export const generateProjectPdfBlob = (data: ExportData, startDate: string, endD
             while (current <= absEnd) {
                 if (current >= start && current <= end) {
                     const dateStr = getLocalISOString(current);
-                    let targetHours = 0;
+                    const dailyTarget = getDailyTargetForDate(dateStr, settings.target_hours);
 
-                    if (!['unpaid', 'sick_child', 'sick_pay'].includes(abs.type)) {
-                        targetHours = getDailyTargetForDate(dateStr, settings.target_hours);
+                    // Skip days where target is 0 (weekends/off-days)
+                    if (dailyTarget > 0) {
+                        const labelMap: Record<string, string> = {
+                            'vacation': 'Urlaub',
+                            'sick': 'Krank',
+                            'holiday': 'Feiertag',
+                            'unpaid': 'Unbezahlt',
+                            'sick_child': 'Kind krank',
+                            'sick_pay': 'Krankengeld'
+                        };
+                        const absenceEntry: TimeEntry = {
+                            id: `abs-export-${abs.id}-${dateStr}`,
+                            user_id: abs.user_id,
+                            date: dateStr,
+                            client_name: labelMap[abs.type] || 'Abwesend',
+                            hours: !['unpaid', 'sick_child', 'sick_pay'].includes(abs.type) ? dailyTarget : 0,
+                            type: abs.type,
+                            created_at: new Date().toISOString(),
+                            isAbsence: true,
+                            note: abs.note,
+                            start_time: '',
+                            end_time: ''
+                        };
+                        combinedExportData.push(absenceEntry);
                     }
-                    const labelMap: Record<string, string> = {
-                        'vacation': 'Urlaub',
-                        'sick': 'Krank',
-                        'holiday': 'Feiertag',
-                        'unpaid': 'Unbezahlt',
-                        'sick_child': 'Kind krank',
-                        'sick_pay': 'Krankengeld'
-                    };
-                    const absenceEntry: TimeEntry = {
-                        id: `abs-export-${abs.id}-${dateStr}`,
-                        user_id: abs.user_id,
-                        date: dateStr,
-                        client_name: labelMap[abs.type] || 'Abwesend',
-                        hours: targetHours,
-                        type: abs.type,
-                        created_at: new Date().toISOString(),
-                        isAbsence: true,
-                        note: abs.note,
-                        start_time: '',
-                        end_time: ''
-                    };
-                    combinedExportData.push(absenceEntry);
                 }
                 current.setDate(current.getDate() + 1);
             }

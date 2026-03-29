@@ -14,7 +14,10 @@ type ViewMode = 'month' | 'year' | 'overtime' | 'emergency';
 // Helper for local date string YYYY-MM-DD - NOW USING GLOBAL HELPER
 // (Previously local `getLocalDateStr` was here, now removed in favor of import)
 
+import { useToast } from '../components/Toast';
+
 const AnalysisPage: React.FC = () => {
+    const { showToast } = useToast();
     const { entries } = useTimeEntries();
     const { settings } = useSettings();
     const { users } = useOfficeService();
@@ -563,7 +566,7 @@ const AnalysisPage: React.FC = () => {
                 status = 'weekend';
             }
 
-            if (effectiveAbsence && !isEmergency) {
+            if (effectiveAbsence && target > 0 && !isEmergency) {
                 grid.push({ day: d, type: 'absence', absenceType: effectiveAbsence.type as any, hours: totalHours, isSchoolHoliday });
             } else {
                 grid.push({ day: d, type: 'work', status, hours: totalHours, diff: totalHours - target, target, isEmergency, isSchoolHoliday });
@@ -574,7 +577,50 @@ const AnalysisPage: React.FC = () => {
 
     const handleCreateRequest = async () => {
         if (!reqStart || !reqEnd) return;
-        await createRequest(reqStart, reqEnd, reqNote);
+        
+        // Loop through range and find blocks of work days
+        const start = new Date(reqStart);
+        const end = new Date(reqEnd);
+        let curr = new Date(start);
+        
+        let currentBlockStart: string | null = null;
+        let blocks: {start: string, end: string}[] = [];
+
+        while (curr <= end) {
+            const dateStr = getLocalISOString(curr);
+            const target = getDailyTargetForDate(dateStr, settings.target_hours);
+            
+            if (target > 0) {
+                // It's a work day
+                if (!currentBlockStart) currentBlockStart = dateStr;
+            } else {
+                // Not a work day (weekend/holiday with 0 target)
+                if (currentBlockStart) {
+                    // Find the date of the PREVIOUS day which was the block end
+                    const prev = new Date(curr);
+                    prev.setDate(prev.getDate() - 1);
+                    blocks.push({ start: currentBlockStart, end: getLocalISOString(prev) });
+                    currentBlockStart = null;
+                }
+            }
+            curr.setDate(curr.getDate() + 1);
+        }
+        
+        // Close last block if exists
+        if (currentBlockStart) {
+            blocks.push({ start: currentBlockStart, end: getLocalISOString(end) });
+        }
+
+        if (blocks.length === 0) {
+            showToast("Keine Arbeitstage im gewählten Zeitraum gefunden.", "warning");
+            return;
+        }
+
+        // Create requests for each block
+        for (const block of blocks) {
+            await createRequest(block.start, block.end, reqNote);
+        }
+
         setShowRequestModal(false);
         setReqStart('');
         setReqEnd('');
