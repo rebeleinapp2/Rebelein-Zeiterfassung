@@ -1,0 +1,1 @@
+ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS hourly_rate DECIMAL(10, 2) DEFAULT 35.00;

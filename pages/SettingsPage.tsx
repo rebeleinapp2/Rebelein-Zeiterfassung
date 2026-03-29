@@ -29,11 +29,10 @@ const SettingsPage: React.FC = () => {
   }, [settings]);
 
   const handleSave = async () => {
-    // Wenn gesperrt, dürfen targets und workConfig nicht verändert werden
-    // Wir übergeben einfach die alten Werte aus 'settings' falls gesperrt,
-    // oder die neuen aus dem State, falls nicht gesperrt.
+    // Wenn gesperrt, dürfen targets, workConfig und employment_start_date nicht verändert werden
     const finalTargets = isLocked ? settings.target_hours : targets;
     const finalWorkConfig = isLocked ? settings.work_config : workConfig;
+    const finalStartDate = isLocked ? settings.employment_start_date : startDate;
 
     const { error } = await updateSettings({
       display_name: name,
@@ -42,7 +41,7 @@ const SettingsPage: React.FC = () => {
       work_config: finalWorkConfig,
       preferences: settings.preferences,
       vacation_days_yearly: settings.vacation_days_yearly,
-      employment_start_date: startDate || undefined,
+      employment_start_date: finalStartDate || undefined,
       invoice_keyword: keyword
     });
 
@@ -102,12 +101,13 @@ const SettingsPage: React.FC = () => {
 
             <label className="block text-xs text-white/50 mb-2">Eintrittsdatum</label>
             <div
-              onClick={() => setShowDatePicker(true)}
-              className="flex items-center justify-between w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white cursor-pointer hover:bg-white/10"
+              onClick={() => !isLocked && setShowDatePicker(true)}
+              className={`flex items-center justify-between w-full border rounded-xl px-4 py-3 transition-colors ${isLocked ? 'bg-white/2 border-white/5 text-white/20 cursor-not-allowed' : 'bg-white/5 border-white/10 text-white cursor-pointer hover:bg-white/10'}`}
             >
               <span>{startDate ? new Date(startDate).toLocaleDateString('de-DE') : 'Ab erstem Eintrag'}</span>
-              <Calendar size={18} className="text-white/50" />
+              <Calendar size={18} className={isLocked ? 'text-white/10' : 'text-white/50'} />
             </div>
+            {isLocked && <p className="text-[10px] text-orange-400/70 mt-1 italic">Dieses Feld wurde vom Büro gesperrt.</p>}
             <p className="text-[10px] text-white/30 mt-2">Berechnungen (Soll-Stunden) beginnen erst ab diesem Datum.</p>
 
             <div className="h-px bg-white/10 my-4" />

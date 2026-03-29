@@ -91,19 +91,6 @@ const HistoryPage: React.FC = () => {
         fetchDailyLogs();
     }, [fetchDailyLogs]);
 
-    // Standard-Monat für Abgabe berechnen: Monat des letzten Nicht-Holiday-Eintrags
-    useEffect(() => {
-        if (entries.length > 0) {
-            const lastNonHoliday = [...entries]
-                .filter(e => e.type !== 'holiday' && !e.is_deleted)
-                .sort((a, b) => b.date.localeCompare(a.date))[0];
-            if (lastNonHoliday) {
-                const d = new Date(lastNonHoliday.date);
-                setSubmitMonth(new Date(d.getFullYear(), d.getMonth(), 1));
-            }
-        }
-    }, [entries]);
-
     const nextMonth = () => {
         setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() + 1, 1));
     };

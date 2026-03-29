@@ -17,6 +17,7 @@ export interface ExportData {
     historyAbsences: UserAbsence[];
     employmentStartDate?: string;
     initialBalance: number;
+    manualBalanceEntries: any[];
     settings: UserSettings;
     // Legacy compatibility
     userSettings?: UserSettings;
@@ -154,6 +155,11 @@ export const fetchExportData = async (userId: string, startDate: string, endDate
         .lte('start_date', endDate) // Overlap check simplified
         .neq('is_deleted', true);
 
+    const { data: balEntries } = await supabase
+        .from('overtime_balance_entries')
+        .select('*')
+        .eq('user_id', userId);
+
     let historyEntries = (histEntriesData as TimeEntry[]) || [];
     const historyAbsences = (histAbsData as UserAbsence[]) || [];
 
@@ -205,6 +211,7 @@ export const fetchExportData = async (userId: string, startDate: string, endDate
         yearAbsenceEntries: (yearEntriesData as TimeEntry[]) || [],
         historyEntries,
         historyAbsences,
+        manualBalanceEntries: balEntries || [],
         employmentStartDate: historyStart,
         initialBalance: userData.initial_overtime_balance || 0,
         settings: userData as UserSettings,
@@ -746,12 +753,18 @@ export const generateMonthlyReportPdfBlob = (data: ExportData, startDate: string
     }
     monthlyDifference = monthlyActual - monthlyTarget;
 
-    // 2. Yearly Stats (Vacation, Sick) - Based on fetched yearly absences AND yearly entries
+    // 2. Yearly & Monthly Stats (Vacation, Sick)
     let vacationDays = 0;
     let sickDays = 0;
     let sickChildDays = 0;
     let sickPayDays = 0;
     let unpaidDays = 0;
+
+    let mVacationDays = 0;
+    let mSickDays = 0;
+    let mSickChildDays = 0;
+    let mSickPayDays = 0;
+    let mUnpaidDays = 0;
 
     // Iterate over the whole year for absence stats
     const yearStart = new Date(year, 0, 1);
@@ -781,21 +794,36 @@ export const generateMonthlyReportPdfBlob = (data: ExportData, startDate: string
     while (yCurr <= yearEnd) {
         const dStr = getLocalISOString(yCurr);
         const dailyTarget = getDailyTargetForDate(dStr, settings.target_hours);
+        const isInMonth = yCurr >= start && yCurr <= end;
 
         if (dailyTarget > 0) {
             const abs = absMap.get(dStr);
             const entryAbs = entryAbsMap.get(dStr);
 
             // Prioritize absence (if both exist, usually absence planner is more authoritative, but entry is fine too)
-            // If they conflict, strict absences logic usually wins in UI.
             const type = abs ? abs.type : (entryAbs ? entryAbs.type : null);
 
             if (type) {
-                if (type === 'vacation') vacationDays++;
-                if (type === 'sick') sickDays++;
-                if (type === 'sick_child') sickChildDays++;
-                if (type === 'sick_pay') sickPayDays++;
-                if (type === 'unpaid') unpaidDays++;
+                if (type === 'vacation') {
+                    vacationDays++;
+                    if (isInMonth) mVacationDays++;
+                }
+                if (type === 'sick') {
+                    sickDays++;
+                    if (isInMonth) mSickDays++;
+                }
+                if (type === 'sick_child') {
+                    sickChildDays++;
+                    if (isInMonth) mSickChildDays++;
+                }
+                if (type === 'sick_pay') {
+                    sickPayDays++;
+                    if (isInMonth) mSickPayDays++;
+                }
+                if (type === 'unpaid') {
+                    unpaidDays++;
+                    if (isInMonth) mUnpaidDays++;
+                }
             }
         }
         yCurr.setDate(yCurr.getDate() + 1);
@@ -1036,29 +1064,26 @@ export const generateMonthlyReportPdfBlob = (data: ExportData, startDate: string
 
     // --- Cumulative Balance Calculation ---
     const historyStartStr = data.employmentStartDate || `${new Date().getFullYear()}-01-01`;
-    // If we have history data, calculate total balance
-    let cumulativeBalance = 0;
+    let prePeriodBalance = 0; // Saldo vor dem aktuellen Monat
 
     if (data.historyEntries && data.historyAbsences) {
         const hStart = new Date(historyStartStr);
-        const hEnd = new Date(endDate);
+        const periodStart = new Date(startDate);
 
         // Helper for history credits
         const getHistoryCredits = (dStr: string) => {
             const hAbs = data.historyAbsences.find(a => dStr >= a.start_date && dStr <= a.end_date && ['vacation', 'sick', 'holiday'].includes(a.type));
             if (hAbs) return getDailyTargetForDate(dStr, settings.target_hours);
-            // Check legacy local entries in history
             const entryAbs = data.historyEntries.find(e => e.date === dStr && ['vacation', 'sick', 'holiday', 'special_holiday'].includes(e.type || ''));
             if (entryAbs) return getDailyTargetForDate(dStr, settings.target_hours);
             return 0;
         };
 
         const hCurr = new Date(hStart);
-        while (hCurr <= hEnd) {
+        while (hCurr < periodStart) { // Nur bis zum Tag VOR dem Berichtszeitraum
             const dStr = getLocalISOString(hCurr);
             let dTarget = getDailyTargetForDate(dStr, settings.target_hours);
 
-            // Check Unpaid
             const hAbs = data.historyAbsences.find(a => dStr >= a.start_date && dStr <= a.end_date);
             const isUnpaid = (hAbs && ['unpaid', 'sick_child', 'sick_pay'].includes(hAbs.type)) ||
                 data.historyEntries.some(e => e.date === dStr && ['unpaid', 'sick_child', 'sick_pay'].includes(e.type || ''));
@@ -1069,7 +1094,6 @@ export const generateMonthlyReportPdfBlob = (data: ExportData, startDate: string
             const dBreaks = data.historyEntries.filter(e => e.date === dStr && e.type === 'break');
             const dHours = dEntries.reduce((s, e) => {
                 let h = 0;
-                // Use server-calculated duration as primary source (matching AnalysisPage)
                 if (e.calc_duration_minutes !== undefined) {
                     h = Math.abs(e.calc_duration_minutes) / 60;
                     if (e.type === 'emergency_service') {
@@ -1077,30 +1101,27 @@ export const generateMonthlyReportPdfBlob = (data: ExportData, startDate: string
                         else if (e.surcharge) h *= (1 + e.surcharge / 100);
                     }
                 } else {
-                    // Fallback: use stored hours
                     h = e.hours;
                     if (isNaN(h)) h = 0;
-
-                    // Deduct Overlaps with BREAKS
                     dBreaks.forEach(b => {
                         const overlap = calculateOverlapInMinutes(e.start_time || '', e.end_time || '', b.start_time || '', b.end_time || '');
                         h -= (overlap / 60);
                     });
                     h = Math.max(0, h);
-
                     if (e.type === 'emergency_service' && e.surcharge) h *= (1 + e.surcharge / 100);
                 }
                 return s + h;
             }, 0);
             const dCredits = getHistoryCredits(dStr);
 
-            cumulativeBalance += (dHours + dCredits - dTarget);
+            prePeriodBalance += (dHours + dCredits - dTarget);
             hCurr.setDate(hCurr.getDate() + 1);
         }
     }
 
     const initialBalance = data.initialBalance || 0;
-    const finalTotalBalance = initialBalance + cumulativeBalance;
+    const manualBalanceTotal = (data.manualBalanceEntries || []).reduce((sum, e) => sum + (Number(e.hours) || 0), 0);
+    const finalTotalBalance = initialBalance + manualBalanceTotal + prePeriodBalance + monthlyDifference;
     const calcStartFormatted = new Date(historyStartStr).toLocaleDateString('de-DE');
 
 
@@ -1136,58 +1157,79 @@ export const generateMonthlyReportPdfBlob = (data: ExportData, startDate: string
     doc.text(`${monthlyActual.toFixed(2).replace('.', ',')} h`, leftColX + 65, lineH + gap, { align: 'right' });
 
     doc.setFont("helvetica", "bold");
-    doc.text(`Differenz:`, leftColX, lineH + (gap * 2));
-    const diffPrefix = monthlyDifference > 0 ? '+' : '';
-    const diffColor = monthlyDifference >= 0 ? [0, 100, 0] : [200, 0, 0];
-    doc.setTextColor(diffColor[0], diffColor[1], diffColor[2]);
-    doc.text(`${diffPrefix}${Math.abs(monthlyDifference).toFixed(2).replace('.', ',')} h`, leftColX + 65, lineH + (gap * 2), { align: 'right' });
+    doc.text(`Monat Differenz:`, leftColX, lineH + (gap * 2));
+    const mDiffPrefix = monthlyDifference > 0 ? '+' : '';
+    const mDiffColor = monthlyDifference >= 0 ? [0, 100, 0] : [200, 0, 0];
+    doc.setTextColor(mDiffColor[0], mDiffColor[1], mDiffColor[2]);
+    doc.text(`${mDiffPrefix}${monthlyDifference.toFixed(2).replace('.', ',')} h`, leftColX + 65, lineH + (gap * 2), { align: 'right' });
     doc.setTextColor(0, 0, 0);
     doc.setFont("helvetica", "normal");
 
-    // Total Stats (New)
-    const totalY = lineH + (gap * 4); // Spacer
-    doc.text(`Startsaldo (Übertrag):`, leftColX, totalY);
-    doc.text(`${initialBalance.toFixed(2).replace('.', ',')} h`, leftColX + 65, totalY, { align: 'right' });
+    // Total Stats (Lifetime)
+    const totalY = lineH + (gap * 3.5); // Spacer
+    doc.text(`Saldo Vormonate:`, leftColX, totalY + gap);
+    doc.text(`${prePeriodBalance >= 0 ? '+' : ''}${prePeriodBalance.toFixed(2).replace('.', ',')} h`, leftColX + 65, totalY + gap, { align: 'right' });
 
-    doc.setFont("helvetica", "bold");
-    doc.text(`Gesamtsaldo:`, leftColX, totalY + gap);
-    const totalPrefix = finalTotalBalance > 0 ? '+' : '';
-    const totalColor = finalTotalBalance >= 0 ? [0, 100, 0] : [200, 0, 0];
-    doc.setTextColor(totalColor[0], totalColor[1], totalColor[2]);
-    doc.text(`${totalPrefix}${Math.abs(finalTotalBalance).toFixed(2).replace('.', ',')} h`, leftColX + 65, totalY + gap, { align: 'right' });
-    doc.setTextColor(0, 0, 0);
-    doc.setFont("helvetica", "normal");
+    doc.text(`Startsaldo (Übertrag):`, leftColX, totalY + (gap * 2));
+    doc.text(`${initialBalance.toFixed(2).replace('.', ',')} h`, leftColX + 65, totalY + (gap * 2), { align: 'right' });
 
-    doc.setFontSize(8);
-    doc.setTextColor(100, 100, 100);
-    doc.text(`(Berechnung ab: ${calcStartFormatted})`, leftColX, totalY + (gap * 2) + 2);
+    if (manualBalanceTotal !== 0) {
+        doc.text(`Manuelle Korrekturen:`, leftColX, totalY + (gap * 3));
+        doc.text(`${manualBalanceTotal > 0 ? '+' : ''}${manualBalanceTotal.toFixed(2).replace('.', ',')} h`, leftColX + 65, totalY + (gap * 3), { align: 'right' });
+        
+        doc.setFont("helvetica", "bold");
+        doc.text(`Gesamtsaldo (Konto):`, leftColX, totalY + (gap * 4));
+        const totalPrefix = finalTotalBalance > 0 ? '+' : '';
+        const totalColor = finalTotalBalance >= 0 ? [0, 100, 0] : [200, 0, 0];
+        doc.setTextColor(totalColor[0], totalColor[1], totalColor[2]);
+        doc.text(`${totalPrefix}${finalTotalBalance.toFixed(2).replace('.', ',')} h`, leftColX + 65, totalY + (gap * 4), { align: 'right' });
+        doc.setTextColor(0, 0, 0);
+        doc.setFont("helvetica", "normal");
+
+        doc.setFontSize(8);
+        doc.setTextColor(100, 100, 100);
+        doc.text(`(Berechnung ab: ${calcStartFormatted})`, leftColX, totalY + (gap * 5) + 2);
+    } else {
+        doc.setFont("helvetica", "bold");
+        doc.text(`Gesamtsaldo (Konto):`, leftColX, totalY + (gap * 3));
+        const totalPrefix = finalTotalBalance > 0 ? '+' : '';
+        const totalColor = finalTotalBalance >= 0 ? [0, 100, 0] : [200, 0, 0];
+        doc.setTextColor(totalColor[0], totalColor[1], totalColor[2]);
+        doc.text(`${totalPrefix}${finalTotalBalance.toFixed(2).replace('.', ',')} h`, leftColX + 65, totalY + (gap * 3), { align: 'right' });
+        doc.setTextColor(0, 0, 0);
+        doc.setFont("helvetica", "normal");
+
+        doc.setFontSize(8);
+        doc.setTextColor(100, 100, 100);
+        doc.text(`(Berechnung ab: ${calcStartFormatted})`, leftColX, totalY + (gap * 4) + 2);
+    }
     doc.setTextColor(0, 0, 0);
     doc.setFontSize(10);
 
 
-    // Yearly Stats
+    // Yearly & Monthly Stats
     doc.text(`Urlaubstage (Gesamt):`, rightColX, lineH);
     doc.text(`${yearlyAllowance}`, rightColX + 60, lineH, { align: 'right' });
 
-    doc.text(`Urlaubstage (Genommen):`, rightColX, lineH + gap);
-    doc.text(`${vacationDays}`, rightColX + 60, lineH + gap, { align: 'right' });
+    doc.text(`Urlaubstage Genommen (J/M):`, rightColX, lineH + gap);
+    doc.text(`${vacationDays} / ${mVacationDays}`, rightColX + 60, lineH + gap, { align: 'right' });
 
     doc.setFont("helvetica", "bold");
     doc.text(`Urlaubstage (Rest):`, rightColX, lineH + (gap * 2));
     doc.text(`${remainingVacation}`, rightColX + 60, lineH + (gap * 2), { align: 'right' });
     doc.setFont("helvetica", "normal");
 
-    doc.text(`Krankheitstage (Jahr):`, rightColX, lineH + (gap * 3.5));
-    doc.text(`${sickDays}`, rightColX + 60, lineH + (gap * 3.5), { align: 'right' });
+    doc.text(`Krankheitstage (J/M):`, rightColX, lineH + (gap * 3.5));
+    doc.text(`${sickDays} / ${mSickDays}`, rightColX + 60, lineH + (gap * 3.5), { align: 'right' });
 
-    doc.text(`Kind krank (Jahr):`, rightColX, lineH + (gap * 4.5));
-    doc.text(`${sickChildDays}`, rightColX + 60, lineH + (gap * 4.5), { align: 'right' });
+    doc.text(`Kind krank (J/M):`, rightColX, lineH + (gap * 4.5));
+    doc.text(`${sickChildDays} / ${mSickChildDays}`, rightColX + 60, lineH + (gap * 4.5), { align: 'right' });
 
-    doc.text(`Krankengeld (Jahr):`, rightColX, lineH + (gap * 5.5));
-    doc.text(`${sickPayDays}`, rightColX + 60, lineH + (gap * 5.5), { align: 'right' });
+    doc.text(`Krankengeld (J/M):`, rightColX, lineH + (gap * 5.5));
+    doc.text(`${sickPayDays} / ${mSickPayDays}`, rightColX + 60, lineH + (gap * 5.5), { align: 'right' });
 
-    doc.text(`Unbezahlt (Jahr):`, rightColX, lineH + (gap * 6.5));
-    doc.text(`${unpaidDays}`, rightColX + 60, lineH + (gap * 6.5), { align: 'right' });
+    doc.text(`Unbezahlt (J/M):`, rightColX, lineH + (gap * 6.5));
+    doc.text(`${unpaidDays} / ${mUnpaidDays}`, rightColX + 60, lineH + (gap * 6.5), { align: 'right' });
 
     return doc.output('blob');
 };

@@ -1,29 +1,41 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
-import { useOfficeService, getLocalISOString, getDailyTargetForDate } from '../services/dataService';
+import { useOfficeService, getLocalISOString, getDailyTargetForDate, useDepartments } from '../services/dataService';
 import { supabase } from '../services/supabaseClient';
-import { formatDuration } from '../services/utils/timeUtils';
 import { GlassCard, GlassButton, GlassInput } from '../components/GlassCard';
-import { Calendar, Filter, Save, FileDown, PieChart, BarChart3, TrendingUp, Users, CheckSquare, Square, RefreshCcw, Calculator, Coins, Trash2 } from 'lucide-react';
+import { Filter, Save, FileDown, PieChart, BarChart3, Users, CheckSquare, Square, Calculator, Coins, Trash2, FileText, Layers, Briefcase, ChevronDown, ChevronRight } from 'lucide-react';
 import GlassDatePicker from '../components/GlassDatePicker';
-import { TimeEntry, UserSettings, UserAbsence } from '../types';
+import { TimeEntry, UserAbsence } from '../types';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { useToast } from '../components/Toast';
 import ConfirmDialog from '../components/ConfirmDialog';
 
-// Typen für die Auswertung
 interface AnalysisStats {
     userId: string;
     displayName: string;
     totalHours: number;
     targetHours: number;
-    billableHours: number; // type: work
-    overheadHours: number; // type: company, office, warehouse, car
+    billableHours: number; 
+    overheadHours: number; 
     absenceHours: number;
     breakHours: number;
-    efficiency: number; // billable / total presence
+    surchargeHours: number;
+    efficiency: number; 
     costEstimate: number;
+    typeBreakdown: Record<string, number>;
+    initialBalance: number; // Übertrag / Startsaldo
+    accountBalance: number; // Aktuelles Überstundenkonto inkl. Historie
+}
+
+interface OrderStats {
+    orderNumber: string;
+    totalHours: number;
+    billableHours: number;
+    surchargeHours: number;
+    costEstimate: number;
+    usersCount: number;
+    userIds: Set<string>;
+    entries: TimeEntry[];
 }
 
 interface FilterPreset {
@@ -34,10 +46,11 @@ interface FilterPreset {
         endDate: string;
         selectedUserIds: string[];
         selectedTypes: string[];
+        selectedDepartments?: string[];
+        viewMode?: 'user' | 'order';
     }
 }
 
-// Translations for Filter UI
 const TYPE_LABELS: Record<string, string> = {
     work: 'Arbeit / Projekt',
     company: 'Firma',
@@ -45,33 +58,53 @@ const TYPE_LABELS: Record<string, string> = {
     warehouse: 'Lager',
     car: 'Auto / Fahrt',
     break: 'Pause',
-    overtime_reduction: 'Gutstunden'
+    vacation: 'Urlaub',
+    sick: 'Krank',
+    sick_child: 'Kind krank',
+    sick_pay: 'Krankengeld',
+    holiday: 'Feiertag',
+    special_holiday: 'Sonderurlaub',
+    emergency_service: 'Notdienst',
+    overtime_reduction: 'Gutstunden',
+    unpaid: 'Unbezahlt'
+};
+
+const TYPE_GROUPS = {
+    'Arbeitszeit': ['work', 'company', 'office', 'warehouse', 'car'],
+    'Abwesenheiten': ['vacation', 'sick', 'sick_child', 'sick_pay', 'holiday', 'special_holiday', 'unpaid', 'overtime_reduction'],
+    'Sonstiges': ['break', 'emergency_service']
 };
 
 const AdvancedAnalysisPage: React.FC = () => {
     const { showToast } = useToast();
     const { users, fetchAllUsers } = useOfficeService();
+    const { departments, fetchDepartments } = useDepartments();
 
     // --- STATE ---
+    const [viewMode, setViewMode] = useState<'user' | 'order'>('user');
 
-    // Filter State
     const [startDate, setStartDate] = useState(() => {
-        const d = new Date(); d.setDate(1); return getLocalISOString(d); // 1. des Monats
+        const d = new Date(); d.setDate(1); return getLocalISOString(d); 
     });
     const [endDate, setEndDate] = useState(getLocalISOString());
     const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
-    const [selectedTypes, setSelectedTypes] = useState<string[]>(['work', 'company', 'office', 'warehouse', 'car']);
+    const [selectedDepartments, setSelectedDepartments] = useState<string[]>([]);
+    const [selectedTypes, setSelectedTypes] = useState<string[]>(Object.keys(TYPE_LABELS));
 
-    // UI State
     const [showStartPicker, setShowStartPicker] = useState(false);
     const [showEndPicker, setShowEndPicker] = useState(false);
-    const [hourlyRate, setHourlyRate] = useState<number>(35.00); // Standardkostensatz
+    const [hourlyRate, setHourlyRate] = useState<number>(35.00); 
+    const [userRates, setUserRates] = useState<Record<string, number>>({});
     const [loading, setLoading] = useState(false);
+    const [expandedOrder, setExpandedOrder] = useState<string | null>(null);
+    const [orderSearchQuery, setOrderSearchQuery] = useState('');
 
-    // Data State
-    const [rawData, setRawData] = useState<{ entries: TimeEntry[], absences: UserAbsence[] }>({ entries: [], absences: [] });
+    const [rawData, setRawData] = useState<{ 
+        entries: TimeEntry[], 
+        absences: UserAbsence[],
+        manualAdjustments: any[] 
+    }>({ entries: [], absences: [], manualAdjustments: [] });
 
-    // Presets (Database Backed)
     const [presets, setPresets] = useState<FilterPreset[]>([]);
     const [presetName, setPresetName] = useState('');
     const [confirmDeleteDialog, setConfirmDeleteDialog] = useState<{ isOpen: boolean, presetId: string | null }>({ isOpen: false, presetId: null });
@@ -79,9 +112,9 @@ const AdvancedAnalysisPage: React.FC = () => {
     // --- INITIALIZATION ---
     useEffect(() => {
         fetchAllUsers();
+        fetchDepartments();
         fetchPresets();
 
-        // Realtime Subscription für Presets
         const channel = supabase
             .channel('realtime_presets')
             .on('postgres_changes', { event: '*', schema: 'public', table: 'analysis_presets' }, () => {
@@ -104,7 +137,6 @@ const AdvancedAnalysisPage: React.FC = () => {
         else setPresets(data as FilterPreset[]);
     }
 
-    // Default select all users once loaded if none selected
     useEffect(() => {
         if (users.length > 0 && selectedUserIds.length === 0) {
             setSelectedUserIds(users.map(u => u.user_id!));
@@ -115,144 +147,313 @@ const AdvancedAnalysisPage: React.FC = () => {
     const fetchData = async () => {
         setLoading(true);
 
-        // Fetch Entries
+        // Wir laden ALLE Daten bis zum gewählten Ende, um den Überstunden-Stand (Saldo) 
+        // korrekt inkl. Historie berechnen zu können.
         const { data: entriesData, error: entError } = await supabase
             .from('time_entries')
             .select('*')
-            .gte('date', startDate)
-            .lte('date', endDate);
+            .lte('date', endDate)
+            .eq('is_deleted', false);
 
-        // Fetch Absences (für Soll-Korrektur und Anzeige)
         const { data: absData, error: absError } = await supabase
             .from('user_absences')
             .select('*')
             .lte('start_date', endDate)
-            .gte('end_date', startDate);
+            .eq('is_deleted', false);
 
-        if (entError || absError) {
-            console.error(entError, absError);
+        const { data: balData, error: balError } = await supabase
+            .from('overtime_balance_entries')
+            .select('*');
+
+        if (entError || absError || balError) {
+            console.error(entError, absError, balError);
             showToast("Fehler beim Laden der Daten.", "error");
         } else {
             setRawData({
                 entries: entriesData as TimeEntry[],
-                absences: absData as UserAbsence[]
+                absences: absData as UserAbsence[],
+                manualAdjustments: balData || []
             });
         }
         setLoading(false);
     };
 
-    // Auto-Fetch on Filter Change (Debounced could be better, but direct is fine for now)
     useEffect(() => {
         if (startDate && endDate) fetchData();
     }, [startDate, endDate]);
 
 
-    // --- CALCULATION ENGINE ---
+    // --- CALCULATION ENGINE (USER MODE) ---
     const stats: AnalysisStats[] = useMemo(() => {
-        if (!rawData.entries) return [];
+        if (!rawData.entries || viewMode !== 'user') return [];
+
+        const periodStart = new Date(startDate);
+        const periodEnd = new Date(endDate);
 
         return selectedUserIds.map(uid => {
             const user = users.find(u => u.user_id === uid);
             if (!user) return null;
 
-            // Filter entries for this user
+            const initialBalance = Number(user.initial_overtime_balance) || 0;
+            const manualBalanceTotal = rawData.manualAdjustments
+                .filter(m => m.user_id === uid)
+                .reduce((sum, m) => sum + (Number(m.hours) || 0), 0);
+
+            const employmentStartStr = user.employment_start_date || '2026-01-01'; // Fallback
+            const employmentStart = new Date(employmentStartStr);
+
             const userEntries = rawData.entries.filter(e => e.user_id === uid);
             const userAbsences = rawData.absences.filter(a => a.user_id === uid);
 
-            // Calculate Metrics
-            let billable = 0;
-            let overhead = 0;
-            let breaks = 0;
+            // Stat-Sammler
+            let periodSoll = 0;
+            let periodIst = 0;
+            let periodSurcharges = 0;
+            let billableHours = 0;
+            let overheadHours = 0;
+            let breakHours = 0;
+            let typeBreakdown: Record<string, number> = {};
+            Object.keys(TYPE_LABELS).forEach(t => typeBreakdown[t] = 0);
 
-            userEntries.forEach(e => {
-                if (e.type === 'break') {
-                    breaks += e.hours;
-                } else if (e.type === 'work') {
-                    billable += e.hours;
-                } else if (['company', 'office', 'warehouse', 'car'].includes(e.type || '')) {
-                    overhead += e.hours;
-                }
-            });
+            // History-Sammler (für Konto-Stand)
+            let historySoll = 0;
+            let historyIst = 0;
 
-            // Soll-Stunden Berechnung für den Zeitraum
-            let target = 0;
-            let absenceHours = 0;
+            // 1. ITERIERE ÜBER GESAMTE HISTORIE (von Eintritt bis Ende-Zeitraum)
+            // Dies berechnet den absolut exakten Kontostand inkl. aller Gutschriften
+            let curr = new Date(employmentStart);
+            const calcEnd = new Date(periodEnd);
 
-            const cur = new Date(startDate);
-            const end = new Date(endDate);
-
-            while (cur <= end) {
-                const dStr = getLocalISOString(cur);
+            while (curr <= calcEnd) {
+                const dStr = getLocalISOString(curr);
                 const dayTarget = getDailyTargetForDate(dStr, user.target_hours);
+                
+                const isInPeriod = curr >= periodStart && curr <= periodEnd;
 
-                // Prüfen auf Abwesenheit
-                const abs = userAbsences.find(a => dStr >= a.start_date && dStr <= a.end_date);
+                if (isInPeriod) periodSoll += dayTarget;
+                historySoll += dayTarget;
 
-                if (abs) {
-                    if (abs.type !== 'unpaid') absenceHours += dayTarget;
-                } else {
-                    target += dayTarget;
+                const dayEntries = userEntries.filter(e => e.date === dStr);
+                const dayAbsRecord = userAbsences.find(a => dStr >= a.start_date && dStr <= a.end_date);
+                const processedAbsTypes = new Set<string>();
+
+                // Zeiteinträge verarbeiten
+                dayEntries.forEach(e => {
+                    const type = e.type || 'work';
+                    const duration = Number(e.hours) || 0;
+                    const surHours = (duration * (e.surcharge || 0)) / 100;
+
+                    // Abwesenheiten (Urlaub, Krank etc.)
+                    if (['vacation', 'sick', 'holiday', 'special_holiday', 'sick_child', 'sick_pay', 'unpaid', 'overtime_reduction'].includes(type)) {
+                        if (!processedAbsTypes.has(type)) {
+                            if (dayTarget > 0) {
+                                if (isInPeriod) typeBreakdown[type] += dayTarget;
+                                // Nur bezahlte Abwesenheiten zählen als Ist
+                                if (type !== 'unpaid' && type !== 'overtime_reduction') {
+                                    if (isInPeriod) periodIst += dayTarget;
+                                    historyIst += dayTarget;
+                                }
+                                processedAbsTypes.add(type);
+                            }
+                        }
+                    } else if (type === 'break') {
+                        if (isInPeriod) {
+                            typeBreakdown[type] += duration;
+                            breakHours += duration;
+                        }
+                    } else {
+                        // Arbeit / Fahrt / Büro etc.
+                        if (isInPeriod) {
+                            typeBreakdown[type] += duration;
+                            const effective = (type === 'emergency_service') ? (duration + surHours) : duration;
+                            periodIst += effective;
+                            periodSurcharges += surHours;
+
+                            if (type === 'work' || type === 'emergency_service') {
+                                billableHours += effective;
+                            } else {
+                                overheadHours += effective;
+                            }
+                        }
+                        
+                        // History immer (inkl. Zuschlag bei Notdienst)
+                        const histEffective = (type === 'emergency_service') ? (duration + surHours) : duration;
+                        historyIst += histEffective;
+                    }
+                });
+
+                // Abwesenheits-Zeitraum (Tabelle) prüfen
+                if (dayAbsRecord && dayTarget > 0) {
+                    const type = dayAbsRecord.type;
+                    if (!processedAbsTypes.has(type)) {
+                        if (isInPeriod) typeBreakdown[type] += dayTarget;
+                        if ((type as string) !== 'unpaid') {
+                            if (isInPeriod) periodIst += dayTarget;
+                            historyIst += dayTarget;
+                        }
+                        processedAbsTypes.add(type);
+                    }
                 }
-                cur.setDate(cur.getDate() + 1);
+
+                curr.setDate(curr.getDate() + 1);
             }
 
-            // Filter based on selected Types for TOTAL display
-            let displayedTotal = 0;
-            userEntries.forEach(e => {
-                if (selectedTypes.includes(e.type || 'work')) {
-                    displayedTotal += e.hours;
-                }
-            });
-
-            const totalPresence = billable + overhead;
-            const efficiency = totalPresence > 0 ? (billable / totalPresence) * 100 : 0;
-            const cost = displayedTotal * hourlyRate; // Einfache Kalkulation auf angezeigte Stunden
+            const totalPresence = billableHours + overheadHours;
+            const efficiency = totalPresence > 0 ? (billableHours / totalPresence) * 100 : 0;
+            const userRate = userRates[uid] || hourlyRate;
+            const cost = (periodIst) * userRate; 
 
             return {
                 userId: uid,
                 displayName: user.display_name,
-                totalHours: displayedTotal,
-                targetHours: target,
-                billableHours: billable,
-                overheadHours: overhead,
-                absenceHours: absenceHours,
-                breakHours: breaks,
+                totalHours: periodIst,
+                targetHours: periodSoll,
+                billableHours,
+                overheadHours,
+                absenceHours: periodIst - totalPresence,
+                breakHours,
+                surchargeHours: periodSurcharges,
                 efficiency,
-                costEstimate: cost
+                costEstimate: cost,
+                typeBreakdown,
+                initialBalance,
+                accountBalance: (historyIst - historySoll) + initialBalance + manualBalanceTotal
             };
         }).filter(Boolean) as AnalysisStats[];
 
-    }, [rawData, selectedUserIds, selectedTypes, users, startDate, endDate, hourlyRate]);
+    }, [rawData, selectedUserIds, selectedTypes, users, startDate, endDate, hourlyRate, viewMode, userRates]);
+
+    // --- CALCULATION ENGINE (ORDER MODE) ---
+    const orderStats: OrderStats[] = useMemo(() => {
+        if (!rawData.entries || viewMode !== 'order') return [];
+        
+        const map = new Map<string, OrderStats>();
+        
+        rawData.entries.forEach(e => {
+             if (!selectedUserIds.includes(e.user_id)) return;
+             if (!selectedTypes.includes(e.type || 'work')) return;
+             
+             const order = e.order_number?.trim() || 'Ohne Auftrag';
+             if (!map.has(order)) {
+                 map.set(order, { orderNumber: order, totalHours: 0, billableHours: 0, surchargeHours: 0, costEstimate: 0, usersCount: 0, userIds: new Set(), entries: [] });
+             }
+             
+             const s = map.get(order)!;
+             const duration = Number(e.hours) || 0;
+             const sur = (duration * (e.surcharge || 0)) / 100;
+             const effective = (e.type === 'emergency_service') ? (duration + sur) : duration;
+
+             s.totalHours += effective;
+             if (e.type === 'work' || e.type === 'emergency_service') s.billableHours += effective;
+             s.surchargeHours += sur;
+             
+             const userRate = userRates[e.user_id] || hourlyRate;
+             s.costEstimate += (effective) * userRate;
+             s.userIds.add(e.user_id);
+             s.usersCount = s.userIds.size;
+             s.entries.push(e);
+        });
+        
+        return Array.from(map.values()).sort((a,b) => b.totalHours - a.totalHours); 
+    }, [rawData, selectedUserIds, selectedTypes, viewMode, hourlyRate, userRates]);
+
+
+    const filteredOrderStats = useMemo(() => {
+        if (!orderSearchQuery) return orderStats;
+        const query = orderSearchQuery.toLowerCase();
+        return orderStats.filter(s => {
+            const hasOrderMatch = s.orderNumber.toLowerCase().includes(query);
+            const hasProjectMatch = s.entries.some(e => (e.client_name || '').toLowerCase().includes(query) || (e.note || '').toLowerCase().includes(query));
+            return hasOrderMatch || hasProjectMatch;
+        });
+    }, [orderStats, orderSearchQuery]);
 
     // Aggregierte Gesamtwerte
     const totals = useMemo(() => {
-        return stats.reduce((acc, curr) => ({
-            billable: acc.billable + curr.billableHours,
-            overhead: acc.overhead + curr.overheadHours,
-            total: acc.total + curr.totalHours,
-            cost: acc.cost + curr.costEstimate
-        }), { billable: 0, overhead: 0, total: 0, cost: 0 });
-    }, [stats]);
+        if (viewMode === 'user') {
+            return stats.reduce((acc, curr) => ({
+                billable: acc.billable + curr.billableHours,
+                overhead: acc.overhead + curr.overheadHours,
+                total: acc.total + curr.totalHours,
+                surcharge: acc.surcharge + curr.surchargeHours,
+                cost: acc.cost + curr.costEstimate,
+                company: acc.company + (curr.typeBreakdown['company'] || 0),
+                office: acc.office + (curr.typeBreakdown['office'] || 0),
+                warehouse: acc.warehouse + (curr.typeBreakdown['warehouse'] || 0),
+                car: acc.car + (curr.typeBreakdown['car'] || 0)
+            }), { billable: 0, overhead: 0, total: 0, surcharge: 0, cost: 0, company: 0, office: 0, warehouse: 0, car: 0 });
+        } else {
+            return filteredOrderStats.reduce((acc, curr) => {
+                let company = 0;
+                let office = 0;
+                let warehouse = 0;
+                let car = 0;
+                curr.entries.forEach(e => {
+                    if (e.type === 'company') company += e.hours;
+                    if (e.type === 'office') office += e.hours;
+                    if (e.type === 'warehouse') warehouse += e.hours;
+                    if (e.type === 'car') car += e.hours;
+                });
+                return {
+                    billable: acc.billable + curr.billableHours,
+                    overhead: acc.overhead + (curr.totalHours - curr.billableHours),
+                    total: acc.total + curr.totalHours,
+                    surcharge: acc.surcharge + curr.surchargeHours,
+                    cost: acc.cost + curr.costEstimate,
+                    company: acc.company + company,
+                    office: acc.office + office,
+                    warehouse: acc.warehouse + warehouse,
+                    car: acc.car + car
+                };
+            }, { billable: 0, overhead: 0, total: 0, surcharge: 0, cost: 0, company: 0, office: 0, warehouse: 0, car: 0 });
+        }
+    }, [stats, filteredOrderStats, viewMode]);
 
+    const filteredUsersForList = useMemo(() => {
+        let u = users;
+        if (selectedDepartments.length > 0) {
+            u = u.filter(user => user.department_id && selectedDepartments.includes(user.department_id));
+        }
+        return u;
+    }, [users, selectedDepartments]);
 
     // --- HANDLERS ---
-
     const toggleUser = (id: string) => {
-        setSelectedUserIds(prev =>
-            prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
-        );
+        setSelectedUserIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+    };
+
+    const toggleDepartment = (id: string) => {
+        setSelectedDepartments(prev => {
+            const next = prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id];
+            const usersInDeps = users.filter(u => u.department_id && next.includes(u.department_id)).map(u => u.user_id!);
+            if (next.length > 0) {
+                setSelectedUserIds(usersInDeps);
+            } else {
+                setSelectedUserIds(users.map(u => u.user_id!));
+            }
+            return next;
+        });
     };
 
     const toggleType = (type: string) => {
-        setSelectedTypes(prev =>
-            prev.includes(type) ? prev.filter(x => x !== type) : [...prev, type]
-        );
+        setSelectedTypes(prev => prev.includes(type) ? prev.filter(x => x !== type) : [...prev, type]);
+    };
+
+    const toggleTypeGroup = (groupName: keyof typeof TYPE_GROUPS) => {
+        const typesInGroup = TYPE_GROUPS[groupName];
+        const allSelected = typesInGroup.every(t => selectedTypes.includes(t));
+        
+        if (allSelected) {
+            setSelectedTypes(prev => prev.filter(t => !typesInGroup.includes(t)));
+        } else {
+            setSelectedTypes(prev => Array.from(new Set([...prev, ...typesInGroup])));
+        }
     };
 
     const savePreset = async () => {
         if (!presetName) return showToast("Bitte Namen eingeben", "warning");
 
-        const filters = { startDate, endDate, selectedUserIds, selectedTypes };
+        const filters = { startDate, endDate, selectedUserIds, selectedTypes, selectedDepartments, viewMode };
 
         const { error } = await supabase.from('analysis_presets').insert({
             name: presetName,
@@ -271,6 +472,8 @@ const AdvancedAnalysisPage: React.FC = () => {
         if (preset.filters.endDate) setEndDate(preset.filters.endDate);
         if (preset.filters.selectedUserIds) setSelectedUserIds(preset.filters.selectedUserIds);
         if (preset.filters.selectedTypes) setSelectedTypes(preset.filters.selectedTypes);
+        if (preset.filters.selectedDepartments) setSelectedDepartments(preset.filters.selectedDepartments);
+        if (preset.filters.viewMode) setViewMode(preset.filters.viewMode);
     };
 
     const deletePreset = async (id: string, confirmed: boolean = false) => {
@@ -284,18 +487,36 @@ const AdvancedAnalysisPage: React.FC = () => {
     };
 
     // --- EXPORT FUNCTIONALITY ---
-
     const exportCSV = () => {
-        const header = ["Mitarbeiter", "Soll (h)", "Ist (Gesamt h)", "Verrechenbar (h)", "Gemeinkosten (h)", "Effizienz (%)", "Kosten (EUR)"];
-        const rows = stats.map(s => [
-            s.displayName,
-            s.targetHours.toFixed(2),
-            s.totalHours.toFixed(2),
-            s.billableHours.toFixed(2),
-            s.overheadHours.toFixed(2),
-            s.efficiency.toFixed(1) + '%',
-            s.costEstimate.toFixed(2)
-        ]);
+        let header = [];
+        let rows = [];
+
+        if (viewMode === 'user') {
+            const dynamicHeaders = selectedTypes.map(t => `${TYPE_LABELS[t] || t} (h)`);
+            header = ["Mitarbeiter", "Soll (h)", "Ist (Gesamt h)", ...dynamicHeaders, "Zuschläge (h)", "Effizienz (%)", "Kosten (EUR)"];
+            rows = stats.map(s => {
+                const dynamicVals = selectedTypes.map(t => (s.typeBreakdown[t] || 0).toFixed(2));
+                return [
+                    s.displayName,
+                    s.targetHours.toFixed(2),
+                    s.totalHours.toFixed(2),
+                    ...dynamicVals,
+                    s.surchargeHours.toFixed(2),
+                    s.efficiency.toFixed(1) + '%',
+                    s.costEstimate.toFixed(2)
+                ];
+            });
+        } else {
+            header = ["Auftrag", "Gesamtstunden (h)", "Verrechenbar (h)", "Zuschläge (h)", "Mitarbeiter (Anzahl)", "Kosten (EUR)"];
+            rows = orderStats.map(s => [
+                s.orderNumber,
+                s.totalHours.toFixed(2),
+                s.billableHours.toFixed(2),
+                s.surchargeHours.toFixed(2),
+                s.usersCount.toString(),
+                s.costEstimate.toFixed(2)
+            ]);
+        }
 
         const csvContent = "data:text/csv;charset=utf-8,"
             + header.join(";") + "\n"
@@ -304,26 +525,24 @@ const AdvancedAnalysisPage: React.FC = () => {
         const encodedUri = encodeURI(csvContent);
         const link = document.createElement("a");
         link.setAttribute("href", encodedUri);
-        link.setAttribute("download", `auswertung_${startDate}_${endDate}.csv`);
+        link.setAttribute("download", `auswertung_${viewMode}_${startDate}_${endDate}.csv`);
         document.body.appendChild(link);
         link.click();
     };
 
     const generatePDF = () => {
-        const doc = new jsPDF('l', 'mm', 'a4'); // Landscape for more columns
+        const doc = new jsPDF('l', 'mm', 'a4'); 
 
-        // Header
         doc.setFontSize(18);
         doc.setFont("helvetica", "bold");
-        doc.text("Detaillierte Auswertung (Profi)", 14, 20);
+        doc.text(`Detaillierte Auswertung: ${viewMode === 'user' ? 'Mitarbeiter' : 'Aufträge'}`, 14, 20);
 
         doc.setFontSize(11);
         doc.setFont("helvetica", "normal");
         doc.text(`Zeitraum: ${new Date(startDate).toLocaleDateString('de-DE')} bis ${new Date(endDate).toLocaleDateString('de-DE')}`, 14, 28);
         doc.text(`Erstellt am: ${new Date().toLocaleDateString('de-DE')}`, 14, 34);
 
-        // Summary Box
-        doc.setDrawColor(20, 184, 166); // Teal
+        doc.setDrawColor(20, 184, 166);
         doc.setLineWidth(0.5);
         doc.rect(200, 15, 80, 25);
         doc.setFontSize(10);
@@ -334,95 +553,160 @@ const AdvancedAnalysisPage: React.FC = () => {
         doc.text("Kostenschätzung:", 205, 34);
         doc.text(totals.cost.toLocaleString('de-DE', { style: 'currency', currency: 'EUR' }), 275, 34, { align: 'right' });
 
-        // Table
-        const tableBody = stats.map(s => [
-            s.displayName,
-            s.targetHours.toFixed(2),
-            s.totalHours.toFixed(2),
-            s.billableHours.toFixed(2),
-            s.overheadHours.toFixed(2),
-            s.absenceHours.toFixed(2),
-            s.efficiency.toFixed(1) + '%',
-            s.costEstimate.toFixed(0) + ' €'
-        ]);
+        if (viewMode === 'user') {
+            const dynamicHeaders = selectedTypes.map(t => `${TYPE_LABELS[t] || t} (h)`);
+            const tableBody = stats.map(s => {
+                const dynamicVals = selectedTypes.map(t => (s.typeBreakdown[t] || 0).toFixed(2));
+                return [
+                    s.displayName,
+                    s.targetHours.toFixed(2),
+                    s.totalHours.toFixed(2),
+                    ...dynamicVals,
+                    s.surchargeHours.toFixed(2),
+                    s.efficiency.toFixed(1) + '%',
+                    s.costEstimate.toFixed(0) + ' €'
+                ];
+            });
 
-        autoTable(doc, {
-            startY: 45,
-            head: [['Mitarbeiter', 'Soll (h)', 'Ist (h)', 'Verrech. (h)', 'Gemein. (h)', 'Urlaub/Kr (h)', 'Quote', 'Kosten']],
-            body: tableBody,
-            theme: 'grid',
-            headStyles: { fillColor: [20, 184, 166], textColor: [255, 255, 255], fontStyle: 'bold' },
-            columnStyles: {
-                0: { fontStyle: 'bold' },
-                1: { halign: 'right' },
-                2: { halign: 'right', fontStyle: 'bold' },
-                3: { halign: 'right', textColor: [20, 184, 166] },
-                4: { halign: 'right' },
-                5: { halign: 'right' },
-                6: { halign: 'right' },
-                7: { halign: 'right' }
-            },
-            foot: [[
-                'GESAMT',
-                '-',
-                totals.total.toFixed(2),
-                totals.billable.toFixed(2),
-                totals.overhead.toFixed(2),
-                '-',
-                ((totals.billable / (totals.billable + totals.overhead || 1)) * 100).toFixed(1) + '%',
-                totals.cost.toLocaleString('de-DE', { style: 'currency', currency: 'EUR' })
-            ]],
-            footStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: 'bold', halign: 'right' }
-        });
+            autoTable(doc, {
+                startY: 45,
+                head: [['Mitarbeiter', 'Soll (h)', 'Ist (h)', ...dynamicHeaders, 'Zuschlag (h)', 'Quote', 'Kosten']],
+                body: tableBody,
+                theme: 'grid',
+                headStyles: { fillColor: [20, 184, 166], textColor: [255, 255, 255], fontStyle: 'bold' },
+                styles: { fontSize: 8 },
+                columnStyles: { 0: { fontStyle: 'bold' }, 1: { halign: 'right' }, 2: { halign: 'right', fontStyle: 'bold' } },
+                foot: [['GESAMT', '-', totals.total.toFixed(2), ...selectedTypes.map(() => '-'), totals.surcharge.toFixed(2), ((totals.billable / (totals.billable + totals.overhead || 1)) * 100).toFixed(1) + '%', totals.cost.toLocaleString('de-DE', { style: 'currency', currency: 'EUR' })]],
+                footStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: 'bold', halign: 'right' }
+            });
+        } else {
+            const tableBody = orderStats.map(s => [
+                s.orderNumber,
+                s.totalHours.toFixed(2),
+                s.billableHours.toFixed(2),
+                s.surchargeHours.toFixed(2),
+                s.usersCount.toString(),
+                s.costEstimate.toFixed(0) + ' €'
+            ]);
 
-        doc.save(`profi_auswertung_${startDate}_${endDate}.pdf`);
+            autoTable(doc, {
+                startY: 45,
+                head: [['Auftrag', 'Gesamt (h)', 'Verrechenbar (h)', 'Zuschlag (h)', 'Mitarbeiter (Anz.)', 'Kosten']],
+                body: tableBody,
+                theme: 'grid',
+                headStyles: { fillColor: [59, 130, 246], textColor: [255, 255, 255], fontStyle: 'bold' },
+                columnStyles: { 0: { fontStyle: 'bold' }, 1: { halign: 'right', fontStyle: 'bold' }, 2: { halign: 'right', textColor: [20, 184, 166] }, 3: { halign: 'right' }, 4: { halign: 'center' }, 5: { halign: 'right' } },
+                foot: [['GESAMT', totals.total.toFixed(2), totals.billable.toFixed(2), totals.surcharge.toFixed(2), '-', totals.cost.toLocaleString('de-DE', { style: 'currency', currency: 'EUR' })]],
+                footStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: 'bold', halign: 'right' }
+            });
+        }
+
+        doc.save(`profi_auswertung_${viewMode}_${startDate}_${endDate}.pdf`);
     };
 
     // --- RENDER ---
-
     return (
         <div className="hidden md:flex flex-row h-full w-full bg-gray-900 text-white overflow-hidden">
-
             {/* SIDEBAR: FILTER & PRESETS */}
-            <div className="w-80 flex-shrink-0 border-r border-white/10 bg-gray-900/50 p-6 overflow-y-auto flex flex-col gap-8">
+            <div className="w-80 flex-shrink-0 border-r border-white/10 bg-gray-900/50 p-6 overflow-y-auto flex flex-col gap-8 custom-scrollbar">
                 <div>
                     <h2 className="text-xl font-bold flex items-center gap-2 mb-6 text-purple-300">
                         <Filter size={24} /> Filter
                     </h2>
 
-                    {/* Date Range */}
                     <div className="space-y-4 mb-6">
                         <div>
                             <label className="text-xs uppercase font-bold text-white/50 mb-1 block">Zeitraum Start</label>
-                            <GlassInput value={startDate} readOnly onClick={() => setShowStartPicker(true)} className="cursor-pointer text-sm" />
+                            <GlassInput 
+                                value={new Date(startDate).toLocaleDateString('de-DE')} 
+                                readOnly 
+                                onClick={() => setShowStartPicker(true)} 
+                                className="cursor-pointer text-sm" 
+                            />
                         </div>
                         <div>
                             <label className="text-xs uppercase font-bold text-white/50 mb-1 block">Zeitraum Ende</label>
-                            <GlassInput value={endDate} readOnly onClick={() => setShowEndPicker(true)} className="cursor-pointer text-sm" />
+                            <GlassInput 
+                                value={new Date(endDate).toLocaleDateString('de-DE')} 
+                                readOnly 
+                                onClick={() => setShowEndPicker(true)} 
+                                className="cursor-pointer text-sm" 
+                            />
+                        </div>
+                        <div className="flex gap-2 mt-2">
+                            <button 
+                                onClick={() => {
+                                    const year = new Date().getFullYear();
+                                    setStartDate(`${year}-01-01`);
+                                    setEndDate(`${year}-12-31`);
+                                }}
+                                className="flex-1 bg-white/5 hover:bg-white/10 text-white/70 text-[10px] font-bold py-1.5 rounded transition-colors"
+                            >
+                                Aktuelles Jahr
+                            </button>
+                            <button 
+                                onClick={() => {
+                                    const year = new Date().getFullYear() - 1;
+                                    setStartDate(`${year}-01-01`);
+                                    setEndDate(`${year}-12-31`);
+                                }}
+                                className="flex-1 bg-white/5 hover:bg-white/10 text-white/70 text-[10px] font-bold py-1.5 rounded transition-colors"
+                            >
+                                Letztes Jahr
+                            </button>
                         </div>
                     </div>
+
+                    {/* Departments Filter */}
+                    {departments.length > 0 && (
+                        <div className="mb-6">
+                            <label className="text-xs uppercase font-bold text-white/50 mb-2 block">Abteilungen</label>
+                            <div className="flex flex-wrap gap-2">
+                                {departments.map(d => (
+                                    <button
+                                        key={d.id}
+                                        onClick={() => toggleDepartment(d.id)}
+                                        className={`px-3 py-1 rounded-full text-[10px] font-bold transition-all ${selectedDepartments.includes(d.id) ? 'bg-blue-500/20 text-blue-200 border border-blue-500/50' : 'bg-white/5 text-white/40 border border-transparent hover:bg-white/10'}`}
+                                    >
+                                        {d.label}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    )}
 
                     {/* Entry Types */}
                     <div className="mb-6">
                         <label className="text-xs uppercase font-bold text-white/50 mb-2 block">Kategorien</label>
-                        <div className="space-y-1">
-                            {['work', 'company', 'office', 'warehouse', 'car', 'break', 'overtime_reduction'].map(type => (
-                                <button
-                                    key={type}
-                                    onClick={() => toggleType(type)}
-                                    className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-bold transition-all ${selectedTypes.includes(type) ? 'bg-teal-500/20 text-teal-200 border border-teal-500/30' : 'bg-white/5 text-white/40 border border-transparent'
-                                        }`}
-                                >
-                                    {selectedTypes.includes(type) ? <CheckSquare size={14} /> : <Square size={14} />}
-                                    <span className="uppercase">{TYPE_LABELS[type] || type}</span>
-                                </button>
+                        <div className="space-y-4">
+                            {(Object.keys(TYPE_GROUPS) as Array<keyof typeof TYPE_GROUPS>).map(group => (
+                                <div key={group}>
+                                    <button 
+                                        onClick={() => toggleTypeGroup(group)}
+                                        className="text-[10px] uppercase font-bold text-white/40 mb-1 flex items-center gap-2 hover:text-white transition-colors w-full text-left"
+                                    >
+                                        {TYPE_GROUPS[group].every(t => selectedTypes.includes(t)) ? <CheckSquare size={12}/> : <Square size={12}/>}
+                                        {group}
+                                    </button>
+                                    <div className="grid grid-cols-2 gap-1">
+                                        {TYPE_GROUPS[group].map(type => (
+                                            <button
+                                                key={type}
+                                                onClick={() => toggleType(type)}
+                                                className={`flex items-center gap-2 px-2 py-1.5 rounded-md text-[10px] font-bold transition-all ${selectedTypes.includes(type) ? 'bg-teal-500/20 text-teal-200 border border-teal-500/30' : 'bg-white/5 text-white/40 border border-transparent hover:bg-white/10'}`}
+                                            >
+                                                <div className="truncate">{TYPE_LABELS[type] || type}</div>
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
                             ))}
                         </div>
                     </div>
 
                     {/* Cost Config */}
                     <div className="mb-6">
-                        <label className="text-xs uppercase font-bold text-white/50 mb-1 block flex items-center gap-1"><Coins size={12} /> Kostensatz (EUR/h)</label>
+                        <label className="text-xs uppercase font-bold text-white/50 mb-1 flex items-center gap-1"><Coins size={12} /> Kostensatz (EUR/h)</label>
                         <GlassInput
                             type="number"
                             value={hourlyRate}
@@ -435,28 +719,45 @@ const AdvancedAnalysisPage: React.FC = () => {
                 {/* Users List */}
                 <div className="flex-1">
                     <div className="flex justify-between items-center mb-2">
-                        <label className="text-xs uppercase font-bold text-white/50">Mitarbeiter</label>
-                        <button onClick={() => setSelectedUserIds(selectedUserIds.length === users.length ? [] : users.map(u => u.user_id!))} className="text-[10px] text-teal-400 hover:underline">
-                            {selectedUserIds.length === users.length ? 'Keine' : 'Alle'}
+                        <label className="text-xs uppercase font-bold text-white/50">Mitarbeiter ({filteredUsersForList.length})</label>
+                        <button onClick={() => setSelectedUserIds(selectedUserIds.length === filteredUsersForList.length ? [] : filteredUsersForList.map(u => u.user_id!))} className="text-[10px] text-teal-400 hover:underline">
+                            {selectedUserIds.length === filteredUsersForList.length ? 'Keine' : 'Alle'}
                         </button>
                     </div>
-                    <div className="max-h-60 overflow-y-auto space-y-1 pr-2">
-                        {users.map(u => (
-                            <button
+                    <div className="max-h-60 overflow-y-auto space-y-1 pr-2 custom-scrollbar">
+                        {filteredUsersForList.map(u => (
+                            <div
                                 key={u.user_id}
-                                onClick={() => toggleUser(u.user_id!)}
-                                className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-bold transition-all ${selectedUserIds.includes(u.user_id!) ? 'bg-purple-500/20 text-purple-200 border border-purple-500/30' : 'bg-white/5 text-white/40 border border-transparent'
-                                    }`}
+                                className={`w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${selectedUserIds.includes(u.user_id!) ? 'bg-purple-500/20 text-purple-200 border border-purple-500/30' : 'bg-white/5 text-white/40 border border-transparent hover:bg-white/10'}`}
                             >
-                                <span>{u.display_name}</span>
-                                {selectedUserIds.includes(u.user_id!) && <CheckSquare size={12} />}
-                            </button>
+                                <button
+                                    onClick={() => toggleUser(u.user_id!)}
+                                    className="flex-1 flex items-center justify-start text-left truncate"
+                                >
+                                    <span className="truncate mr-2">{u.display_name}</span>
+                                    {selectedUserIds.includes(u.user_id!) && <CheckSquare size={12} className="flex-shrink-0" />}
+                                </button>
+                                {selectedUserIds.includes(u.user_id!) && (
+                                    <div className="flex items-center gap-1">
+                                        <input
+                                            type="number"
+                                            step="0.01"
+                                            value={userRates[u.user_id!] || ''}
+                                            placeholder={hourlyRate.toFixed(2)}
+                                            onChange={(e) => setUserRates(prev => ({ ...prev, [u.user_id!]: parseFloat(e.target.value) || 0 }))}
+                                            className="w-14 bg-black/40 border border-white/10 rounded px-1 py-0.5 text-right text-[10px] text-white focus:border-teal-500 outline-none"
+                                            title="Individueller Kostensatz (€/h)"
+                                        />
+                                        <span className="text-[10px] text-white/40">€</span>
+                                    </div>
+                                )}
+                            </div>
                         ))}
                     </div>
                 </div>
 
                 {/* Presets */}
-                <div className="border-t border-white/10 pt-4">
+                <div className="border-t border-white/10 pt-4 pb-6">
                     <label className="text-xs uppercase font-bold text-white/50 mb-2 block">Vorlagen (Geteilt)</label>
                     <div className="flex gap-2 mb-2">
                         <GlassInput
@@ -481,22 +782,54 @@ const AdvancedAnalysisPage: React.FC = () => {
 
             {/* MAIN CONTENT */}
             <div className="flex-1 flex flex-col overflow-hidden relative">
-                <div className="p-6 pb-0 flex justify-between items-center">
-                    <div>
-                        <h1 className="text-3xl font-bold text-white flex items-center gap-3">
-                            <PieChart className="text-purple-400" /> Profi-Auswertung
-                        </h1>
-                        <p className="text-white/50 text-sm mt-1">
-                            {new Date(startDate).toLocaleDateString()} - {new Date(endDate).toLocaleDateString()} • {selectedUserIds.length} Mitarbeiter
-                        </p>
+                <div className="p-6 pb-0 flex flex-col gap-4">
+                    <div className="flex justify-between items-start">
+                        <div>
+                            <h1 className="text-3xl font-bold text-white flex items-center gap-3">
+                                <PieChart className="text-purple-400" /> Profi-Auswertung
+                            </h1>
+                            <p className="text-white/50 text-sm mt-1">
+                                {new Date(startDate).toLocaleDateString()} - {new Date(endDate).toLocaleDateString()}
+                            </p>
+                        </div>
+                        <div className="flex gap-2">
+                            <GlassButton onClick={generatePDF} className="w-auto px-4 py-2 flex items-center gap-2 text-sm !bg-red-500/20 !border-red-500/30 hover:!bg-red-500/30">
+                                <FileDown size={16} /> PDF
+                            </GlassButton>
+                            <GlassButton onClick={exportCSV} className="w-auto px-4 py-2 flex items-center gap-2 text-sm">
+                                <FileDown size={16} /> CSV
+                            </GlassButton>
+                        </div>
                     </div>
-                    <div className="flex gap-2">
-                        <GlassButton onClick={generatePDF} className="w-auto px-4 py-2 flex items-center gap-2 text-sm !bg-red-500/20 !border-red-500/30 hover:!bg-red-500/30">
-                            <FileDown size={16} /> PDF
-                        </GlassButton>
-                        <GlassButton onClick={exportCSV} className="w-auto px-4 py-2 flex items-center gap-2 text-sm">
-                            <FileDown size={16} /> CSV
-                        </GlassButton>
+
+                    {/* View Toggles & Search */}
+                    <div className="flex items-center gap-4">
+                        <div className="flex p-1 bg-black/20 rounded-lg w-max border border-white/5">
+                            <button 
+                                onClick={() => setViewMode('user')}
+                                className={`flex items-center gap-2 px-6 py-2 rounded-md text-sm font-bold transition-all ${viewMode === 'user' ? 'bg-white/10 text-white shadow-lg' : 'text-white/50 hover:text-white'}`}
+                            >
+                                <Users size={16} /> Mitarbeiter-Sicht
+                            </button>
+                            <button 
+                                onClick={() => setViewMode('order')}
+                                className={`flex items-center gap-2 px-6 py-2 rounded-md text-sm font-bold transition-all ${viewMode === 'order' ? 'bg-white/10 text-white shadow-lg' : 'text-white/50 hover:text-white'}`}
+                            >
+                                <Briefcase size={16} /> Auftrags-Sicht
+                            </button>
+                        </div>
+
+                        {viewMode === 'order' && (
+                            <div className="flex-1 max-w-sm">
+                                <input
+                                    type="text"
+                                    placeholder="Suche Auftrag oder Notiz..."
+                                    value={orderSearchQuery}
+                                    onChange={(e) => setOrderSearchQuery(e.target.value)}
+                                    className="w-full bg-black/20 border border-white/10 rounded-lg px-4 py-2 text-sm text-white focus:border-blue-500 outline-none transition-colors placeholder:text-white/30"
+                                />
+                            </div>
+                        )}
                     </div>
                 </div>
 
@@ -505,111 +838,203 @@ const AdvancedAnalysisPage: React.FC = () => {
                         <div className="w-8 h-8 border-2 border-teal-500 border-t-transparent rounded-full animate-spin"></div>
                     </div>
                 ) : (
-                    <div className="p-6 overflow-y-auto space-y-6">
+                    <div className="p-6 overflow-y-auto space-y-6 flex-1 custom-scrollbar">
                         {/* KPI CARDS */}
-                        <div className="grid grid-cols-4 gap-6">
-                            <GlassCard className="bg-emerald-900/10 border-emerald-500/20">
+                        <div className="grid grid-cols-4 xl:grid-cols-8 gap-4 mb-6">
+                            <GlassCard className="col-span-2 bg-emerald-900/10 border-emerald-500/20">
                                 <div className="text-xs font-bold text-emerald-400 uppercase tracking-wider mb-2">Stunden Gesamt</div>
                                 <div className="text-3xl font-mono font-bold text-white">{totals.total.toFixed(2)} <span className="text-sm text-white/40">h</span></div>
-                                <div className="text-xs text-white/40 mt-1">Alle gewählten Kategorien</div>
+                                <div className="text-[10px] text-white/40 mt-1">Alle Kategorien</div>
                             </GlassCard>
 
-                            <GlassCard className="bg-blue-900/10 border-blue-500/20">
-                                <div className="text-xs font-bold text-blue-400 uppercase tracking-wider mb-2">Verrechenbar</div>
+                            <GlassCard className="col-span-2 bg-blue-900/10 border-blue-500/20">
+                                <div className="text-xs font-bold text-blue-400 uppercase tracking-wider mb-2">Projekt</div>
                                 <div className="text-3xl font-mono font-bold text-white">{totals.billable.toFixed(2)} <span className="text-sm text-white/40">h</span></div>
-                                <div className="text-xs text-white/40 mt-1">Kategorie "Arbeit/Projekt"</div>
+                                <div className="text-[10px] text-white/40 mt-1">Verrechenbar</div>
                             </GlassCard>
 
-                            <GlassCard className="bg-yellow-900/10 border-yellow-500/20">
-                                <div className="text-xs font-bold text-yellow-400 uppercase tracking-wider mb-2">Effizienz-Quote</div>
-                                <div className="text-3xl font-mono font-bold text-white">
-                                    {(totals.billable / (totals.billable + totals.overhead || 1) * 100).toFixed(1)} <span className="text-sm text-white/40">%</span>
-                                </div>
-                                <div className="text-xs text-white/40 mt-1">Anteil Projektzeit</div>
+                            <GlassCard className="col-span-2 bg-orange-900/10 border-orange-500/20">
+                                <div className="text-xs font-bold text-orange-400 uppercase tracking-wider mb-2">Zuschläge</div>
+                                <div className="text-3xl font-mono font-bold text-white">{totals.surcharge.toFixed(2)} <span className="text-sm text-white/40">h</span></div>
+                                <div className="text-[10px] text-white/40 mt-1">Generiert</div>
                             </GlassCard>
 
-                            <GlassCard className="bg-gray-800/20 border-gray-500/20 relative overflow-hidden">
-                                <div className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Kosten-Schätzung</div>
+                            <GlassCard className="col-span-2 bg-gray-800/20 border-gray-500/20 relative overflow-hidden">
+                                <div className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Kosten</div>
                                 <div className="text-3xl font-mono font-bold text-white">{totals.cost.toLocaleString('de-DE', { style: 'currency', currency: 'EUR' })}</div>
-                                <div className="text-xs text-white/40 mt-1">@{hourlyRate.toFixed(2)}€/h</div>
-                                <Calculator className="absolute -bottom-4 -right-4 text-white/5 w-24 h-24" />
+                                <div className="text-[10px] text-white/40 mt-1">Schätzung inkl. Zuschlag</div>
+                                <Calculator className="absolute -bottom-2 -right-2 text-white/5 w-16 h-16" />
+                            </GlassCard>
+
+                            {/* Secondary Row of KPIs for generic times */}
+                            <GlassCard className="col-span-2 xl:col-span-2 bg-indigo-900/10 border-indigo-500/20 !p-3">
+                                <div className="text-[10px] font-bold text-indigo-400 uppercase tracking-wider mb-1">Firma</div>
+                                <div className="text-xl font-mono font-bold text-white">{totals.company.toFixed(2)} <span className="text-xs text-white/40">h</span></div>
+                            </GlassCard>
+
+                            <GlassCard className="col-span-2 xl:col-span-2 bg-purple-900/10 border-purple-500/20 !p-3">
+                                <div className="text-[10px] font-bold text-purple-400 uppercase tracking-wider mb-1">Büro</div>
+                                <div className="text-xl font-mono font-bold text-white">{totals.office.toFixed(2)} <span className="text-xs text-white/40">h</span></div>
+                            </GlassCard>
+
+                            <GlassCard className="col-span-2 xl:col-span-2 bg-amber-900/10 border-amber-500/20 !p-3">
+                                <div className="text-[10px] font-bold text-amber-400 uppercase tracking-wider mb-1">Lager</div>
+                                <div className="text-xl font-mono font-bold text-white">{totals.warehouse.toFixed(2)} <span className="text-xs text-white/40">h</span></div>
+                            </GlassCard>
+
+                            <GlassCard className="col-span-2 xl:col-span-2 bg-rose-900/10 border-rose-500/20 !p-3">
+                                <div className="text-[10px] font-bold text-rose-400 uppercase tracking-wider mb-1">Auto / Fahrt</div>
+                                <div className="text-xl font-mono font-bold text-white">{totals.car.toFixed(2)} <span className="text-xs text-white/40">h</span></div>
                             </GlassCard>
                         </div>
 
-                        {/* CHART VISUALIZATION */}
-                        <GlassCard>
-                            <h3 className="text-sm font-bold text-white mb-4 flex items-center gap-2"><BarChart3 size={16} className="text-teal-400" /> Stundenverteilung pro Mitarbeiter</h3>
-                            <div className="w-full h-64 flex items-end gap-4 p-4 bg-black/20 rounded-xl overflow-x-auto">
-                                {stats.map(s => {
-                                    const maxH = Math.max(...stats.map(x => x.totalHours), 1);
-                                    const hPercent = (s.totalHours / maxH) * 100;
-                                    const billablePercent = (s.billableHours / s.totalHours) * 100;
-
-                                    return (
-                                        <div key={s.userId} className="flex flex-col items-center gap-2 flex-1 min-w-[60px] group">
-                                            <div className="relative w-12 bg-gray-700 rounded-t-lg overflow-hidden transition-all duration-500 group-hover:w-14" style={{ height: `${hPercent}%` }}>
-                                                {/* Billable Part */}
-                                                <div
-                                                    className="absolute bottom-0 w-full bg-teal-500 transition-all duration-500 hover:bg-teal-400"
-                                                    style={{ height: `${billablePercent}%` }}
-                                                    title={`Verrechenbar: ${s.billableHours.toFixed(2)}h`}
-                                                />
-                                                {/* Overhead Part (Implicitly the background gray/top part) */}
-                                            </div>
-                                            <span className="text-[10px] text-white/60 font-bold truncate max-w-[80px]">{s.displayName.split(' ')[0]}</span>
-                                            <span className="text-[10px] text-white/30 font-mono">{s.totalHours.toFixed(2)}h</span>
-                                        </div>
-                                    )
-                                })}
-                            </div>
-                            <div className="flex gap-4 justify-center mt-4 text-xs">
-                                <div className="flex items-center gap-2"><span className="w-3 h-3 bg-teal-500 rounded-sm"></span> Verrechenbar</div>
-                                <div className="flex items-center gap-2"><span className="w-3 h-3 bg-gray-700 rounded-sm"></span> Gemeinkosten</div>
-                            </div>
-                        </GlassCard>
-
                         {/* DATA TABLE */}
                         <GlassCard className="overflow-hidden !p-0">
-                            <table className="w-full text-left text-sm text-white/70">
-                                <thead className="bg-white/5 text-white font-bold uppercase text-xs">
-                                    <tr>
-                                        <th className="p-4">Mitarbeiter</th>
-                                        <th className="p-4 text-right text-emerald-300">Projekt (h)</th>
-                                        <th className="p-4 text-right text-orange-300">Gemein. (h)</th>
-                                        <th className="p-4 text-right text-purple-300">Urlaub/Krank (h)</th>
-                                        <th className="p-4 text-right">Quote</th>
-                                        <th className="p-4 text-right">Soll (h)</th>
-                                        <th className="p-4 text-right">Kosten</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-white/5">
-                                    {stats.map(s => (
-                                        <tr key={s.userId} className="hover:bg-white/5 transition-colors">
-                                            <td className="p-4 font-bold text-white">{s.displayName}</td>
-                                            <td className="p-4 text-right font-mono text-emerald-100">{s.billableHours.toFixed(2)}</td>
-                                            <td className="p-4 text-right font-mono text-orange-100">{s.overheadHours.toFixed(2)}</td>
-                                            <td className="p-4 text-right font-mono text-purple-100">{s.absenceHours.toFixed(2)}</td>
-                                            <td className="p-4 text-right font-mono font-bold">
-                                                <span className={`${s.efficiency > 75 ? 'text-emerald-400' : s.efficiency > 50 ? 'text-yellow-400' : 'text-red-400'}`}>
-                                                    {s.efficiency.toFixed(1)}%
-                                                </span>
-                                            </td>
-                                            <td className="p-4 text-right font-mono opacity-50">{s.targetHours.toFixed(2)}</td>
-                                            <td className="p-4 text-right font-mono opacity-70">{s.costEstimate.toFixed(0)} €</td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
+                            {viewMode === 'user' ? (
+                                <div className="max-h-[500px] overflow-y-auto overflow-x-auto custom-scrollbar">
+                                    <table className="w-full text-left text-sm text-white/70 relative">
+                                        <thead className="bg-gray-800 text-white font-bold uppercase text-xs sticky top-0 z-10 shadow-md">
+                                            <tr>
+                                                <th className="p-4 border-b border-white/10 whitespace-nowrap">Mitarbeiter</th>
+                                                <th className="p-4 text-right opacity-50 border-b border-white/10 whitespace-nowrap">Soll (h)</th>
+                                                <th className="p-4 text-right border-b border-white/10 whitespace-nowrap text-emerald-300">Gesamt (h)</th>
+                                                <th className="p-4 text-right border-b border-white/10 whitespace-nowrap text-blue-300">Saldo (h)</th>
+                                                <th className="p-4 text-right border-b border-white/10 whitespace-nowrap text-yellow-300" title="Konto-Stand inkl. Übertrag und gesamter Historie">Überstundenkonto</th>
+                                                {selectedTypes.map(t => (
+                                                    <th key={t} className="p-4 text-right text-gray-300 border-b border-white/10 whitespace-nowrap">
+                                                        {TYPE_LABELS[t] || t}
+                                                    </th>
+                                                ))}
+                                                <th className="p-4 text-right text-orange-300 border-b border-white/10 whitespace-nowrap">Zuschlag (h)</th>
+                                                <th className="p-4 text-right border-b border-white/10 whitespace-nowrap">Quote</th>
+                                                <th className="p-4 text-right border-b border-white/10 whitespace-nowrap">Kosten</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-white/5">
+                                            {stats.map(s => (
+                                                <tr key={s.userId} className="hover:bg-white/5 transition-colors">
+                                                    <td className="p-4 font-bold text-white whitespace-nowrap">{s.displayName}</td>
+                                                    <td className="p-4 text-right font-mono opacity-50">{s.targetHours.toFixed(2)}</td>
+                                                    <td className="p-4 text-right font-mono font-bold text-emerald-100">{s.totalHours.toFixed(2)}</td>
+                                                    <td className={`p-4 text-right font-mono font-bold ${(s.totalHours - s.targetHours) >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                                                        {(s.totalHours - s.targetHours) >= 0 ? '+' : ''}{(s.totalHours - s.targetHours).toFixed(2)}
+                                                    </td>
+                                                    <td className={`p-4 text-right font-mono font-bold ${s.accountBalance >= 0 ? 'text-yellow-400' : 'text-rose-500'}`}>
+                                                        {s.accountBalance >= 0 ? '+' : ''}{s.accountBalance.toFixed(2)}
+                                                    </td>
+                                                    {selectedTypes.map(t => {
+                                                        const val = s.typeBreakdown[t] || 0;
+                                                        return (
+                                                            <td key={t} className="p-4 text-right font-mono text-gray-100">
+                                                                {val > 0 ? val.toFixed(2) : '-'}
+                                                            </td>
+                                                        );
+                                                    })}
+                                                    <td className="p-4 text-right font-mono text-orange-200">
+                                                        {s.surchargeHours > 0 ? `+${s.surchargeHours.toFixed(2)}` : '-'}
+                                                    </td>
+                                                    <td className="p-4 text-right font-mono font-bold">
+                                                        <span className={`${s.efficiency > 75 ? 'text-emerald-400' : s.efficiency > 50 ? 'text-yellow-400' : 'text-red-400'}`}>
+                                                            {s.efficiency.toFixed(1)}%
+                                                        </span>
+                                                    </td>
+                                                    <td className="p-4 text-right font-mono font-bold text-white">{s.costEstimate.toFixed(0)} €</td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            ) : (
+                                <div className="max-h-[500px] overflow-y-auto custom-scrollbar">
+                                    <table className="w-full text-left text-sm text-white/70 relative">
+                                        <thead className="bg-gray-800 text-white font-bold uppercase text-xs sticky top-0 z-10 shadow-md">
+                                            <tr>
+                                                <th className="p-4 border-b border-white/10">Auftrag / Projekt</th>
+                                                <th className="p-4 text-right text-white border-b border-white/10">Gesamt (h)</th>
+                                                <th className="p-4 text-right text-emerald-300 border-b border-white/10">Verrechenbar (h)</th>
+                                                <th className="p-4 text-right text-orange-300 border-b border-white/10">Zuschlag (h)</th>
+                                                <th className="p-4 text-center text-blue-300 border-b border-white/10">Mitarbeiter</th>
+                                                <th className="p-4 text-right border-b border-white/10">Kosten</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-white/5">
+                                            {filteredOrderStats.length === 0 ? (
+                                                <tr>
+                                                    <td colSpan={6} className="p-8 text-center text-white/40 italic">Keine Daten für die gewählten Filter.</td>
+                                                </tr>
+                                            ) : (
+                                                filteredOrderStats.map(s => (
+                                                    <React.Fragment key={s.orderNumber}>
+                                                        <tr 
+                                                            className="hover:bg-white/5 transition-colors cursor-pointer"
+                                                            onClick={() => setExpandedOrder(expandedOrder === s.orderNumber ? null : s.orderNumber)}
+                                                        >
+                                                            <td className="p-4 font-bold text-white flex items-center gap-2">
+                                                                {expandedOrder === s.orderNumber ? <ChevronDown size={16} className="text-white/30" /> : <ChevronRight size={16} className="text-white/30" />}
+                                                                <FileText size={16} className="text-blue-400" /> {s.orderNumber}
+                                                            </td>
+                                                            <td className="p-4 text-right font-mono text-white font-bold">{s.totalHours.toFixed(2)}</td>
+                                                            <td className="p-4 text-right font-mono text-emerald-100">{s.billableHours.toFixed(2)}</td>
+                                                            <td className="p-4 text-right font-mono text-orange-200">
+                                                                {s.surchargeHours > 0 ? `+${s.surchargeHours.toFixed(2)}` : '-'}
+                                                            </td>
+                                                            <td className="p-4 text-center font-mono text-blue-200">
+                                                                <div className="flex items-center justify-center gap-1">
+                                                                    <Users size={12}/> {s.usersCount}
+                                                                </div>
+                                                            </td>
+                                                            <td className="p-4 text-right font-mono font-bold text-white">{s.costEstimate.toFixed(0)} €</td>
+                                                        </tr>
+                                                        {expandedOrder === s.orderNumber && (
+                                                            <tr>
+                                                                <td colSpan={6} className="p-0 bg-black/40 border-b border-white/5">
+                                                                    <div className="p-4 pl-12 space-y-2 max-h-64 overflow-y-auto custom-scrollbar">
+                                                                        {s.entries.map((entry, idx) => {
+                                                                            const user = users.find(u => u.user_id === entry.user_id);
+                                                                            return (
+                                                                                <div key={idx} className="flex items-start justify-between text-xs text-white/70 bg-white/5 p-2 rounded border border-white/5">
+                                                                                    <div className="flex flex-col gap-1 w-2/3">
+                                                                                        <div className="flex items-center gap-2 font-bold text-white">
+                                                                                            <span className="text-blue-300">{user?.display_name || 'Unbekannt'}</span>
+                                                                                            <span className="text-white/30">•</span>
+                                                                                            <span>{new Date(entry.date).toLocaleDateString('de-DE')}</span>
+                                                                                            <span className="text-white/30">•</span>
+                                                                                            <span className="text-[10px] uppercase text-emerald-300">{TYPE_LABELS[entry.type || 'work']}</span>
+                                                                                        </div>
+                                                                                        {entry.note ? (
+                                                                                            <p className="text-white/50 italic">{entry.note}</p>
+                                                                                        ) : (
+                                                                                            <p className="text-white/20 italic">Keine Notiz</p>
+                                                                                        )}
+                                                                                    </div>
+                                                                                    <div className="text-right flex flex-col items-end">
+                                                                                        <span className="font-mono font-bold text-white">{entry.hours.toFixed(2)} h</span>
+                                                                                        {entry.surcharge ? (
+                                                                                            <span className="text-[10px] font-mono text-orange-300">+{entry.surcharge}% Zuschlag</span>
+                                                                                        ) : null}
+                                                                                    </div>
+                                                                                </div>
+                                                                            );
+                                                                        })}
+                                                                    </div>
+                                                                </td>
+                                                            </tr>
+                                                        )}
+                                                    </React.Fragment>
+                                                ))
+                                            )}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            )}
                         </GlassCard>
                     </div>
                 )}
 
-                {/* Date Pickers */}
                 {showStartPicker && <GlassDatePicker value={startDate} onChange={setStartDate} onClose={() => setShowStartPicker(false)} />}
                 {showEndPicker && <GlassDatePicker value={endDate} onChange={setEndDate} onClose={() => setShowEndPicker(false)} />}
             </div>
 
-            {/* MOBILE BLOCKER (Technically hidden via flex md:flex, but purely as safeguard) */}
             <div className="md:hidden fixed inset-0 bg-gray-900 z-[9999] flex items-center justify-center p-8 text-center">
                 <div>
                     <div className="mx-auto w-16 h-16 bg-red-500/20 rounded-full flex items-center justify-center text-red-400 mb-4">

@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { supabase } from '../services/supabaseClient';
-import { useTimeEntries, useSettings, useDailyLogs, useAbsences, useVacationRequests, getDailyTargetForDate, getLocalISOString, getYearlyQuota, fetchMonthlyStats, fetchLifetimeStats, useOfficeService } from '../services/dataService';
+import { useTimeEntries, useSettings, useDailyLogs, useAbsences, useVacationRequests, getDailyTargetForDate, getLocalISOString, getYearlyQuota, fetchMonthlyStats, fetchLifetimeStats, useOfficeService, useOvertimeBalance } from '../services/dataService';
 import { formatDuration, calculateEarnedVacation } from '../services/utils/timeUtils';
 import { GlassCard, GlassButton, GlassInput } from '../components/GlassCard';
 import { ChevronLeft, ChevronRight, TrendingUp, TrendingDown, Clock, UserCheck, Palmtree, Stethoscope, Ban, PartyPopper, CalendarHeart, X, CheckCircle, Calendar, CalendarDays, BarChart3, List, Grid3X3, ArrowRight, AlertTriangle, Scale, Siren } from 'lucide-react';
@@ -21,6 +21,7 @@ const AnalysisPage: React.FC = () => {
     const { dailyLogs, fetchDailyLogs } = useDailyLogs();
     const { absences } = useAbsences();
     const { requests, createRequest, deleteRequest } = useVacationRequests();
+    const { entries: balanceEntries } = useOvertimeBalance(settings.user_id || '');
 
     const [currentDate, setCurrentDate] = useState(new Date());
     const [viewMode, setViewMode] = useState<ViewMode>('month');
@@ -458,14 +459,17 @@ const AnalysisPage: React.FC = () => {
 
     // Adapter for UI
     const totalBalanceStats = useMemo(() => {
+        // Sum up manual adjustments from the balance table
+        const manualAdjustments = (balanceEntries || []).reduce((sum, e) => sum + (Number(e.hours) || 0), 0);
+
         return {
             target: lifetimeStats.target,
             actual: lifetimeStats.actual,
-            diff: lifetimeStats.diff,
+            diff: lifetimeStats.diff + manualAdjustments,
             startStr: lifetimeStats.start_date,
             cutoffStr: lifetimeStats.cutoff_date
         };
-    }, [lifetimeStats]);
+    }, [lifetimeStats, balanceEntries]);
 
 
     // --- GRID DATA ---

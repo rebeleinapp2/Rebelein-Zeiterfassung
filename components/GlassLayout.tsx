@@ -47,10 +47,7 @@ const GlassLayout: React.FC<GlassLayoutProps> = ({ children }) => {
       {/* Main Content Container */}
       <SidebarAwareContainer>
         <div className="relative z-10 w-full h-full flex flex-col pointer-events-auto">
-          {/* Max width container for large screens to prevent stretching */}
-          <div className="w-full h-full mx-auto md:max-w-7xl px-0 md:px-4 lg:px-8 flex-1 flex flex-col">
-            {children}
-          </div>
+          {children}
         </div>
       </SidebarAwareContainer>
     </div>
@@ -63,17 +60,36 @@ const SidebarAwareContainer: React.FC<{ children: ReactNode }> = ({ children }) 
     return typeof window !== 'undefined' ? localStorage.getItem('sidebarExpanded') === 'true' : false;
   });
 
+  const [isFullWidth, setIsFullWidth] = React.useState(() => {
+    return typeof window !== 'undefined' ? window.location.hash.includes('/office/analysis') : false;
+  });
+
   React.useEffect(() => {
     const handleToggle = () => {
       setIsExpanded(localStorage.getItem('sidebarExpanded') === 'true');
     };
+    const handleHash = () => {
+      setIsFullWidth(window.location.hash.includes('/office/analysis'));
+    };
+
+    // Initial check
+    handleHash();
+
     window.addEventListener('sidebar-toggle', handleToggle);
-    return () => window.removeEventListener('sidebar-toggle', handleToggle);
+    window.addEventListener('hashchange', handleHash);
+    
+    return () => {
+      window.removeEventListener('sidebar-toggle', handleToggle);
+      window.removeEventListener('hashchange', handleHash);
+    };
   }, []);
 
   return (
     <div className={`relative z-10 w-full h-full min-h-screen flex flex-col transition-[padding] duration-300 ease-in-out ${isExpanded ? 'md:pl-64' : 'md:pl-24'}`}>
-      {children}
+      {/* Max width container for large screens to prevent stretching, disabled on fullWidth routes */}
+      <div className={`w-full h-full mx-auto ${isFullWidth ? '' : 'md:max-w-7xl px-0 md:px-4 lg:px-8'} flex-1 flex flex-col`}>
+        {children}
+      </div>
     </div>
   );
 };

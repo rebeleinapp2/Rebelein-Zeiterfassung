@@ -147,6 +147,7 @@ const OfficeUserPage: React.FC = () => {
     const [initialBalanceEdit, setInitialBalanceEdit] = useState<number>(0);
     const [workModelConfirmation, setWorkModelConfirmation] = useState(true);
     const [visibleToOthers, setVisibleToOthers] = useState(true);
+    const [employmentStartDateEdit, setEmploymentStartDateEdit] = useState<string>('');
     const [holidayConfig, setHolidayConfig] = useState<Record<string, boolean>>({});
 
     // Collapsible Tiles State
@@ -184,6 +185,7 @@ const OfficeUserPage: React.FC = () => {
                 setWorkModelConfig(u.work_config || { 1: "07:00", 2: "07:00", 3: "07:00", 4: "07:00", 5: "07:00", 6: "07:00", 0: "07:00" });
                 setWorkModelConfirmation(u.require_confirmation !== false);
                 setVisibleToOthers(u.is_visible_to_others !== false);
+                setEmploymentStartDateEdit(u.employment_start_date || '');
                 setHolidayConfig(u.holiday_config || DEFAULT_HOLIDAY_CONFIG);
 
                 // Automatic Vacation Roll-Over Check (Legacy Support / Carryover Calc)
@@ -339,14 +341,17 @@ const OfficeUserPage: React.FC = () => {
 
     // Adapter for UI to keep "totalBalanceStats" naming
     const totalBalanceStats = useMemo(() => {
+        // Sum up manual adjustments from the balance table
+        const manualAdjustments = (balanceEntries || []).reduce((sum, e) => sum + (Number(e.hours) || 0), 0);
+
         return {
             target: lifetimeStats.target,
             actual: lifetimeStats.actual, // RPC returns "actual" as total effective work + credits
-            diff: lifetimeStats.diff,
+            diff: lifetimeStats.diff + manualAdjustments,
             startStr: lifetimeStats.start_date,
             cutoffStr: lifetimeStats.cutoff_date && lifetimeStats.cutoff_date >= lifetimeStats.start_date ? lifetimeStats.cutoff_date : null
         };
-    }, [lifetimeStats]);
+    }, [lifetimeStats, balanceEntries]);
 
 
     // 2. Monthly Stats
@@ -503,6 +508,7 @@ const OfficeUserPage: React.FC = () => {
             work_config: workModelConfig,
             require_confirmation: workModelConfirmation,
             is_visible_to_others: visibleToOthers,
+            employment_start_date: employmentStartDateEdit,
             holiday_config: holidayConfig
         });
 
@@ -513,6 +519,7 @@ const OfficeUserPage: React.FC = () => {
                 work_config: workModelConfig,
                 require_confirmation: workModelConfirmation,
                 is_visible_to_others: visibleToOthers,
+                employment_start_date: employmentStartDateEdit,
                 holiday_config: holidayConfig
             });
         }
@@ -1453,10 +1460,14 @@ const OfficeUserPage: React.FC = () => {
                                             <button onClick={handleToggleLock} className="p-1 hover:bg-white/10 rounded" title={isWorkModelLocked ? "Entsperren" : "Sperren"}>
                                                 {isWorkModelLocked ? <Lock size={14} className="text-red-400" /> : <Unlock size={14} className="text-emerald-400" />}
                                             </button>
-                                            <button onClick={() => setIsEditingWorkModel(true)} className="p-1 hover:bg-white/10 rounded text-white/40 hover:text-white" title="Bearbeiten">
+                                            <button 
+                                               onClick={() => !isWorkModelLocked && setIsEditingWorkModel(true)} 
+                                               className={`p-1 hover:bg-white/10 rounded transition-colors ${isWorkModelLocked ? 'text-white/10 cursor-not-allowed' : 'text-white/40 hover:text-white'}`} 
+                                               title={isWorkModelLocked ? "Gesperrt" : "Bearbeiten"}
+                                               disabled={isWorkModelLocked}
+                                            >
                                                 <Edit2 size={14} />
-                                            </button>
-                                        </div>
+                                            </button>                                        </div>
                                     )}
                                 </>
                             )}
@@ -1496,10 +1507,29 @@ const OfficeUserPage: React.FC = () => {
                                         )
                                     })}
                                 </div>
-                            </div>
+                                </div>
 
-                            {/* Confirmation Toggle */}
-                            <div className={`mt-3 pt-3 border-t border-white/10 flex items-center justify-between ${isEditingWorkModel ? 'opacity-100' : 'opacity-60'}`}>
+                                {/* Employment Start Date */}
+                                <div className={`mt-3 pt-3 border-t border-white/10 flex items-center justify-between ${isEditingWorkModel ? 'opacity-100' : 'opacity-60'}`}>
+                                <div className="flex flex-col">
+                                    <span className="text-xs font-bold text-white">Eintrittsdatum</span>
+                                    <span className="text-[10px] text-white/40">Basis für Kontoberechnung</span>
+                                </div>
+                                {isEditingWorkModel ? (
+                                    <input
+                                        type="date"
+                                        value={employmentStartDateEdit}
+                                        onChange={(e) => setEmploymentStartDateEdit(e.target.value)}
+                                        className="bg-black/20 border border-white/10 rounded px-2 py-1 text-xs text-white outline-none focus:border-blue-500"
+                                    />
+                                ) : (
+                                    <div className="text-xs font-bold text-white bg-white/5 px-2 py-1 rounded border border-white/5">
+                                        {employmentStartDateEdit ? new Date(employmentStartDateEdit).toLocaleDateString('de-DE') : 'Nicht gesetzt'}
+                                    </div>
+                                )}
+                                </div>
+
+                                {/* Confirmation Toggle */}                            <div className={`mt-3 pt-3 border-t border-white/10 flex items-center justify-between ${isEditingWorkModel ? 'opacity-100' : 'opacity-60'}`}>
                                 <div className="flex flex-col">
                                     <span className="text-xs font-bold text-white">Bestätigungspflicht</span>
                                     <span className="text-[10px] text-white/40">Muss Zeiten bestätigen lassen</span>
