@@ -253,14 +253,26 @@ const calculateDuration = (log: any) => {
 export const generateSearchReport = (
     searchResults: TimeEntry[],
     users: UserSettings[],
-    searchQuery: string
+    searchQuery: string,
+    searchStartDate?: string,
+    searchEndDate?: string
 ) => {
     const doc = new jsPDF();
     doc.setFontSize(18);
-    doc.text(`Suchbericht: "${searchQuery}"`, 14, 20);
+    const titleText = searchQuery ? `Suchbericht: "${searchQuery}"` : 'Suchbericht';
+    doc.text(titleText, 14, 20);
     doc.setFontSize(10);
     doc.text(`Erstellt am: ${new Date().toLocaleDateString('de-DE')}`, 14, 27);
-    doc.text(`Gefundene Einträge: ${searchResults.length}`, 14, 32);
+    
+    let filterText = '';
+    if (searchStartDate || searchEndDate) {
+        const sDate = searchStartDate ? new Date(searchStartDate).toLocaleDateString('de-DE') : '...';
+        const eDate = searchEndDate ? new Date(searchEndDate).toLocaleDateString('de-DE') : '...';
+        filterText = `Zeitraum: ${sDate} bis ${eDate}`;
+    }
+    if (filterText) doc.text(filterText, 14, 32);
+    
+    doc.text(`Gefundene Einträge: ${searchResults.length}`, 14, filterText ? 37 : 32);
 
     const grouped: Record<string, TimeEntry[]> = {};
     const sorted = [...searchResults].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
@@ -269,7 +281,7 @@ export const generateSearchReport = (
         grouped[e.user_id].push(e);
     });
 
-    let currentY = 45;
+    let currentY = filterText ? 50 : 45;
     const userIds = Object.keys(grouped);
     if (userIds.length === 0) doc.text("Keine Ergebnisse gefunden.", 14, currentY);
 
@@ -289,6 +301,59 @@ export const generateSearchReport = (
         doc.text(`${userName} (${userTotal.toLocaleString('de-DE')} Std.)`, 14, currentY);
         doc.setTextColor(0, 0, 0);
 
+        // --- SUMMARY CALCULATION ---
+        const summary: Record<string, { days: number; hours: number; isAbsence: boolean; label: string }> = {};
+        const typeLabels: Record<string, string> = {
+            vacation: 'Urlaub', sick: 'Krank', holiday: 'Feiertag', unpaid: 'Unbezahlt',
+            sick_child: 'Kind krank', sick_pay: 'Krankengeld', special_holiday: 'Sonderurlaub',
+            work: 'Arbeit', break: 'Pause', company: 'Firma', office: 'Büro',
+            warehouse: 'Lager', car: 'Auto', overtime_reduction: 'Gutstunden',
+            emergency_service: 'Notdienst'
+        };
+
+        userEntries.forEach(e => {
+            const type = e.type || 'work';
+            if (!summary[type]) {
+                summary[type] = { days: 0, hours: 0, isAbsence: !!e.isAbsence, label: typeLabels[type] || type };
+            }
+            
+            if (e.isAbsence && (e as any).end_date) {
+                let d1 = new Date(e.date);
+                let d2 = new Date((e as any).end_date);
+                
+                if (searchStartDate) {
+                    const s = new Date(searchStartDate);
+                    if (d1 < s) d1 = s;
+                }
+                if (searchEndDate) {
+                    const ed = new Date(searchEndDate);
+                    if (d2 > ed) d2 = ed;
+                }
+                
+                let days = Math.round((d2.getTime() - d1.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+                if (days < 0) days = 0;
+                summary[type].days += days;
+            } else {
+                summary[type].days += 1;
+                summary[type].hours += (e.hours || 0);
+            }
+        });
+
+        currentY += 6;
+        doc.setFontSize(9);
+        doc.setTextColor(80, 80, 80);
+        let summaryText = 'Zusammenfassung: ';
+        Object.keys(summary).forEach((type, idx) => {
+            const data = summary[type];
+            const val = data.isAbsence ? `${data.days} Tage` : `${data.days}x (${data.hours.toFixed(2)}h)`;
+            summaryText += `${data.label}: ${val}${idx < Object.keys(summary).length - 1 ? ' | ' : ''}`;
+        });
+        
+        // Split summary text if it's too long
+        const splitSummary = doc.splitTextToSize(summaryText, 180);
+        doc.text(splitSummary, 14, currentY);
+        currentY += (splitSummary.length * 4) + 2;
+
         const tableBody = userEntries.map(e => [
             new Date(e.date).toLocaleDateString('de-DE'),
             e.type || '',
@@ -298,7 +363,7 @@ export const generateSearchReport = (
         ]);
 
         autoTable(doc, {
-            startY: currentY + 5,
+            startY: currentY,
             head: [['Datum', 'Typ', 'Kunde / Auftrag', 'Std', 'Notiz']],
             body: tableBody,
             theme: 'grid',
@@ -311,7 +376,8 @@ export const generateSearchReport = (
         currentY = (doc as any).lastAutoTable.finalY + 15;
     });
 
-    doc.save(`suchbericht_${searchQuery.replace(/[^a-z0-9]/gi, '_')}.pdf`);
+    const fileNameSearch = searchQuery ? searchQuery.replace(/[^a-z0-9]/gi, '_') : 'erweitert';
+    doc.save(`suchbericht_${fileNameSearch}.pdf`);
 };
 
 // --- Generate Project PDF ---

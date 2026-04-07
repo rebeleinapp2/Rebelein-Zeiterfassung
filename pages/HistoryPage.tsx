@@ -7,6 +7,7 @@ import { useToast } from '../components/Toast';
 import { TimeEntry, DailyLog, UserAbsence } from '../types';
 import { supabase } from '../services/supabaseClient';
 import { formatDuration } from '../services/utils/timeUtils';
+import { SubmissionTimer } from '../components/SubmissionTimer';
 
 const HistoryPage: React.FC = () => {
     const { showToast } = useToast();
@@ -809,61 +810,69 @@ const HistoryPage: React.FC = () => {
                                                             </div>
                                                         )}
 
-                                                        <div className="flex justify-between items-center mt-2">
-                                                            <div className="flex items-center gap-2">
-                                                                {entry.isAbsence ? (
-                                                                    <span className="text-xs text-white/40 flex items-center gap-1 md:text-sm">
-                                                                        <Clock size={10} className="md:w-4 md:h-4" /> {entry.hours.toFixed(2)} h (Soll)
-                                                                    </span>
-                                                                ) : (
-                                                                    <span className="text-xs text-white/40 flex items-center gap-1 md:text-sm">
-                                                                        <Clock size={10} className="md:w-4 md:h-4" />
-                                                                        {entry.type === 'emergency_service' && entry.surcharge ? (
-                                                                            <span title={`Basis: ${entry.hours.toFixed(2)}h + ${entry.surcharge}% Zuschlag`}>
-                                                                                {(entry.hours * (1 + entry.surcharge / 100)).toFixed(2)} h <span className="text-[10px] opacity-70">(+{entry.surcharge}%)</span>
-                                                                            </span>
-                                                                        ) : (
-                                                                            `${entry.hours.toFixed(2)} h`
-                                                                        )}
-                                                                    </span>
-                                                                )}
+                                                        <div className="mt-2 pt-2 border-t border-white/5 flex flex-wrap gap-2 items-center justify-between">
+                                                            <div className="flex items-center gap-3">
+                                                                <SubmissionTimer 
+                                                                    entryDate={entry.date} 
+                                                                    submitted={!!entry.submitted} 
+                                                                />
+                                                                
+                                                                <div className="flex items-center gap-2">
+                                                                    {entry.isAbsence ? (
+                                                                        <span className="text-xs text-white/40 flex items-center gap-1 md:text-sm">
+                                                                            <Clock size={10} className="md:w-4 md:h-4" /> {entry.hours.toFixed(2)} h (Soll)
+                                                                        </span>
+                                                                    ) : (
+                                                                        <span className="text-xs text-white/40 flex items-center gap-1 md:text-sm">
+                                                                            <Clock size={10} className="md:w-4 md:h-4" />
+                                                                            {entry.type === 'emergency_service' && entry.surcharge ? (
+                                                                                <span title={`Basis: ${entry.hours.toFixed(2)}h + ${entry.surcharge}% Zuschlag`}>
+                                                                                    {(entry.hours * (1 + entry.surcharge / 100)).toFixed(2)} h <span className="text-[10px] opacity-70">(+{entry.surcharge}%)</span>
+                                                                                </span>
+                                                                            ) : (
+                                                                                `${entry.hours.toFixed(2)} h`
+                                                                            )}
+                                                                        </span>
+                                                                    )}
+                                                                </div>
                                                             </div>
 
-                                                            {!isLocked && settings?.is_active !== false && !entry.is_deleted && (
-                                                                <div className={`flex items-center gap-2 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity ${entry.submitted && !entry.rejected_at ? '' : ''}`}>
-                                                                    {!entry.isAbsence && (
-                                                                        <button onClick={() => handleEditClick(entry)} className={`p-1.5 rounded-lg transition-colors ${entry.rejected_at ? 'text-teal-300 bg-teal-500/10 hover:bg-teal-500/20' : entry.submitted ? 'text-blue-300/60 hover:text-blue-300 hover:bg-blue-500/10' : 'text-white/30 hover:text-white hover:bg-white/10'}`} title={entry.submitted ? 'Änderungsantrag stellen' : 'Bearbeiten'}>
-                                                                            {entry.rejected_at ? <RefreshCw size={14} /> : <Edit2 size={14} />}
-                                                                        </button>
-                                                                    )}
+                                                            <div className="flex items-center gap-2">
+                                                                {!isLocked && settings?.is_active !== false && !entry.is_deleted && (
+                                                                    <div className={`flex items-center gap-2 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity ${entry.submitted && !entry.rejected_at ? '' : ''}`}>
+                                                                        {!entry.isAbsence && (
+                                                                            <button onClick={() => handleEditClick(entry)} className={`p-1.5 rounded-lg transition-colors ${entry.rejected_at ? 'text-teal-300 bg-teal-500/10 hover:bg-teal-500/20' : entry.submitted ? 'text-blue-300/60 hover:text-blue-300 hover:bg-blue-500/10' : 'text-white/30 hover:text-white hover:bg-white/10'}`} title={entry.submitted ? 'Änderungsantrag stellen' : 'Bearbeiten'}>
+                                                                                {entry.rejected_at ? <RefreshCw size={14} /> : <Edit2 size={14} />}
+                                                                            </button>
+                                                                        )}
 
-                                                                    <button
-                                                                        onClick={() => {
-                                                                            setHistoryModal({ isOpen: true, entryId: entry.id });
-                                                                            fetchEntryHistory(entry.id);
-                                                                        }}
-                                                                        title="Verlauf anzeigen"
-                                                                        className="p-1.5 text-white/30 hover:text-teal-300 hover:bg-teal-500/10 rounded-lg transition-colors"
-                                                                    >
-                                                                        <HistoryIcon size={14} />
-                                                                    </button>
-                                                                    {/* HIER: Aufruf der neuen Lösch-Funktion statt confirm() */}
-                                                                    {!entry.isAbsence && (
                                                                         <button
-                                                                            onClick={() => handleDeleteClick(entry)}
-                                                                            className="p-1.5 text-red-400/50 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
+                                                                            onClick={() => {
+                                                                                setHistoryModal({ isOpen: true, entryId: entry.id });
+                                                                                fetchEntryHistory(entry.id);
+                                                                            }}
+                                                                            title="Verlauf anzeigen"
+                                                                            className="p-1.5 text-white/30 hover:text-teal-300 hover:bg-teal-500/10 rounded-lg transition-colors"
                                                                         >
-                                                                            <Trash2 size={14} />
+                                                                            <HistoryIcon size={14} />
                                                                         </button>
-                                                                    )}
-                                                                </div>
-                                                            )}
-                                                            {entry.is_deleted && (
-                                                                <div className="text-[10px] text-red-400/50 font-bold uppercase tracking-widest border border-red-500/20 px-2 py-0.5 rounded select-none">
-                                                                    Gelöscht
-                                                                </div>
-                                                            )}
-                                                            {entry.submitted && <span className="text-emerald-500/50 p-1"><CheckCircle size={14} /></span>}
+                                                                        {!entry.isAbsence && (
+                                                                            <button
+                                                                                onClick={() => handleDeleteClick(entry)}
+                                                                                className="p-1.5 text-red-400/50 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
+                                                                            >
+                                                                                <Trash2 size={14} />
+                                                                            </button>
+                                                                        )}
+                                                                    </div>
+                                                                )}
+                                                                {entry.is_deleted && (
+                                                                    <div className="text-[10px] text-red-400/50 font-bold uppercase tracking-widest border border-red-500/20 px-2 py-0.5 rounded select-none">
+                                                                        Gelöscht
+                                                                    </div>
+                                                                )}
+                                                                {entry.submitted && <span className="text-emerald-500/50 p-1"><CheckCircle size={14} /></span>}
+                                                            </div>
                                                         </div>
                                                     </div>
                                                 )}

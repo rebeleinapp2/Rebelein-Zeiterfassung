@@ -905,11 +905,15 @@ const AnalysisPage: React.FC = () => {
                             </h3>
 
                             {viewMode === 'month' && (
-                                <div className="hidden md:flex gap-3 text-[10px] md:text-xs">
+                                <div className="hidden md:flex flex-wrap gap-3 text-[10px] md:text-xs">
                                     <div className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-emerald-500"></span> Soll erreicht</div>
                                     <div className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-yellow-500"></span> Teilweise</div>
                                     <div className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-pink-500"></span> Abbau</div>
                                     <div className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-purple-500"></span> Urlaub</div>
+                                    <div className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-500"></span> Krank</div>
+                                    <div className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-blue-500"></span> Feiertag</div>
+                                    <div className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-blue-400 opacity-80"></span> Ferien</div>
+                                    <div className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-rose-500"></span> Notdienst</div>
                                 </div>
                             )}
                         </div>

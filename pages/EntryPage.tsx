@@ -9,6 +9,7 @@ import { useToast } from '../components/Toast';
 import { TimeSegment, QuotaChangeNotification, TimeEntry, UserAbsence } from '../types';
 import { formatDuration, getGracePeriodDate, formatMinutesToDecimal, calculateOverlapInMinutes } from '../services/utils/timeUtils';
 import { analyzeMontagebericht } from '../services/pdfImportService';
+import { SubmissionTimer } from '../components/SubmissionTimer';
 
 
 // Zentrale Konfiguration für das Modal (Icons & Farben)
@@ -2107,7 +2108,7 @@ const EntryPage: React.FC = () => {
                                     placeholder={entryType === 'overtime_reduction' ? "Bemerkung..." : "Kunde / Projekt..."}
                                     value={client}
                                     onChange={(e) => setClient(e.target.value)}
-                                    onBlur={() => { if (client.length > 0) setShowOrderInput(true); }}
+                                    onBlur={() => { if (client.length > 0 && entryType === 'work') setShowOrderInput(true); }}
                                     onFocus={() => setShowOrderInput(false)}
                                     required
                                     className={`h-10 md:h-12 text-base md:text-lg ${client.length > 0 && !showOrderInput ? 'pr-20' : 'pr-10'} ${entryType !== 'work' && entryType !== 'emergency_service' ? 'text-white/90' : ''}`}
@@ -2521,6 +2522,14 @@ const EntryPage: React.FC = () => {
                                                     {entry.order_number && <span className="text-white/30">• #{entry.order_number}</span>}
                                                 </div>
                                                 {entry.note && <p className="text-sm text-white/60 italic truncate">"{entry.note}"</p>}
+
+                                                {/* AUTO SUBMISSION TIMER */}
+                                                <div className="mt-2">
+                                                    <SubmissionTimer 
+                                                        entryDate={entry.date} 
+                                                        submitted={!!entry.submitted} 
+                                                    />
+                                                </div>
 
                                                 {/* Entry Actions */}
                                                 <div className="mt-2 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">

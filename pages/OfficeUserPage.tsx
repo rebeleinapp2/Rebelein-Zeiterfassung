@@ -22,6 +22,7 @@ import autoTable from 'jspdf-autotable';
 import GlassDatePicker from '../components/GlassDatePicker';
 import { useToast } from '../components/Toast';
 import { formatDuration, calculateOverlapInMinutes, calculateEarnedVacation } from '../services/utils/timeUtils';
+import { SubmissionTimer } from '../components/SubmissionTimer';
 import { getBavarianHolidays, DEFAULT_HOLIDAY_CONFIG, Holiday } from '../services/utils/holidayUtils';
 // @ts-ignore
 // import logoRebelein from '../logo/Logo Rebelein.jpeg';
@@ -2433,6 +2434,9 @@ const OfficeUserPage: React.FC = () => {
                                                                         </span>
                                                                     );
                                                                 })()}
+
+                                                                {/* AUTO SUBMISSION TIMER */}
+                                                                <SubmissionTimer entryDate={entry.date} submitted={!!entry.submitted} />
                                                             </div>
                                                         </div>
 

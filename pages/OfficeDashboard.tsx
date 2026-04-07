@@ -12,6 +12,7 @@ import { generateSearchReport } from '../services/pdfExportService';
 import { TimeEntry, UserSettings, UserAbsence, VacationRequest } from '../types';
 import EmergencyCalendar from '../components/EmergencyCalendar';
 import { useToast } from '../components/Toast';
+import { SubmissionTimer } from '../components/SubmissionTimer';
 
 const OfficeDashboard: React.FC = () => {
     const { showToast } = useToast();
@@ -57,34 +58,122 @@ const OfficeDashboard: React.FC = () => {
     // SEARCH STATE
     const [searchModalOpen, setSearchModalOpen] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
+    const [searchUsers, setSearchUsers] = useState<string[]>([]);
+    const [searchTypes, setSearchTypes] = useState<string[]>([]);
+    const [searchStartDate, setSearchStartDate] = useState('');
+    const [searchEndDate, setSearchEndDate] = useState('');
     const [searchResults, setSearchResults] = useState<TimeEntry[]>([]);
     const [isSearching, setIsSearching] = useState(false);
+    const [hasSearched, setHasSearched] = useState(false);
 
     const handleSearch = async (e?: React.FormEvent) => {
         if (e) e.preventDefault();
-        if (!searchQuery.trim()) return;
+        
+        if (!searchQuery.trim() && searchUsers.length === 0 && searchTypes.length === 0 && !searchStartDate && !searchEndDate) return;
 
         setIsSearching(true);
+        setHasSearched(false);
         try {
-            const terms = searchQuery.trim().split(/\s+/);
-            // Construct OR filter: for each term, check client_name OR order_number
-            const conditions = terms.map(term => `client_name.ilike.%${term}%,order_number.ilike.%${term}%`).join(',');
+            // TIME ENTRIES QUERY
+            let timeQuery = supabase.from('time_entries').select('*').is('deleted_at', null);
 
-            const { data, error } = await supabase
-                .from('time_entries')
-                .select('*')
-                .or(conditions)
-                .is('deleted_at', null)
-                .order('date', { ascending: false })
-                .limit(1000);
+            // ABSENCES QUERY
+            let absenceQuery = supabase.from('user_absences').select('*').eq('is_deleted', false);
 
-            if (error) throw error;
-            setSearchResults(data as TimeEntry[]);
+            if (searchQuery.trim()) {
+                const terms = searchQuery.trim().split(/\s+/);
+                
+                // For time entries: search client_name or order_number
+                const timeConditions = terms.map(term => `client_name.ilike.%${term}%,order_number.ilike.%${term}%`).join(',');
+                timeQuery = timeQuery.or(timeConditions);
+                
+                // For absences: search note
+                const absenceConditions = terms.map(term => `note.ilike.%${term}%`).join(',');
+                absenceQuery = absenceQuery.or(absenceConditions);
+            }
+
+            if (searchUsers.length > 0) {
+                timeQuery = timeQuery.in('user_id', searchUsers);
+                absenceQuery = absenceQuery.in('user_id', searchUsers);
+            }
+
+            // Determine if we should fetch TimeEntries or Absences based on types
+            let fetchTime = true;
+            let fetchAbsence = true;
+
+            const absenceTypesList = ['vacation', 'sick', 'holiday', 'unpaid', 'sick_child', 'sick_pay', 'special_holiday'];
+            
+            if (searchTypes.length > 0) {
+                const tTypes = searchTypes.filter(t => !absenceTypesList.includes(t));
+                const aTypes = searchTypes.filter(t => absenceTypesList.includes(t));
+
+                if (tTypes.length > 0) {
+                    timeQuery = timeQuery.in('type', tTypes);
+                } else {
+                    fetchTime = false; // Only absence types selected
+                }
+
+                if (aTypes.length > 0) {
+                    absenceQuery = absenceQuery.in('type', aTypes);
+                } else {
+                    fetchAbsence = false; // Only time entry types selected
+                }
+            }
+
+            if (searchStartDate) {
+                timeQuery = timeQuery.gte('date', searchStartDate);
+                absenceQuery = absenceQuery.gte('start_date', searchStartDate);
+            }
+
+            if (searchEndDate) {
+                timeQuery = timeQuery.lte('date', searchEndDate);
+                absenceQuery = absenceQuery.lte('start_date', searchEndDate); 
+            }
+
+            let combinedResults: TimeEntry[] = [];
+
+            if (fetchTime) {
+                const { data: tData, error: tError } = await timeQuery.order('date', { ascending: false }).limit(1000);
+                if (tError) throw tError;
+                if (tData) combinedResults.push(...(tData as TimeEntry[]));
+            }
+
+            if (fetchAbsence) {
+                const { data: aData, error: aError } = await absenceQuery.order('start_date', { ascending: false }).limit(1000);
+                if (aError) throw aError;
+                if (aData) {
+                    const mappedAbsences = aData.map((abs: any) => {
+                        const typeLabels: Record<string, string> = {
+                            vacation: 'Urlaub', sick: 'Krank', holiday: 'Feiertag', unpaid: 'Unbezahlt',
+                            sick_child: 'Kind krank', sick_pay: 'Krankengeld', special_holiday: 'Sonderurlaub'
+                        };
+                        return {
+                            ...abs,
+                            id: abs.id,
+                            user_id: abs.user_id,
+                            date: abs.start_date, // Map start_date to date for unified sorting and display
+                            end_date: abs.end_date,
+                            client_name: typeLabels[abs.type] || 'Abwesenheit',
+                            hours: 0, // Placeholder, logic in UI handles absences
+                            type: abs.type,
+                            note: abs.note,
+                            isAbsence: true
+                        } as TimeEntry;
+                    });
+                    combinedResults.push(...mappedAbsences);
+                }
+            }
+
+            // Sort descending by date
+            combinedResults.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+            setSearchResults(combinedResults);
         } catch (err) {
             console.error("Search error:", err);
             showToast("Fehler bei der Suche", "error");
         } finally {
             setIsSearching(false);
+            setHasSearched(true);
         }
     };
 
@@ -512,7 +601,11 @@ const OfficeDashboard: React.FC = () => {
                                             "{entry.change_reason}"
                                         </div>
                                     )}
-                                </div>
+                                    <div className="mt-2 pt-2 border-t border-white/5">
+                                        <SubmissionTimer entryDate={entry.date} submitted={!!entry.submitted} />
+                                    </div>
+                                    </div>
+
                                 <div className="flex justify-end gap-2">
                                     <button
                                         onClick={() => handleConfirmChange(entry)}
@@ -717,6 +810,9 @@ const OfficeDashboard: React.FC = () => {
                                                                 "{entry.note}"
                                                             </div>
                                                         )}
+                                                        <div className="mt-2 pt-2 border-t border-white/5">
+                                                            <SubmissionTimer entryDate={entry.date} submitted={!!entry.submitted} />
+                                                        </div>
                                                     </div>
 
                                                     {/* Late reason if present */}
@@ -1152,6 +1248,9 @@ const OfficeDashboard: React.FC = () => {
                                                         "{entry.note}"
                                                     </div>
                                                 )}
+                                                <div className="mt-2 pt-2 border-t border-white/5">
+                                                    <SubmissionTimer entryDate={entry.date} submitted={!!entry.submitted} />
+                                                </div>
                                             </div>
                                         )}
 
@@ -1214,6 +1313,68 @@ const OfficeDashboard: React.FC = () => {
                                 <div className="w-px h-8 bg-white/10 mx-2"></div>
                                 <button onClick={() => setSearchModalOpen(false)} className="text-white/50 hover:text-white"><X size={24} /></button>
                             </div>
+                            
+                            {/* FILTER OPTIONS */}
+                            <div className="bg-gray-900 border-b border-white/10 p-4 grid grid-cols-1 md:grid-cols-4 gap-4">
+                                <div>
+                                    <label className="block text-[10px] text-white/50 uppercase font-bold mb-1">Mitarbeiter</label>
+                                    <select
+                                        value={searchUsers[0] || ''}
+                                        onChange={e => setSearchUsers(e.target.value ? [e.target.value] : [])}
+                                        className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-teal-500/50"
+                                    >
+                                        <option value="" className="bg-gray-900">Alle Mitarbeiter</option>
+                                        {users.map(u => (
+                                            <option key={u.user_id} value={u.user_id} className="bg-gray-900">{u.display_name}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] text-white/50 uppercase font-bold mb-1">Eintrags-Typ</label>
+                                    <select
+                                        value={searchTypes[0] || ''}
+                                        onChange={e => setSearchTypes(e.target.value ? [e.target.value] : [])}
+                                        className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-teal-500/50"
+                                    >
+                                        <option value="" className="bg-gray-900">Alle Typen</option>
+                                        <option value="work" className="bg-gray-900">Arbeit / Projekt</option>
+                                        <option value="break" className="bg-gray-900">Pause</option>
+                                        <option value="company" className="bg-gray-900">Firma</option>
+                                        <option value="office" className="bg-gray-900">Büro</option>
+                                        <option value="warehouse" className="bg-gray-900">Lager</option>
+                                        <option value="car" className="bg-gray-900">Auto / Fahrt</option>
+                                        <option value="vacation" className="bg-gray-900">Urlaub</option>
+                                        <option value="sick" className="bg-gray-900">Krank</option>
+                                        <option value="holiday" className="bg-gray-900">Feiertag</option>
+                                        <option value="unpaid" className="bg-gray-900">Unbezahlt</option>
+                                        <option value="sick_child" className="bg-gray-900">Kind krank</option>
+                                        <option value="sick_pay" className="bg-gray-900">Krankengeld</option>
+                                        <option value="overtime_reduction" className="bg-gray-900">Gutstunden</option>
+                                        <option value="emergency_service" className="bg-gray-900">Notdienst</option>
+                                        <option value="special_holiday" className="bg-gray-900">Sonderurlaub</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] text-white/50 uppercase font-bold mb-1">Von Datum</label>
+                                    <input
+                                        type="date"
+                                        value={searchStartDate}
+                                        onChange={e => setSearchStartDate(e.target.value)}
+                                        className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-teal-500/50"
+                                        style={{ colorScheme: 'dark' }}
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] text-white/50 uppercase font-bold mb-1">Bis Datum</label>
+                                    <input
+                                        type="date"
+                                        value={searchEndDate}
+                                        onChange={e => setSearchEndDate(e.target.value)}
+                                        className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-teal-500/50"
+                                        style={{ colorScheme: 'dark' }}
+                                    />
+                                </div>
+                            </div>
 
                             <div className="flex-1 overflow-y-auto p-4 bg-gray-900/50">
                                 {/* Results Header / Actions */}
@@ -1223,7 +1384,7 @@ const OfficeDashboard: React.FC = () => {
                                             <span className="text-white font-bold">{searchResults.length}</span> Treffer gefunden
                                         </div>
                                         <button
-                                            onClick={() => generateSearchReport(searchResults, users, searchQuery)}
+                                            onClick={() => generateSearchReport(searchResults, users, searchQuery, searchStartDate, searchEndDate)}
                                             className="flex items-center gap-2 bg-white/5 hover:bg-white/10 border border-white/10 text-teal-300 px-3 py-2 rounded-lg text-sm font-bold transition-colors"
                                         >
                                             <Download size={16} /> Suchbericht (PDF)
@@ -1233,7 +1394,7 @@ const OfficeDashboard: React.FC = () => {
 
                                 {/* Results List Grouped */}
                                 <div className="space-y-8">
-                                    {Object.keys(groupedSearchResults).length === 0 && !isSearching && searchQuery && (
+                                    {Object.keys(groupedSearchResults).length === 0 && !isSearching && hasSearched && (
                                         <div className="text-center text-white/30 py-10">Keine Ergebnisse gefunden</div>
                                     )}
 
@@ -1241,15 +1402,71 @@ const OfficeDashboard: React.FC = () => {
                                         const user = users.find(u => u.user_id === userId);
                                         const entries = groupedSearchResults[userId];
 
+                                        // --- SUMMARY CALCULATION ---
+                                        const summary: Record<string, { days: number; hours: number; isAbsence: boolean; label: string }> = {};
+                                        
+                                        const typeLabels: Record<string, string> = {
+                                            vacation: 'Urlaub', sick: 'Krank', holiday: 'Feiertag', unpaid: 'Unbezahlt',
+                                            sick_child: 'Kind krank', sick_pay: 'Krankengeld', special_holiday: 'Sonderurlaub',
+                                            work: 'Arbeit', break: 'Pause', company: 'Firma', office: 'Büro',
+                                            warehouse: 'Lager', car: 'Auto', overtime_reduction: 'Gutstunden',
+                                            emergency_service: 'Notdienst'
+                                        };
+
+                                        entries.forEach(e => {
+                                            const type = e.type || 'work';
+                                            if (!summary[type]) {
+                                                summary[type] = { days: 0, hours: 0, isAbsence: !!e.isAbsence, label: typeLabels[type] || type };
+                                            }
+                                            
+                                            // Handle absences multi-day calculation
+                                            if (e.isAbsence && (e as any).end_date) {
+                                                let d1 = new Date(e.date);
+                                                let d2 = new Date((e as any).end_date);
+                                                
+                                                if (searchStartDate) {
+                                                    const s = new Date(searchStartDate);
+                                                    if (d1 < s) d1 = s;
+                                                }
+                                                if (searchEndDate) {
+                                                    const ed = new Date(searchEndDate);
+                                                    if (d2 > ed) d2 = ed;
+                                                }
+                                                
+                                                let days = Math.round((d2.getTime() - d1.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+                                                if (days < 0) days = 0;
+                                                summary[type].days += days;
+                                            } else {
+                                                summary[type].days += 1;
+                                                summary[type].hours += (e.hours || 0);
+                                            }
+                                        });
+
                                         return (
                                             <div key={userId} className="animate-in slide-in-from-bottom-2">
-                                                <div className="flex items-center gap-3 mb-3 border-b border-white/5 pb-2">
+                                                <div className="flex items-center gap-3 mb-2 border-b border-white/5 pb-2">
                                                     <div className="w-8 h-8 rounded-full bg-teal-500/20 flex items-center justify-center font-bold text-teal-300 text-sm border border-teal-500/30">
                                                         {user?.display_name.charAt(0) || '?'}
                                                     </div>
                                                     <h3 className="font-bold text-white text-lg">{user?.display_name || 'Unbekannt'}</h3>
                                                     <span className="text-xs text-white/40 ml-auto">{entries.length} Einträge</span>
                                                 </div>
+
+                                                {Object.keys(summary).length > 0 && (
+                                                    <div className="flex flex-wrap gap-2 mb-4">
+                                                        {Object.keys(summary).map(type => {
+                                                            const data = summary[type];
+                                                            return (
+                                                                <div key={type} className="bg-white/5 border border-white/10 px-2 py-1.5 rounded-lg text-xs flex items-center gap-1.5">
+                                                                    <span className="text-teal-200/70 font-bold uppercase tracking-wider">{data.label}:</span> 
+                                                                    <span className="text-white font-mono font-bold bg-black/20 px-1.5 rounded">
+                                                                        {data.isAbsence ? `${data.days} Tage` : `${data.days}x (${data.hours.toFixed(2)}h)`}
+                                                                    </span>
+                                                                </div>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                )}
 
                                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                                                     {entries.map(entry => (
@@ -1267,6 +1484,9 @@ const OfficeDashboard: React.FC = () => {
                                                             {entry.note && (
                                                                 <div className="text-xs text-white/50 italic line-clamp-2">"{entry.note}"</div>
                                                             )}
+                                                            <div className="mt-2 pt-2 border-t border-white/10">
+                                                                <SubmissionTimer entryDate={entry.date} submitted={!!entry.submitted} />
+                                                            </div>
                                                         </div>
                                                     ))}
                                                 </div>
