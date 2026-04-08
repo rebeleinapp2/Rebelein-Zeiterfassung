@@ -225,13 +225,22 @@ const OfficeSettingsPage: React.FC = () => {
     // --- HANDLERS: MONTH CLOSING ---
     const handleToggleMonth = async (monthStr: string, isClosed: boolean) => {
         try {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) {
+                showToast("Nicht authentifiziert.", "error");
+                return;
+            }
+
             if (isClosed) {
                 const { error } = await supabase.from('closed_months').delete().eq('month', monthStr);
                 if (error) throw error;
                 setClosedMonths(prev => prev.filter(m => m !== monthStr));
                 showToast(`${monthStr} wurde wieder geöffnet.`, "success");
             } else {
-                const { error } = await supabase.from('closed_months').insert({ month: monthStr, closed_at: new Date().toISOString() });
+                const { error } = await supabase.from('closed_months').insert({ 
+                    month: monthStr, 
+                    closed_by: user.id 
+                });
                 if (error) throw error;
                 setClosedMonths(prev => [...prev, monthStr]);
                 showToast(`${monthStr} wurde erfolgreich abgeschlossen.`, "success");

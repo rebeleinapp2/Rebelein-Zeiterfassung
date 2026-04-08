@@ -350,25 +350,36 @@ const OfficeDashboard: React.FC = () => {
 
     // Toggle Closed Month
     const handleToggleMonth = async (monthStr: string, isCurrentlyClosed: boolean) => {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) return;
+        try {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) {
+                showToast("Nicht authentifiziert.", "error");
+                return;
+            }
 
-        if (isCurrentlyClosed) {
-            const { error } = await supabase.from('closed_months').delete().eq('month', monthStr);
-            if (error) {
-                showToast("Fehler beim Öffnen des Monats: " + error.message, "error");
+            if (isCurrentlyClosed) {
+                const { error } = await supabase.from('closed_months').delete().eq('month', monthStr);
+                if (error) {
+                    showToast("Fehler beim Öffnen des Monats: " + error.message, "error");
+                } else {
+                    showToast(`Monat ${monthStr} wieder geöffnet`, "success");
+                    setClosedMonths(prev => prev.filter(m => m !== monthStr));
+                }
             } else {
-                showToast(`Monat ${monthStr} wieder geöffnet`, "success");
-                setClosedMonths(prev => prev.filter(m => m !== monthStr));
+                const { error } = await supabase.from('closed_months').insert({ 
+                    month: monthStr, 
+                    closed_by: user.id 
+                });
+                if (error) {
+                    showToast("Fehler beim Abschließen des Monats: " + error.message, "error");
+                } else {
+                    showToast(`Monat ${monthStr} abgeschlossen`, "success");
+                    setClosedMonths(prev => [...prev, monthStr]);
+                }
             }
-        } else {
-            const { error } = await supabase.from('closed_months').insert({ month: monthStr, closed_by: user.id });
-            if (error) {
-                showToast("Fehler beim Abschließen des Monats: " + error.message, "error");
-            } else {
-                showToast(`Monat ${monthStr} abgeschlossen`, "success");
-                setClosedMonths(prev => [...prev, monthStr]);
-            }
+        } catch (err: any) {
+            console.error("Month toggle error:", err);
+            showToast("Systemfehler beim Monatsabschluss: " + err.message, "error");
         }
     };
 

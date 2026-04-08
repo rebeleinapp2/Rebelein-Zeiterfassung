@@ -6,6 +6,7 @@ import { de } from 'date-fns/locale';
 import { useToast } from './Toast';
 import { EmergencySchedule, UserSettings } from '../types';
 import { GlassCard } from './GlassCard';
+import { getLocalISOString } from '../services/dataService';
 
 interface EmergencyCalendarProps {
     isAdmin?: boolean;
@@ -30,14 +31,14 @@ const EmergencyCalendar: React.FC<EmergencyCalendarProps> = ({ users, fetchUsers
 
     const fetchSchedule = async () => {
         setLoading(true);
-        const start = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
-        const end = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0);
+        const start = startOfMonth(currentDate);
+        const end = endOfMonth(currentDate);
 
         const { data, error } = await supabase
             .from('emergency_schedule')
             .select('*')
-            .gte('date', start.toISOString().split('T')[0])
-            .lte('date', end.toISOString().split('T')[0]);
+            .gte('date', getLocalISOString(start))
+            .lte('date', getLocalISOString(end));
 
         if (!error && data) {
             setSchedule(data as EmergencySchedule[]);
@@ -47,15 +48,15 @@ const EmergencyCalendar: React.FC<EmergencyCalendarProps> = ({ users, fetchUsers
 
     const fetchUserYearlySchedule = async () => {
         if (!currentUserId) return;
-        const yearStart = new Date(currentDate.getFullYear(), 0, 1).toISOString().split('T')[0];
-        const yearEnd = new Date(currentDate.getFullYear(), 11, 31).toISOString().split('T')[0];
+        const yearStart = new Date(currentDate.getFullYear(), 0, 1);
+        const yearEnd = new Date(currentDate.getFullYear(), 11, 31);
 
         const { data, error } = await supabase
             .from('emergency_schedule')
             .select('*')
             .eq('user_id', currentUserId)
-            .gte('date', yearStart)
-            .lte('date', yearEnd)
+            .gte('date', getLocalISOString(yearStart))
+            .lte('date', getLocalISOString(yearEnd))
             .order('date', { ascending: true });
 
         if (!error && data) {
@@ -118,7 +119,7 @@ const EmergencyCalendar: React.FC<EmergencyCalendarProps> = ({ users, fetchUsers
     const handleSaveDay = async () => {
         if (!selectedDate) return;
         setIsSaving(true);
-        const dateStr = selectedDate.toISOString().split('T')[0];
+        const dateStr = getLocalISOString(selectedDate);
 
         // Find existing to know if we need to update/delete/insert
         const existing = schedule.find(s => s.date === dateStr);
