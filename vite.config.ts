@@ -35,6 +35,22 @@ export default defineConfig({
   ],
   build: {
     outDir: 'dist',
+    chunkSizeWarningLimit: 1000,
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes('node_modules')) {
+            if (id.includes('jspdf') || id.includes('html2canvas') || id.includes('jszip')) {
+              return 'vendor-libs';
+            }
+            if (id.includes('lucide-react')) {
+              return 'icons';
+            }
+            return 'vendor';
+          }
+        }
+      }
+    }
   },
   define: {
     'process.env.APP_VERSION': JSON.stringify("1.1.40"),
