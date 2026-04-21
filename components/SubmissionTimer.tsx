@@ -4,9 +4,10 @@ import { Clock, CheckCircle } from 'lucide-react';
 interface SubmissionTimerProps {
   entryDate: string; // ISO YYYY-MM-DD
   submitted: boolean;
+  isAbsence?: boolean;
 }
 
-export const SubmissionTimer: React.FC<SubmissionTimerProps> = ({ entryDate, submitted }) => {
+export const SubmissionTimer: React.FC<SubmissionTimerProps> = ({ entryDate, submitted, isAbsence }) => {
   const [timeLeft, setTimeLeft] = useState<string>('');
   const [isExpired, setIsExpired] = useState(false);
 
@@ -40,7 +41,7 @@ export const SubmissionTimer: React.FC<SubmissionTimerProps> = ({ entryDate, sub
     return () => clearInterval(timer);
   }, [entryDate, submitted]);
 
-  if (submitted) {
+  if (submitted || (isAbsence && isExpired)) {
     return (
       <div className="flex items-center gap-1.5 text-emerald-400/80 text-[10px] font-bold uppercase tracking-wider bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
         <CheckCircle size={10} />

@@ -9,7 +9,7 @@ import {
     Palmtree, Briefcase, Plus, TrendingDown, Trash2, X, Check, Send,
     AlertTriangle, Layout, Coffee, Siren, Percent, MoreVertical,
     Lock, Unlock, Edit2, RotateCcw, Scale, Calculator, CalendarHeart, Stethoscope, UserCheck, Ban, Info, XCircle, History as HistoryIcon,
-    Printer, StickyNote, CheckCircle, TrendingUp, ChevronDown, ChevronUp, CalendarCheck, ShieldAlert, List, Hash, PartyPopper
+    Printer, StickyNote, CheckCircle, TrendingUp, ChevronDown, ChevronUp, CalendarCheck, ShieldAlert, List, Hash, PartyPopper, Building2, Building, Warehouse, Car
 } from 'lucide-react';
 import {
     useTimeEntries, useDailyLogs, useOfficeService, useAbsences, useVacationRequests,
@@ -2335,14 +2335,29 @@ const OfficeUserPage: React.FC = () => {
                                                             ${entry.type === 'break' ? 'border-orange-500/30 text-orange-300 bg-orange-500/10' :
                                                                         entry.type === 'overtime_reduction' ? 'border-pink-500/30 text-pink-300 bg-pink-500/10' :
                                                                             entry.type === 'emergency_service' ? 'border-rose-500/30 text-rose-300 bg-rose-500/10' :
-                                                                                'border-teal-500/30 text-teal-300 bg-teal-500/10'}`}>
+                                                                                entry.type === 'holiday' ? 'border-blue-500/30 text-blue-300 bg-blue-500/10' :
+                                                                                    entry.type === 'company' ? 'border-blue-500/30 text-blue-300 bg-blue-500/10' :
+                                                                                        entry.type === 'office' ? 'border-purple-500/30 text-purple-300 bg-purple-500/10' :
+                                                                                            entry.type === 'warehouse' ? 'border-amber-500/30 text-amber-300 bg-amber-500/10' :
+                                                                                                entry.type === 'car' ? 'border-gray-500/30 text-gray-300 bg-gray-500/10' :
+                                                                                                    'border-emerald-500/30 text-emerald-300 bg-emerald-500/10'}`}>
                                                                     {entry.type === 'break' ? <Coffee size={10} /> :
                                                                         entry.type === 'overtime_reduction' ? <TrendingDown size={10} /> :
                                                                             entry.type === 'emergency_service' ? <Siren size={10} /> :
-                                                                                <Briefcase size={10} />}
+                                                                                entry.type === 'holiday' ? <PartyPopper size={10} /> :
+                                                                                    entry.type === 'company' ? <Building2 size={10} /> :
+                                                                                        entry.type === 'office' ? <Building size={10} /> :
+                                                                                            entry.type === 'warehouse' ? <Warehouse size={10} /> :
+                                                                                                entry.type === 'car' ? <Car size={10} /> :
+                                                                                                    <Briefcase size={10} />}
                                                                     {entry.type === 'overtime_reduction' ? 'Abbau' :
                                                                         entry.type === 'emergency_service' ? 'Notdienst' :
-                                                                            entry.type === 'break' ? 'Pause' : 'Arbeit'}
+                                                                            entry.type === 'break' ? 'Pause' :
+                                                                                entry.type === 'holiday' ? 'Feiertag' :
+                                                                                    entry.type === 'company' ? 'Firma' :
+                                                                                        entry.type === 'office' ? 'Büro' :
+                                                                                            entry.type === 'warehouse' ? 'Lager' :
+                                                                                                entry.type === 'car' ? 'Fahrt' : 'Arbeit'}
                                                                 </span>
 
                                                                 {entry.type === 'emergency_service' && entry.surcharge && entry.surcharge > 0 && (

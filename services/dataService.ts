@@ -579,24 +579,16 @@ export const useTimeEntries = (customUserId?: string) => {
           confirmed_at: new Date().toISOString()
         };
       } else {
-        // If we update, we don't necessarily want to UN-confirm if it was already confirmed?
-        // But if we change type to something requiring confirmation, we might.
-        // For now, let's Stick to the requested logic:
-        // If inactive -> Auto Confirm. 
-        // If Active -> Do nothing (retain status? or set submitted?)
-        // Logic says: "bei inaktiv ... automatisch bestätigt"
-        // Just setting data if satisfied.
-
-        // If NOT satisfying condition, we typically leave it alone OR if it was a type change, we might need to reset?
-        // Default: Draft (User must submit manually via 'Abgeben')
-        autoConfirmData = {
-          submitted: false
-        };
+        // If not auto-confirming, DO NOT overwrite the `submitted` status to false if it was true.
+        // We just leave it as it was (which means we don't include it in autoConfirmData unless needed).
+        // For new entries this was submitted: false, but for updates we should not forcibly un-submit or auto-submit 
+        // unless it's explicitly an auto-confirm type logic.
       }
     }
 
-    // NEW LOGIC: Admin/Office forces auto-confirm on updates
-    if (isAdminOrOffice) {
+    // NEW LOGIC: Admin/Office forces auto-confirm on updates, BUT ONLY if they are editing SOMEONE ELSE's entry.
+    // If they edit their own entry, they should be treated like a normal user so they can still edit it before submission.
+    if (isAdminOrOffice && !isOwner) {
       autoConfirmData = {
         submitted: true,
         confirmed_by: user?.id,

@@ -692,7 +692,7 @@ const HistoryPage: React.FC = () => {
                                 return sum + hours;
                             }, 0);
                             const isWeekend = dateObj.getDay() === 0 || dateObj.getDay() === 6;
-                            const allSubmitted = dayEntries.every(e => e.submitted || e.isAbsence);
+                            const allSubmitted = dayEntries.every(e => e.submitted || e.isAbsence || e.is_deleted);
 
                             return (
                                 <div key={dateStr} className="relative md:bg-white/5 md:p-4 md:rounded-2xl md:border md:border-white/5">
@@ -812,10 +812,13 @@ const HistoryPage: React.FC = () => {
 
                                                         <div className="mt-2 pt-2 border-t border-white/5 flex flex-wrap gap-2 items-center justify-between">
                                                             <div className="flex items-center gap-3">
-                                                                <SubmissionTimer 
-                                                                    entryDate={entry.date} 
-                                                                    submitted={!!entry.submitted} 
-                                                                />
+                                                                {!entry.is_deleted && (
+                                                                    <SubmissionTimer 
+                                                                        entryDate={entry.date} 
+                                                                        submitted={!!entry.submitted} 
+                                                                        isAbsence={!!entry.isAbsence}
+                                                                    />
+                                                                )}
                                                                 
                                                                 <div className="flex items-center gap-2">
                                                                     {entry.isAbsence ? (
