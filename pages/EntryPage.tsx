@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { differenceInCalendarDays } from 'date-fns';
 import { useProposals, useTimeEntries, useSettings, useDailyLogs, useAbsences, useInstallers, usePeerReviews, getLocalISOString, useOfficeService, useDepartments } from '../services/dataService'; // Added useDepartments
 import { supabase } from '../services/supabaseClient'; // Ensure supabase is imported
 import { GlassCard, GlassInput, GlassButton } from '../components/GlassCard';
 import GlassDatePicker from '../components/GlassDatePicker';
-import { PlusCircle, Save, X, Calendar, ChevronLeft, ChevronRight, Clock, Coffee, Building, Briefcase, Truck, Sun, Heart, AlertCircle, AlertTriangle, CheckCircle, Info, Lock, History, User, FileText, Palmtree, UserX, Copy, Loader2, RefreshCw, Send, ArrowLeft, Trash2, CalendarDays, Plus, ChevronDown, ChevronUp, ArrowRight, MessageSquareText, StickyNote, Building2, Warehouse, Car, Stethoscope, PartyPopper, Ban, TrendingDown, Play, Square, UserCheck, Check, UserPlus, ArrowLeftRight, Baby, Coins, PiggyBank, Siren, Percent, ShieldAlert, Edit2, XCircle, Hash, Users } from 'lucide-react';
+import { PlusCircle, Save, X, Calendar, ChevronLeft, ChevronRight, Clock, Coffee, Building, Briefcase, Truck, Sun, Heart, AlertCircle, AlertTriangle, CheckCircle, Info, Lock, History, User, FileText, Palmtree, UserX, Copy, Loader2, RefreshCw, Send, ArrowLeft, Trash2, CalendarDays, Plus, ChevronDown, ChevronUp, ArrowRight, MessageSquareText, StickyNote, Building2, Warehouse, Car, Stethoscope, PartyPopper, Ban, TrendingDown, Play, Square, UserCheck, Check, UserPlus, ArrowLeftRight, Baby, Coins, PiggyBank, Siren, Percent, ShieldAlert, Edit2, XCircle, Hash, Users, Hourglass } from 'lucide-react';
 import { useToast } from '../components/Toast';
 import { TimeSegment, QuotaChangeNotification, TimeEntry, UserAbsence } from '../types';
 import { formatDuration, getGracePeriodDate, formatMinutesToDecimal, calculateOverlapInMinutes } from '../services/utils/timeUtils';
@@ -19,11 +20,11 @@ const ENTRY_TYPES_CONFIG = {
     company: { label: 'Firma', icon: Building2, color: 'text-blue-300' },
     office: { label: 'Büro', icon: Building, color: 'text-purple-300' },
     warehouse: { label: 'Lager', icon: Warehouse, color: 'text-amber-300' },
-    car: { label: 'Auto / Fahrt', icon: Car, color: 'text-gray-300' },
+    car: { label: 'Auto / Fahrt', icon: Car, color: 'text-muted-foreground' },
     vacation: { label: 'Urlaub', icon: Palmtree, color: 'text-purple-300' },
     sick: { label: 'Krank', icon: Stethoscope, color: 'text-red-300' },
     holiday: { label: 'Feiertag', icon: PartyPopper, color: 'text-blue-300' },
-    unpaid: { label: 'Unbezahlt', icon: Ban, color: 'text-gray-300' },
+    unpaid: { label: 'Unbezahlt', icon: Ban, color: 'text-muted-foreground' },
     sick_child: { label: 'Kind krank', icon: Baby, color: 'text-rose-300' },
     sick_pay: { label: 'Krankengeld', icon: Coins, color: 'text-yellow-300' },
     overtime_reduction: { label: 'Gutstunden', icon: PiggyBank, color: 'text-pink-300' },
@@ -68,16 +69,16 @@ const DebouncedSegmentNote: React.FC<{
     };
 
     return (
-        <div className="flex items-center gap-2 pt-1 border-t border-white/5 w-full relative">
-            <MessageSquareText size={14} className="text-white/30 shrink-0" />
+        <div className="flex items-center gap-2 pt-1 border-t border-border w-full relative">
+            <MessageSquareText size={14} className="text-muted-foreground shrink-0" />
             <input
                 type="text"
                 value={value}
                 onChange={handleChange}
                 placeholder="Bemerkung..."
-                className="w-full bg-transparent text-xs text-white/70 focus:outline-none placeholder-white/20 py-1 pr-6"
+                className="w-full bg-transparent text-xs text-muted-foreground focus:outline-none placeholder:text-muted-foreground py-1 pr-6"
             />
-            <div className="absolute right-0 top-1/2 -translate-y-1/2 text-white/50">
+            <div className="absolute right-0 top-1/2 -translate-y-1/2 text-muted-foreground">
                 {status === 'typing' && <RefreshCw size={12} className="animate-spin text-teal-400" />}
                 {status === 'saved' && <Check size={12} className="text-emerald-400 animate-in zoom-in" />}
             </div>
@@ -1482,11 +1483,11 @@ const EntryPage: React.FC = () => {
             case 'company': return 'text-blue-300 border-blue-500/30 bg-blue-900/10';
             case 'office': return 'text-purple-300 border-purple-500/30 bg-purple-900/10';
             case 'warehouse': return 'text-amber-300 border-amber-500/30 bg-amber-900/10';
-            case 'car': return 'text-gray-300 border-gray-500/30 bg-gray-800/30';
+            case 'car': return 'text-muted-foreground border-border bg-card';
             case 'vacation': return 'text-purple-300 border-purple-500/30 bg-purple-900/10';
             case 'sick': return 'text-red-300 border-red-500/30 bg-red-900/10';
             case 'holiday': return 'text-blue-300 border-blue-500/30 bg-blue-900/10';
-            case 'unpaid': return 'text-gray-300 border-gray-500/30 bg-gray-800/30';
+            case 'unpaid': return 'text-muted-foreground border-border bg-card';
             case 'overtime_reduction': return 'text-pink-300 border-pink-500/30 bg-pink-900/10';
             case 'emergency_service': return 'text-rose-300 border-rose-500/30 bg-rose-900/10';
             default: return 'text-emerald-300';
@@ -1511,19 +1512,20 @@ const EntryPage: React.FC = () => {
     };
 
     const getButtonGradient = () => {
+        const base3D = "border-t border-white/30 border-x border-white/10 shadow-[0_10px_30px_-5px_rgba(0,0,0,0.5),inset_0_2px_2px_rgba(255,255,255,0.4)]";
         switch (entryType) {
-            case 'break': return '!bg-gradient-to-r !from-orange-500/80 !to-red-600/80 !shadow-orange-900/20';
-            case 'company': return '!bg-gradient-to-r !from-blue-500/80 !to-cyan-600/80 !shadow-blue-900/20';
-            case 'office': return '!bg-gradient-to-r !from-purple-500/80 !to-indigo-600/80 !shadow-purple-900/20';
-            case 'warehouse': return '!bg-gradient-to-r !from-amber-500/80 !to-yellow-600/80 !shadow-amber-900/20';
-            case 'car': return '!bg-gradient-to-r !from-gray-500/80 !to-gray-600/80 !shadow-gray-900/20';
-            case 'vacation': return '!bg-gradient-to-r !from-purple-500/80 !to-pink-600/80 !shadow-purple-900/20';
-            case 'sick': return '!bg-gradient-to-r !from-red-500/80 !to-rose-600/80 !shadow-red-900/20';
-            case 'holiday': return '!bg-gradient-to-r !from-blue-500/80 !to-sky-600/80 !shadow-blue-900/20';
-            case 'unpaid': return '!bg-gradient-to-r !from-gray-600/80 !to-slate-700/80 !shadow-gray-900/20';
-            case 'overtime_reduction': return '!bg-gradient-to-r !from-pink-500/80 !to-rose-600/80 !shadow-pink-900/20';
-            case 'emergency_service': return '!bg-gradient-to-r !from-rose-600/80 !to-red-700/80 !shadow-red-900/30';
-            default: return 'shadow-teal-900/20';
+            case 'break': return `bg-gradient-to-b from-orange-400 via-orange-500 to-orange-700 ${base3D} hover:from-orange-300 hover:to-orange-600 hover:shadow-[0_15px_35px_-5px_rgba(249,115,22,0.3)]`;
+            case 'company': return `bg-gradient-to-b from-blue-400 via-blue-500 to-blue-700 ${base3D} hover:from-blue-300 hover:to-blue-600 hover:shadow-[0_15px_35px_-5px_rgba(59,130,246,0.3)]`;
+            case 'office': return `bg-gradient-to-b from-purple-400 via-purple-500 to-purple-700 ${base3D} hover:from-purple-300 hover:to-purple-600 hover:shadow-[0_15px_35px_-5px_rgba(168,85,247,0.3)]`;
+            case 'warehouse': return `bg-gradient-to-b from-amber-400 via-amber-500 to-amber-700 ${base3D} hover:from-amber-300 hover:to-amber-600 hover:shadow-[0_15px_35px_-5px_rgba(245,158,11,0.3)]`;
+            case 'car': return `bg-gradient-to-b from-slate-500 via-slate-600 to-slate-800 ${base3D} hover:from-slate-400 hover:to-slate-700`;
+            case 'vacation': return `bg-gradient-to-b from-purple-500 via-purple-600 to-pink-700 ${base3D} hover:from-purple-400 hover:to-pink-600 hover:shadow-[0_15px_35px_-5px_rgba(168,85,247,0.3)]`;
+            case 'sick': return `bg-gradient-to-b from-red-500 via-red-600 to-red-800 ${base3D} hover:from-red-400 hover:to-red-700 hover:shadow-[0_15px_35px_-5px_rgba(239,68,68,0.3)]`;
+            case 'holiday': return `bg-gradient-to-b from-blue-500 via-sky-600 to-sky-800 ${base3D} hover:from-blue-400 hover:to-sky-700 hover:shadow-[0_15px_35px_-5px_rgba(14,165,233,0.3)]`;
+            case 'unpaid': return `bg-gradient-to-b from-slate-600 via-slate-700 to-slate-900 ${base3D} hover:from-slate-500 hover:to-slate-800`;
+            case 'overtime_reduction': return `bg-gradient-to-b from-pink-400 via-pink-500 to-pink-700 ${base3D} hover:from-pink-300 hover:to-pink-600 hover:shadow-[0_15px_35px_-5px_rgba(236,72,153,0.3)]`;
+            case 'emergency_service': return `bg-gradient-to-b from-rose-500 via-rose-600 to-red-800 ${base3D} hover:from-rose-400 hover:to-red-700 hover:shadow-[0_15px_35px_-5px_rgba(244,63,94,0.3)]`;
+            default: return `bg-gradient-to-b from-primary via-emerald-600 to-emerald-800 ${base3D} hover:from-emerald-400 hover:to-emerald-700 hover:shadow-[0_15px_35px_-5px_rgba(16,185,129,0.3)]`;
         }
     };
 
@@ -1580,7 +1582,7 @@ const EntryPage: React.FC = () => {
     };
 
     return (
-        <div className="relative w-full h-full grid grid-cols-1 lg:grid-cols-12 lg:overflow-hidden text-white">
+        <div className="relative w-full h-full grid grid-cols-1 lg:grid-cols-12 lg:overflow-hidden text-foreground">
             {/* LEFT COLUMN (Header + Form) */}
             <div className="lg:col-span-8 flex flex-col h-full overflow-y-auto overflow-x-hidden p-4 md:p-6 lg:p-8 glass-scrollbar pb-32 lg:pb-6">
 
@@ -1589,20 +1591,20 @@ const EntryPage: React.FC = () => {
                     <header className="flex items-end justify-between mb-6">
                         <div>
                             <p className="text-teal-400 font-bold uppercase tracking-widest text-xs mb-1">Zeiterfassung</p>
-                            <h1 className="text-3xl md:text-4xl font-bold text-white tracking-tight">
+                            <h1 className="text-3xl md:text-4xl font-bold text-foreground tracking-tight">
                                 Hallo, <span className="text-transparent bg-clip-text bg-gradient-to-r from-teal-200 to-emerald-200">{settings.display_name?.split(' ')[0]}</span>
                             </h1>
                         </div>
 
                         {/* DESKTOP DATE PICKER (Visible on md+) */}
                         <div className="hidden lg:flex gap-2">
-                            <GlassButton variant="secondary" onClick={setYesterday} className="!py-2 !px-4 !text-xs !bg-white/5 hover:!bg-white/10">Gestern</GlassButton>
-                            <GlassButton variant="primary" onClick={setToday} className="!py-2 !px-4 !text-xs">Heute</GlassButton>
-                            <div className="w-px h-6 bg-white/10 mx-1"></div>
+                            <GlassButton variant="secondary" onClick={setYesterday} className="!w-auto">Gestern</GlassButton>
+                            <GlassButton variant="primary" onClick={setToday} className="!w-auto">Heute</GlassButton>
+                            <div className="w-px h-10 bg-white/10 mx-2"></div>
                             <GlassButton
                                 variant="secondary"
                                 onClick={() => fileInputRef.current?.click()}
-                                className="!py-2 !px-4 !text-xs !bg-blue-500/10 !text-blue-300 hover:!bg-blue-500/20 !border-blue-500/20"
+                                className="!w-auto !text-blue-300"
                             >
                                 {isAnalysing ? <Loader2 size={14} className="animate-spin mr-2" /> : <FileText size={14} className="mr-2" />}
                                 Montageauftrag analysieren
@@ -1636,7 +1638,7 @@ const EntryPage: React.FC = () => {
                                 {endDate && RANGE_ABSENCE_TYPES.includes(entryType) ? (
                                     <>
                                         <div className="text-xs font-bold text-blue-200/60 uppercase tracking-wider mb-1">Zeitraum</div>
-                                        <div className="text-xl md:text-2xl font-bold text-white font-mono tracking-tight">
+                                        <div className="text-xl md:text-2xl font-bold text-foreground font-mono tracking-tight">
                                             {new Date(date + 'T12:00:00').toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' })}
                                             {' — '}
                                             {new Date(endDate + 'T12:00:00').toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' })}
@@ -1648,7 +1650,7 @@ const EntryPage: React.FC = () => {
                                 ) : (
                                     <>
                                         <div className="text-xs font-bold text-teal-200/60 uppercase tracking-wider mb-1">Ausgewähltes Datum</div>
-                                        <div className="text-2xl md:text-3xl font-bold text-white font-mono tracking-tight">{displayDate}</div>
+                                        <div className="text-2xl md:text-3xl font-bold text-foreground font-mono tracking-tight">{displayDate}</div>
                                     </>
                                 )}
                             </div>
@@ -1657,15 +1659,17 @@ const EntryPage: React.FC = () => {
                             {endDate && RANGE_ABSENCE_TYPES.includes(entryType) && (
                                 <button
                                     onClick={(e) => { e.stopPropagation(); setEndDate(''); }}
-                                    className="p-1.5 text-white/30 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
+                                    className="p-1.5 text-muted-foreground hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
                                     title="Zeitraum entfernen"
                                 >
                                     <X size={16} />
                                 </button>
                             )}
-                            <ChevronDown className={`${RANGE_ABSENCE_TYPES.includes(entryType) && endDate ? 'text-blue-400/30 group-hover:text-blue-400' : 'text-white/20 group-hover:text-teal-400'} transition-colors`} size={24} />
+                            <ChevronDown className={`${RANGE_ABSENCE_TYPES.includes(entryType) && endDate ? 'text-blue-400/30 group-hover:text-blue-400' : 'text-muted-foreground group-hover:text-teal-400'} transition-colors`} size={24} />
                         </div>
                     </GlassCard>
+                    
+                    
                 </div>
 
                 {/* NEU: ZEITRAUM BUTTON (nur wenn kein Zeitraum gesetzt) */}
@@ -1685,13 +1689,18 @@ const EntryPage: React.FC = () => {
                 )}
 
                 {/* PDF & ACTIONS BAR (Mobile Only Compact) */}
-                <div className="lg:hidden flex gap-3 mb-6 overflow-x-auto pb-2 scrollbar-hide">
-                    <button onClick={setYesterday} className="whitespace-nowrap px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-xs font-bold text-white/60">Gestern</button>
-                    <button onClick={setToday} className="whitespace-nowrap px-4 py-2 rounded-xl bg-teal-500/10 border border-teal-500/20 text-xs font-bold text-teal-300">Heute</button>
-                    <div className="w-px h-8 bg-white/10 mx-1"></div>
-                    <button onClick={() => fileInputRef.current?.click()} className="whitespace-nowrap px-4 py-2 rounded-xl bg-blue-500/10 border border-blue-500/20 text-xs font-bold text-blue-300 flex items-center gap-2">
-                        {isAnalysing ? <Loader2 size={14} className="animate-spin" /> : <FileText size={14} />} PDF Import
-                    </button>
+                <div className="lg:hidden flex gap-2 mb-6 overflow-x-auto pb-2 scrollbar-hide">
+                    <GlassButton variant="secondary" onClick={setYesterday} className="!w-auto !py-2 !px-4">Gestern</GlassButton>
+                    <GlassButton variant="primary" onClick={setToday} className="!w-auto !py-2 !px-4">Heute</GlassButton>
+                    <div className="w-px h-8 bg-white/10 mx-1 shrink-0"></div>
+                    <GlassButton
+                        variant="secondary"
+                        onClick={() => fileInputRef.current?.click()}
+                        className="!w-auto !py-2 !px-4 !text-blue-300"
+                    >
+                        {isAnalysing ? <Loader2 size={14} className="animate-spin" /> : <FileText size={14} />} 
+                        <span className="ml-1">PDF</span>
+                    </GlassButton>
                 </div>
 
                 {/* HIDDEN INPUT FOR PDF */}
@@ -1726,13 +1735,13 @@ const EntryPage: React.FC = () => {
                                                             absence.type === 'holiday' ? 'Feiertag' :
                                                                 absence.type === 'unpaid' ? 'Unbezahlt' : absence.type}
                                                 </span>
-                                                <span className="text-white/30 text-xs">•</span>
-                                                <span className="text-white/50 text-xs font-mono">
+                                                <span className="text-muted-foreground text-xs">•</span>
+                                                <span className="text-muted-foreground text-xs font-mono">
                                                     {new Date(absence.start_date).toLocaleDateString('de-DE')}
                                                     {absence.start_date !== absence.end_date && ` - ${new Date(absence.end_date).toLocaleDateString('de-DE')}`}
                                                 </span>
                                             </div>
-                                            <div className="text-white font-bold text-sm">
+                                            <div className="text-foreground font-bold text-sm">
                                                 Löschung beantragt
                                             </div>
                                             {absence.deletion_request_reason && (
@@ -1751,7 +1760,7 @@ const EntryPage: React.FC = () => {
                                             </button>
                                             <button
                                                 onClick={() => handleRejectAbsenceDeletion(absence.id)}
-                                                className="p-2 bg-white/10 text-white/50 rounded-xl hover:bg-white/20 font-bold text-xs flex items-center justify-center gap-1 min-w-[32px]"
+                                                className="p-2 bg-card text-muted-foreground rounded-xl hover:bg-accent font-bold text-xs flex items-center justify-center gap-1 min-w-[32px]"
                                                 title="Löschung ablehnen (Behalten)"
                                             >
                                                 <X size={18} />
@@ -1782,12 +1791,12 @@ const EntryPage: React.FC = () => {
                                                     <div className="text-xs font-bold text-teal-400 uppercase tracking-wider">{creatorName}</div>
                                                     <div className="px-2 py-0.5 rounded bg-teal-500/20 text-teal-300 text-xs font-mono font-bold">{formatDuration(review.hours)}h</div>
                                                 </div>
-                                                <div className="font-bold text-white text-sm mb-1">{review.client_name}</div>
-                                                <div className="text-white/50 text-xs flex flex-wrap gap-2">
+                                                <div className="font-bold text-foreground text-sm mb-1">{review.client_name}</div>
+                                                <div className="text-muted-foreground text-xs flex flex-wrap gap-2">
                                                     <span>{new Date(review.date).toLocaleDateString()}</span>
                                                     {review.start_time && <span>• {review.start_time} - {review.end_time}</span>}
                                                 </div>
-                                                {review.note && <div className="mt-2 text-white/70 text-sm italic">"{review.note}"</div>}
+                                                {review.note && <div className="mt-2 text-muted-foreground text-sm italic">"{review.note}"</div>}
                                             </div>
                                             <div className="flex flex-col gap-2 shrink-0">
                                                 <button
@@ -1834,9 +1843,9 @@ const EntryPage: React.FC = () => {
                                                 <div className="text-xs font-bold text-orange-400 uppercase tracking-wider mb-1">
                                                     Anfrage von {originalUser}
                                                 </div>
-                                                <div className="font-bold text-white text-sm">Notdienst am {new Date(swap.date).toLocaleDateString('de-DE')}</div>
+                                                <div className="font-bold text-foreground text-sm">Notdienst am {new Date(swap.date).toLocaleDateString('de-DE')}</div>
                                                 {swap.swap_requested_at && (
-                                                    <div className="text-white/50 text-xs mt-1">
+                                                    <div className="text-muted-foreground text-xs mt-1">
                                                         Angefragt am: {new Date(swap.swap_requested_at).toLocaleDateString('de-DE')}
                                                     </div>
                                                 )}
@@ -1881,12 +1890,12 @@ const EntryPage: React.FC = () => {
                                 return (
                                     <GlassCard key={notif.id} className="!p-4 border-orange-500/30 bg-orange-900/5 hover:bg-orange-900/10">
                                         <div className="flex justify-between items-start mb-2">
-                                            <span className="text-xs font-bold text-white/50">{new Date(notif.date).toLocaleDateString()}</span>
+                                            <span className="text-xs font-bold text-muted-foreground">{new Date(notif.date).toLocaleDateString()}</span>
                                             <span className="bg-orange-500/20 text-orange-200 text-[10px] px-2 py-0.5 rounded uppercase font-bold">
                                                 {isDeletion ? 'Löschung' : 'Änderung'}
                                             </span>
                                         </div>
-                                        <div className="text-sm text-white/80 mb-4">
+                                        <div className="text-sm text-muted-foreground mb-4">
                                             {isDeletion ? (
                                                 <>
                                                     <p className="font-bold text-red-300">Löschung beantragt</p>
@@ -1902,7 +1911,7 @@ const EntryPage: React.FC = () => {
                                         <div className="flex justify-end gap-2">
                                             <button
                                                 onClick={() => confirmEntryNotification(notif)}
-                                                className="bg-orange-500 hover:bg-orange-400 text-white text-xs font-bold px-3 py-2 rounded-lg flex items-center gap-2 transition-colors"
+                                                className="bg-orange-500 hover:bg-orange-400 text-foreground text-xs font-bold px-3 py-2 rounded-lg flex items-center gap-2 transition-colors"
                                             >
                                                 <CheckCircle size={14} /> Akzeptieren
                                             </button>
@@ -1953,26 +1962,26 @@ const EntryPage: React.FC = () => {
                                         <div className="flex justify-between items-start mb-2">
                                             <div className="flex items-center gap-2">
                                                 <TypeIcon size={14} className={typeConfig?.color || 'text-blue-300'} />
-                                                <span className="text-xs font-bold text-white/50">{new Date(notif.entry.date).toLocaleDateString('de-DE')}</span>
-                                                <span className="text-white/20">·</span>
-                                                <span className="text-xs text-white/70 font-medium">{notif.entry.client_name}</span>
+                                                <span className="text-xs font-bold text-muted-foreground">{new Date(notif.entry.date).toLocaleDateString('de-DE')}</span>
+                                                <span className="text-muted-foreground">·</span>
+                                                <span className="text-xs text-muted-foreground font-medium">{notif.entry.client_name}</span>
                                             </div>
                                             <span className="bg-blue-500/20 text-blue-200 text-[10px] px-2 py-0.5 rounded uppercase font-bold">
                                                 {notif.isDeletion ? 'Gelöscht' : 'Geändert'}
                                             </span>
                                         </div>
-                                        <div className="text-sm text-white/80 mb-3">
+                                        <div className="text-sm text-muted-foreground mb-3">
                                             <p className="text-xs">
                                                 <span className="text-blue-300 font-bold">{notif.changerName}</span>
                                                 {notif.isDeletion ? ' hat diesen Eintrag gelöscht.' : ' hat diesen Eintrag bearbeitet.'}
                                             </p>
                                             {notif.reason && notif.reason !== 'Kein Grund angegeben' && (
-                                                <p className="text-xs mt-1 italic text-white/50 bg-black/20 p-1.5 rounded border border-white/5">
+                                                <p className="text-xs mt-1 italic text-muted-foreground bg-input p-1.5 rounded border border-border">
                                                     "{notif.reason}"
                                                 </p>
                                             )}
                                             {changedFields.length > 0 && !notif.isDeletion && (
-                                                <div className="mt-2 text-[11px] text-white/40 space-y-0.5">
+                                                <div className="mt-2 text-[11px] text-muted-foreground space-y-0.5">
                                                     {changedFields.map((f, i) => (
                                                         <div key={i} className="flex items-center gap-1">
                                                             <span className="text-blue-400">→</span> {f}
@@ -1982,7 +1991,7 @@ const EntryPage: React.FC = () => {
                                             )}
                                         </div>
                                         <div className="flex justify-between items-center">
-                                            <span className="text-[10px] text-white/30">
+                                            <span className="text-[10px] text-muted-foreground">
                                                 {new Date(notif.changedAt).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
                                             </span>
                                             <button
@@ -2025,14 +2034,14 @@ const EntryPage: React.FC = () => {
                                     <div className="flex justify-between items-start gap-4">
                                         <div className="flex-1">
                                             <div className="flex justify-between items-center mb-1">
-                                                <div className="font-bold text-white">{prop.client_name}</div>
+                                                <div className="font-bold text-foreground">{prop.client_name}</div>
                                                 <div className="px-2 py-0.5 rounded bg-indigo-500/20 text-indigo-300 text-xs font-mono font-bold">{formatDuration(prop.hours)}h</div>
                                             </div>
-                                            <div className="text-white/50 text-xs flex flex-wrap gap-2">
+                                            <div className="text-muted-foreground text-xs flex flex-wrap gap-2">
                                                 <span>{new Date(prop.date).toLocaleDateString()}</span>
                                                 {prop.start_time && <span>• {prop.start_time} - {prop.end_time}</span>}
                                             </div>
-                                            {prop.note && <div className="mt-2 text-white/70 text-sm italic">"{prop.note}"</div>}
+                                            {prop.note && <div className="mt-2 text-muted-foreground text-sm italic">"{prop.note}"</div>}
                                         </div>
                                         <div className="flex flex-col gap-2 shrink-0">
                                             <button onClick={() => acceptProposal(prop.id)} className="p-2 bg-emerald-500/20 text-emerald-300 rounded-xl hover:bg-emerald-500/30"><Check size={18} /></button>
@@ -2066,10 +2075,10 @@ const EntryPage: React.FC = () => {
                     <GlassCard className={`!p-3 space-y-3 transition-all duration-300 relative z-20 !overflow-visible ${getTypeColor()}`}>
                         {/* SYNC LOADER OVERLAY */}
                         {isInitialLoading && (
-                            <div className="absolute inset-0 z-[60] bg-black/20 backdrop-blur-[1px] rounded-2xl flex items-center justify-center animate-in fade-in duration-300">
-                                <div className="flex items-center gap-2 bg-black/40 px-4 py-2 rounded-full border border-white/10 shadow-2xl">
+                            <div className="absolute inset-0 z-[60] bg-input backdrop-blur-[1px] rounded-2xl flex items-center justify-center animate-in fade-in duration-300">
+                                <div className="flex items-center gap-2 bg-input px-4 py-2 rounded-full border border-border shadow-2xl">
                                     <Loader2 size={18} className="animate-spin text-teal-400" />
-                                    <span className="text-xs font-bold text-white uppercase tracking-wider">Daten werden synchronisiert...</span>
+                                    <span className="text-xs font-bold text-foreground uppercase tracking-wider">Daten werden synchronisiert...</span>
                                 </div>
                             </div>
                         )}
@@ -2082,7 +2091,7 @@ const EntryPage: React.FC = () => {
                                     <span>Rückwirkend</span>
                                 </div>
                                 <textarea
-                                    className="w-full bg-black/20 border border-white/10 rounded-lg p-2 text-sm text-white focus:border-orange-500/50 outline-none resize-none"
+                                    className="w-full bg-input border border-border rounded-lg p-2 text-sm text-foreground focus:border-orange-500/50 outline-none resize-none"
                                     placeholder="Grund für Verspätung..."
                                     rows={1}
                                     value={lateReason}
@@ -2093,25 +2102,26 @@ const EntryPage: React.FC = () => {
                         )}
 
                         {/* ROW 1: CLIENT + TYPE + ORDER + USER */}
-                        <div className="relative z-50 flex gap-2 items-center">
+                        <div className="relative z-50 flex gap-4 items-center mb-6">
                             {/* LEFT: TYPE INDICATOR (Fixed Icon) */}
                             <div className="flex-shrink-0" title={ENTRY_TYPES_CONFIG[entryType].label}>
-                                <div className={`w-10 h-10 md:w-12 md:h-12 rounded-xl flex items-center justify-center border border-white/10 bg-white/5 shadow-inner`}>
+                                <div className={`w-10 h-10 md:w-12 md:h-12 rounded-xl flex items-center justify-center border border-border bg-muted shadow-inner`}>
                                     {getTypeIcon()}
                                 </div>
                             </div>
 
                             {/* MIDDLE: CLIENT INPUT */}
-                            <div className="relative flex-1">
-                                <GlassInput
+                            <div className="relative flex-1 bg-black/40 backdrop-blur-md rounded-2xl border border-white/10 shadow-inner group focus-within:border-primary/50 transition-all">
+                                <span className="absolute top-1.5 left-4 text-[8px] text-muted-foreground uppercase font-black tracking-widest opacity-60">Kunde / Projekt</span>
+                                <input
                                     type="text"
-                                    placeholder={entryType === 'overtime_reduction' ? "Bemerkung..." : "Kunde / Projekt..."}
+                                    placeholder="..."
                                     value={client}
                                     onChange={(e) => setClient(e.target.value)}
                                     onBlur={() => { if (client.length > 0 && entryType === 'work') setShowOrderInput(true); }}
                                     onFocus={() => setShowOrderInput(false)}
                                     required
-                                    className={`h-10 md:h-12 text-base md:text-lg ${client.length > 0 && !showOrderInput ? 'pr-20' : 'pr-10'} ${entryType !== 'work' && entryType !== 'emergency_service' ? 'text-white/90' : ''}`}
+                                    className={`w-full bg-transparent border-none px-4 h-14 pt-4 text-base md:text-lg text-foreground placeholder:text-muted-foreground/30 focus:outline-none ${client.length > 0 && !showOrderInput ? 'pr-20' : 'pr-10'} ${entryType !== 'work' && entryType !== 'emergency_service' ? 'text-muted-foreground' : ''}`}
                                 />
 
                                 {/* Cycle Type Button (Small Overlay) */}
@@ -2123,7 +2133,7 @@ const EntryPage: React.FC = () => {
                                         onMouseLeave={handleButtonLeave}
                                         onTouchStart={handleButtonDown}
                                         onTouchEnd={handleButtonUp}
-                                        className={`absolute right-1 top-1/2 -translate-y-1/2 p-1.5 rounded-lg transition-colors hover:bg-white/10 text-white/50 hover:text-white`}
+                                        className={`absolute right-1 top-1/2 -translate-y-1/2 p-1.5 rounded-lg transition-colors hover:bg-card text-muted-foreground hover:text-foreground`}
                                         title="Typ ändern"
                                     >
                                         <ArrowLeftRight size={16} />
@@ -2135,7 +2145,7 @@ const EntryPage: React.FC = () => {
                                     <button
                                         type="button"
                                         onClick={() => setShowOrderInput(true)}
-                                        className="absolute right-9 top-1/2 -translate-y-1/2 p-1.5 rounded-lg text-white/50 hover:text-white hover:bg-white/10 transition-all animate-in fade-in slide-in-from-right-2"
+                                        className="absolute right-9 top-1/2 -translate-y-1/2 p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-card transition-all animate-in fade-in slide-in-from-right-2"
                                         title="Auftrags-Nr"
                                     >
                                         <Hash size={16} />
@@ -2144,7 +2154,7 @@ const EntryPage: React.FC = () => {
 
                                 {/* ORDER NUMBER SLIDING OVERLAY */}
                                 <div
-                                    className={`absolute top-0 right-0 h-full w-[85%] md:w-[50%] bg-slate-800/95 backdrop-blur-xl border-l border-white/20 shadow-xl transition-all duration-300 ease-out z-20 flex items-center px-2 md:rounded-r-xl rounded-r-xl ${showOrderInput ? 'translate-x-0 opacity-100' : 'translate-x-full opacity-0 pointer-events-none'}`}
+                                    className={`absolute top-0 right-0 h-full w-[85%] md:w-[50%] bg-slate-800/95 backdrop-blur-xl border-l border-border shadow-xl transition-all duration-300 ease-out z-20 flex items-center px-2 md:rounded-r-xl rounded-r-xl ${showOrderInput ? 'translate-x-0 opacity-100' : 'translate-x-full opacity-0 pointer-events-none'}`}
                                 >
                                     <Hash size={14} className="text-teal-400 mr-2 shrink-0" />
                                     <input
@@ -2152,11 +2162,11 @@ const EntryPage: React.FC = () => {
                                         value={orderNumber}
                                         onChange={(e) => setOrderNumber(e.target.value)}
                                         placeholder="Auftrags-Nr..."
-                                        className="bg-transparent border-none outline-none text-white h-full w-full placeholder-white/30 text-sm"
+                                        className="bg-transparent border-none outline-none text-foreground h-full w-full placeholder:text-muted-foreground text-sm"
                                         autoFocus={showOrderInput}
                                     />
                                     {/* Close Order Overlay */}
-                                    <button onClick={() => setShowOrderInput(false)} className="ml-2 p-1 text-white/50 hover:text-white"><X size={14} /></button>
+                                    <button onClick={() => setShowOrderInput(false)} className="ml-2 p-1 text-muted-foreground hover:text-foreground"><X size={14} /></button>
                                 </div>
                             </div>
 
@@ -2168,13 +2178,13 @@ const EntryPage: React.FC = () => {
                                     onClick={() => setShowTeamMenu(!showTeamMenu)}
                                     className={`h-10 w-10 md:h-12 md:w-12 rounded-xl border flex items-center justify-center transition-all ${selectedTeamIds.length > 0
                                         ? 'bg-indigo-500/20 text-indigo-300 border-indigo-500/50 hover:bg-indigo-500/30'
-                                        : 'bg-white/5 text-white/50 border-white/10 hover:bg-white/10'
+                                        : 'bg-muted text-muted-foreground border-border hover:bg-card'
                                         }`}
                                     title="Für Kollegen eintragen"
                                 >
                                     <Users size={18} />
                                     {selectedTeamIds.length > 0 && (
-                                        <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-indigo-500 text-[10px] text-white font-bold">
+                                        <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-indigo-500 text-[10px] text-foreground font-bold">
                                             {selectedTeamIds.length}
                                         </span>
                                     )}
@@ -2187,12 +2197,12 @@ const EntryPage: React.FC = () => {
                                     disabled={isLateEntry}
                                     className={`h-10 w-10 md:h-12 md:w-12 rounded-xl border flex items-center justify-center transition-all 
                                         ${isLateEntry
-                                            ? 'bg-gray-800/50 text-gray-500 border-gray-700/50 cursor-not-allowed'
+                                            ? 'bg-card text-muted-foreground border-border cursor-not-allowed'
                                             : responsibleUserId
                                                 ? 'bg-teal-500/20 text-teal-300 border-teal-500/50 hover:bg-teal-500/30'
                                                 : (settings.role === 'azubi' && (entryType === 'work' || entryType === 'break'))
                                                     ? 'bg-red-500/10 text-red-400 border-red-500/50 animate-pulse'
-                                                    : 'bg-white/5 text-white/50 border-white/10 hover:bg-white/10'
+                                                    : 'bg-muted text-muted-foreground border-border hover:bg-card'
                                         }`}
                                 >
                                     {isLateEntry ? <Lock size={16} /> : (responsibleUserId ? <UserCheck size={18} /> : <UserPlus size={18} />)}
@@ -2202,10 +2212,10 @@ const EntryPage: React.FC = () => {
                                 {showTeamMenu && (
                                     <>
                                         <div className="fixed inset-0 z-40" onClick={() => setShowTeamMenu(false)} />
-                                        <div className="absolute top-full right-0 mt-2 z-50 w-64 bg-gray-900/95 backdrop-blur-xl border border-indigo-500/30 rounded-xl p-2 shadow-2xl animate-in fade-in zoom-in-95 duration-200">
+                                        <div className="absolute top-full right-0 mt-2 z-50 w-64 bg-card backdrop-blur-xl border border-indigo-500/30 rounded-xl p-2 shadow-2xl animate-in fade-in zoom-in-95 duration-200">
                                             <div className="text-xs font-bold text-indigo-300 uppercase px-2 py-1 mb-1 flex justify-between">
                                                 <span>Team wählen</span>
-                                                {selectedTeamIds.length > 0 && <span className="text-white/50">{selectedTeamIds.length}</span>}
+                                                {selectedTeamIds.length > 0 && <span className="text-muted-foreground">{selectedTeamIds.length}</span>}
                                             </div>
                                             <div className="max-h-48 overflow-y-auto space-y-1">
                                                 {installers.filter(i => i.user_id !== settings.user_id && i.is_visible_to_others !== false).map(inst => (
@@ -2220,7 +2230,7 @@ const EntryPage: React.FC = () => {
                                                         }}
                                                         className={`w-full text-left px-3 py-2 rounded-lg text-sm flex items-center justify-between transition-colors ${selectedTeamIds.includes(inst.user_id!)
                                                             ? 'bg-indigo-500/20 text-indigo-200 border border-indigo-500/30'
-                                                            : 'text-white/70 hover:bg-white/5 border border-transparent'
+                                                            : 'text-muted-foreground hover:bg-muted border border-transparent'
                                                             }`}
                                                     >
                                                         <span>{inst.display_name}</span>
@@ -2235,8 +2245,8 @@ const EntryPage: React.FC = () => {
                                 {showInstallerMenu && (
                                     <>
                                         <div className="fixed inset-0 z-40" onClick={() => setShowInstallerMenu(false)} />
-                                        <div className="absolute top-full right-0 mt-2 z-50 w-64 bg-gray-900/95 backdrop-blur-xl border border-white/20 rounded-xl p-2 shadow-2xl animate-in fade-in zoom-in-95 duration-200">
-                                            <div className="text-xs font-bold text-white/50 uppercase px-2 py-1 mb-1">Mitarbeiter bestätigen lassen</div>
+                                        <div className="absolute top-full right-0 mt-2 z-50 w-64 bg-card backdrop-blur-xl border border-border rounded-xl p-2 shadow-2xl animate-in fade-in zoom-in-95 duration-200">
+                                            <div className="text-xs font-bold text-muted-foreground uppercase px-2 py-1 mb-1">Mitarbeiter bestätigen lassen</div>
                                             <div className="max-h-48 overflow-y-auto">
                                                 <button
                                                     type="button"
@@ -2245,7 +2255,7 @@ const EntryPage: React.FC = () => {
                                                         localStorage.removeItem('lastResponsibleUserId');
                                                         setShowInstallerMenu(false);
                                                     }}
-                                                    className={`w-full text-left px-3 py-2 rounded-lg text-sm mb-1 ${!responsibleUserId ? 'bg-white/10 text-white' : 'text-white/70 hover:bg-white/5'}`}
+                                                    className={`w-full text-left px-3 py-2 rounded-lg text-sm mb-1 ${!responsibleUserId ? 'bg-card text-foreground' : 'text-muted-foreground hover:bg-muted'}`}
                                                 >
                                                     Keine Bestätigung (Standard)
                                                 </button>
@@ -2258,7 +2268,7 @@ const EntryPage: React.FC = () => {
                                                             localStorage.setItem('lastResponsibleUserId', installer.user_id!);
                                                             setShowInstallerMenu(false);
                                                         }}
-                                                        className={`w-full text-left px-3 py-2 rounded-lg text-sm flex items-center justify-between ${responsibleUserId === installer.user_id ? 'bg-teal-500/20 text-teal-300' : 'text-white/70 hover:bg-white/5'}`}
+                                                        className={`w-full text-left px-3 py-2 rounded-lg text-sm flex items-center justify-between ${responsibleUserId === installer.user_id ? 'bg-teal-500/20 text-teal-300' : 'text-muted-foreground hover:bg-muted'}`}
                                                     >
                                                         {installer.display_name}
                                                         {responsibleUserId === installer.user_id && <Check size={14} />}
@@ -2273,11 +2283,11 @@ const EntryPage: React.FC = () => {
                             {/* TYPE MENU MODAL (Long Press) */}
                             {showTypeMenu && (
                                 <>
-                                    <div className="fixed inset-0 z-40 bg-black/10" onClick={() => setShowTypeMenu(false)} />
-                                    <div className="absolute top-full left-0 mt-2 z-50 w-64 bg-gray-900/95 backdrop-blur-xl border border-white/20 rounded-xl p-3 shadow-2xl animate-in slide-in-from-top-2 duration-200">
-                                        <div className="flex justify-between items-center mb-2 pb-2 border-b border-white/10">
-                                            <span className="text-xs font-bold text-white/50 uppercase">Typ wählen</span>
-                                            <button onClick={() => setShowTypeMenu(false)} className="text-white/30 hover:text-white"><X size={14} /></button>
+                                    <div className="fixed inset-0 z-40 bg-input" onClick={() => setShowTypeMenu(false)} />
+                                    <div className="absolute top-full left-0 mt-2 z-50 w-64 bg-card backdrop-blur-xl border border-border rounded-xl p-3 shadow-2xl animate-in slide-in-from-top-2 duration-200">
+                                        <div className="flex justify-between items-center mb-2 pb-2 border-b border-border">
+                                            <span className="text-xs font-bold text-muted-foreground uppercase">Typ wählen</span>
+                                            <button onClick={() => setShowTypeMenu(false)} className="text-muted-foreground hover:text-foreground"><X size={14} /></button>
                                         </div>
                                         <div className="grid grid-cols-2 gap-2">
                                             {ENTRY_TYPE_ORDER.map(t => {
@@ -2288,7 +2298,7 @@ const EntryPage: React.FC = () => {
                                                         key={t}
                                                         type="button"
                                                         onClick={() => handleTypeSelect(t)}
-                                                        className={`flex items-center gap-2 p-2 rounded-lg text-left transition-colors ${entryType === t ? 'bg-white/10 text-white' : 'hover:bg-white/5 text-white/60 hover:text-white'}`}
+                                                        className={`flex items-center gap-2 p-2 rounded-lg text-left transition-colors ${entryType === t ? 'bg-card text-foreground' : 'hover:bg-muted text-muted-foreground hover:text-foreground'}`}
                                                     >
                                                         <Icon size={16} className={conf.color} />
                                                         <span className="text-xs font-bold">{conf.label.split(' / ')[0]}</span>
@@ -2302,10 +2312,10 @@ const EntryPage: React.FC = () => {
                         </div>
 
                         {/* ROW 2: TIME + HOURS (Unified) */}
-                        <div className="flex gap-2 items-stretch">
-                            <div className="flex-1 flex gap-1 bg-black/20 rounded-xl p-1 border border-white/5 items-center">
-                                <div className="flex-1 relative">
-                                    <span className="absolute top-1 left-0 w-full text-center text-[9px] text-white/30 uppercase font-bold tracking-wider">Von</span>
+                        <div className="flex flex-col md:flex-row gap-6 items-stretch mb-6">
+                            <div className="flex-1 flex gap-4 items-center">
+                                <div className="flex-1 relative bg-black/40 backdrop-blur-md rounded-2xl border border-white/10 shadow-inner group focus-within:border-primary/50 transition-all">
+                                    <span className="absolute top-1.5 left-0 w-full text-center text-[8px] text-muted-foreground uppercase font-black tracking-widest opacity-60">Von</span>
                                     <input
                                         type="text"
                                         placeholder="--"
@@ -2313,12 +2323,12 @@ const EntryPage: React.FC = () => {
                                         onChange={(e) => handleStartTimeChange(e.target.value)}
                                         onBlur={handleStartTimeBlur}
                                         disabled={['vacation', 'sick', 'holiday', 'unpaid', 'sick_child', 'sick_pay', 'overtime_reduction'].includes(entryType)}
-                                        className="w-full bg-transparent border-none text-center text-white font-mono text-base h-10 pt-3 focus:outline-none"
+                                        className="w-full bg-transparent border-none text-center text-foreground font-mono text-base h-14 pt-4 focus:outline-none"
                                     />
                                 </div>
-                                <ArrowRight size={12} className="text-white/20" />
-                                <div className="flex-1 relative">
-                                    <span className="absolute top-1 left-0 w-full text-center text-[9px] text-white/30 uppercase font-bold tracking-wider">Bis</span>
+                                <ArrowRight size={18} className="text-muted-foreground/20 shrink-0" />
+                                <div className="flex-1 relative bg-black/40 backdrop-blur-md rounded-2xl border border-white/10 shadow-inner group focus-within:border-primary/50 transition-all">
+                                    <span className="absolute top-1.5 left-0 w-full text-center text-[8px] text-muted-foreground uppercase font-black tracking-widest opacity-60">Bis</span>
                                     <input
                                         type="text"
                                         placeholder="--"
@@ -2326,14 +2336,14 @@ const EntryPage: React.FC = () => {
                                         onChange={(e) => handleEndTimeChange(e.target.value)}
                                         onBlur={handleEndTimeBlur}
                                         disabled={['vacation', 'sick', 'holiday', 'unpaid', 'sick_child', 'sick_pay', 'overtime_reduction'].includes(entryType)}
-                                        className="w-full bg-transparent border-none text-center text-white font-mono text-base h-10 pt-3 focus:outline-none"
+                                        className="w-full bg-transparent border-none text-center text-foreground font-mono text-base h-14 pt-4 focus:outline-none"
                                     />
                                 </div>
                             </div>
 
                             {/* HOURS INPUT */}
-                            <div className="w-24 relative bg-black/20 rounded-xl border border-white/5 flex flex-col justify-center">
-                                <span className="absolute top-1 left-0 w-full text-center text-[9px] text-cyan-400/70 uppercase font-bold tracking-wider">Std</span>
+                            <div className="w-full md:w-36 relative bg-black/40 backdrop-blur-md rounded-2xl border border-white/10 shadow-inner group focus-within:border-primary/50 transition-all flex flex-col justify-center">
+                                <span className="absolute top-1.5 left-0 w-full text-center text-[8px] text-cyan-400 font-black uppercase tracking-widest opacity-60">Std</span>
                                 <input
                                     type="text"
                                     inputMode="decimal"
@@ -2342,33 +2352,31 @@ const EntryPage: React.FC = () => {
                                     onChange={(e) => handleHoursChange(e.target.value)}
                                     required={!['vacation', 'sick', 'holiday', 'unpaid', 'sick_child', 'sick_pay', 'overtime_reduction'].includes(entryType)}
                                     disabled={['vacation', 'sick', 'holiday', 'unpaid', 'sick_child', 'sick_pay', 'overtime_reduction'].includes(entryType)}
-                                    className="w-full bg-transparent border-none text-center text-cyan-300 font-bold font-mono text-xl h-10 pt-3 focus:outline-none"
+                                    className="w-full bg-transparent border-none text-center text-cyan-300 font-black font-mono text-2xl h-14 pt-4 focus:outline-none"
                                 />
-                                {/* PREVIEW HELPER */}
-                                {projectStartTime && projectEndTime && !hours && (
-                                    /* Preview Removed as requested */
-                                    null
-                                )}
                             </div>
                         </div>
 
                         {/* ROW 3: NOTE */}
-                        <div className="relative">
-                            <input
-                                type="text"
-                                value={note}
-                                onChange={(e) => setNote(e.target.value)}
-                                placeholder="Notiz (Optional)..."
-                                className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder-white/30 focus:outline-none focus:ring-1 focus:ring-teal-500/50"
-                            />
+                        <div className="relative mb-8">
+                            <div className="relative bg-black/40 backdrop-blur-md rounded-2xl border border-white/10 shadow-inner group focus-within:border-primary/50 transition-all">
+                                <span className="absolute top-1.5 left-5 text-[8px] text-muted-foreground uppercase font-black tracking-widest opacity-60">Notiz (Optional)</span>
+                                <input
+                                    type="text"
+                                    value={note}
+                                    onChange={(e) => setNote(e.target.value)}
+                                    placeholder="..."
+                                    className="w-full bg-transparent border-none px-5 h-14 pt-4 text-sm text-foreground placeholder:text-muted-foreground/30 focus:outline-none"
+                                />
+                            </div>
                         </div>
 
                         {/* SUBMIT BUTTON */}
-                        <div className="pt-2">
+                        <div className="pt-4">
                             <GlassButton
                                 type="submit"
                                 disabled={isSubmitting}
-                                className={`w-full h-12 text-base shadow-xl font-bold tracking-wide relative ${isSubmitting ? 'opacity-70 cursor-not-allowed' : ''} ${getButtonGradient()}`}
+                                className={`w-full py-3 md:py-3.5 text-sm md:text-base font-black tracking-widest relative ${isSubmitting ? 'opacity-70 cursor-not-allowed' : ''} ${getButtonGradient()}`}
                             >
                                 {isSubmitting ? (
                                     <span className="flex items-center justify-center gap-2">
@@ -2395,8 +2403,8 @@ const EntryPage: React.FC = () => {
                                         type="button"
                                         onClick={() => setSurcharge(val === surcharge ? 0 : val)}
                                         className={`px-3 py-1 rounded-lg border font-mono font-bold text-sm transition-all ${surcharge === val
-                                            ? 'bg-rose-500 text-white border-rose-400'
-                                            : 'bg-white/5 text-white/40 border-white/10'
+                                            ? 'bg-rose-500 text-foreground border-rose-400'
+                                            : 'bg-muted text-muted-foreground border-border'
                                             }`}
                                     >
                                         {val}%
@@ -2419,7 +2427,7 @@ const EntryPage: React.FC = () => {
                             <Clock size={20} />
                             <span className="font-bold uppercase text-xs tracking-wider">Arbeitszeit</span>
                         </div>
-                        <button className="text-white/50 hover:text-white transition-colors">
+                        <button className="text-muted-foreground hover:text-foreground transition-colors">
                             {isTimeCardCollapsed ? <ChevronDown size={20} /> : <ChevronUp size={20} />}
                         </button>
                     </div>
@@ -2442,15 +2450,15 @@ const EntryPage: React.FC = () => {
                             </button>
 
                             {dailyLog.segments.map((segment) => (
-                                <div key={segment.id} className="bg-white/5 rounded-xl p-3 border border-white/5 flex flex-col gap-3 group hover:bg-white/10 transition-colors">
+                                <div key={segment.id} className="bg-muted rounded-xl p-3 border border-border flex flex-col gap-3 group hover:bg-card transition-colors">
                                     <div className="flex justify-between items-center">
-                                        <div className="flex items-center gap-2 text-white/70 text-xs font-bold uppercase tracking-wider">
+                                        <div className="flex items-center gap-2 text-muted-foreground text-xs font-bold uppercase tracking-wider">
                                             {segment.type === 'work' ? <><Briefcase size={14} className="text-teal-300" /> Arbeitszeit</> : <><Coffee size={14} className="text-orange-300" /> Pause</>}
                                         </div>
                                         <button
                                             type="button"
                                             onClick={() => removeSegment(segment.id)}
-                                            className="text-white/20 hover:text-red-400 transition-colors"
+                                            className="text-muted-foreground hover:text-red-400 transition-colors"
                                         >
                                             <Trash2 size={14} />
                                         </button>
@@ -2461,16 +2469,16 @@ const EntryPage: React.FC = () => {
                                                 type="time"
                                                 value={segment.start}
                                                 onChange={(e) => updateSegment(segment.id, 'start', e.target.value)}
-                                                className="!py-2 !px-2 !text-sm text-center font-mono bg-black/20"
+                                                className="!py-2 !px-2 !text-sm text-center font-mono bg-input"
                                             />
                                         </div>
-                                        <span className="text-white/30">-</span>
+                                        <span className="text-muted-foreground">-</span>
                                         <div className="flex-1">
                                             <GlassInput
                                                 type="time"
                                                 value={segment.end}
                                                 onChange={(e) => updateSegment(segment.id, 'end', e.target.value)}
-                                                className="!py-2 !px-2 !text-sm text-center font-mono bg-black/20"
+                                                className="!py-2 !px-2 !text-sm text-center font-mono bg-input"
                                             />
                                         </div>
                                     </div>
@@ -2480,7 +2488,7 @@ const EntryPage: React.FC = () => {
                                     />
                                 </div>
                             ))}
-                            <div className="grid grid-cols-1 gap-3 pt-3 border-t border-white/5">
+                            <div className="grid grid-cols-1 gap-3 pt-3 border-t border-border">
                                 <button
                                     onClick={() => addSegment('work')}
                                     className="flex items-center justify-center gap-2 py-2 px-3 rounded-lg bg-teal-500/10 border border-teal-500/20 text-teal-200 text-xs font-bold hover:bg-teal-500/20 transition-colors"
@@ -2494,7 +2502,7 @@ const EntryPage: React.FC = () => {
                 {/* HISTORY LIST */}
                 <div className="space-y-4 pb-20">
                     <div className="flex items-center justify-between px-1">
-                        <h3 className="font-bold text-white/50 text-xs uppercase tracking-wider flex items-center gap-2">
+                        <h3 className="font-bold text-muted-foreground text-xs uppercase tracking-wider flex items-center gap-2">
                             Verlauf
                         </h3>
                     </div>
@@ -2504,59 +2512,93 @@ const EntryPage: React.FC = () => {
                             historyEntries.map(entry => {
                                 const Icon = ENTRY_TYPES_CONFIG[entry.type as EntryType]?.icon;
                                 return (
-                                    <GlassCard key={entry.id} className="!p-3 group hover:bg-white/5 transition-colors border-white/5">
-                                        <div className="flex justify-between items-start gap-3">
-                                            <div className="mt-1 w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center shrink-0 border border-white/5">
-                                                {Icon && <Icon size={16} className="text-white/70" />}
+                                    <div
+                                    key={entry.id}
+                                    className="relative w-full overflow-hidden rounded-2xl p-4 bg-slate-900/30 backdrop-blur-xl border border-white/10 shadow-lg transition-all duration-500 hover:scale-[1.01] hover:shadow-2xl hover:border-white/20 group mb-3"
+                                >
+                                    <div className="flex gap-3">
+                                        <div className="shrink-0">
+                                            <div className={`h-10 w-10 rounded-full flex items-center justify-center border border-white/10 shadow-inner ${entry.type === 'break' ? 'bg-orange-500/20 text-orange-400' : (entry as any).isAbsence ? 'bg-purple-500/20 text-purple-300' : 'bg-primary/20 text-primary'}`}>
+                                                {Icon && <Icon size={18} />}
                                             </div>
-                                            <div className="flex-1 min-w-0">
-                                                <div className="flex justify-between items-baseline mb-1">
-                                                    <h4 className="font-bold text-white text-sm truncate">{entry.client_name}</h4>
-                                                    <span className="font-mono font-bold text-teal-300 text-sm ml-2">
-                                                        {(entry as any).isAbsence ? 'GANZTÄGIG' : `${formatDuration(entry.calc_duration_minutes ? entry.calc_duration_minutes / 60 : entry.hours)}h`}
+                                        </div>
+
+                                        <div className="flex-1 min-w-0">
+                                            <div className="flex items-start justify-between gap-2">
+                                                <div className="flex flex-col min-w-0">
+                                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                                        <span className={`font-black tracking-tight truncate ${(entry.type === 'break' || entry.type === 'break_manual') ? 'text-orange-300' : (entry as any).isAbsence ? 'text-purple-200' : 'text-white'}`}>
+                                                            {entry.client_name}
+                                                        </span>
+                                                        {entry.submitted && (
+                                                            <div className="bg-emerald-500/20 p-0.5 rounded-full border border-emerald-500/30">
+                                                                <CheckCircle size={10} className="text-emerald-400" />
+                                                            </div>
+                                                        )}
+                                                        {entry.order_number && (
+                                                            <span className="text-[10px] font-mono text-white/40 bg-white/5 px-1.5 py-0.5 rounded border border-white/5 uppercase tracking-widest">
+                                                                #{entry.order_number}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    <span className="text-[11px] font-bold text-white/40 uppercase tracking-widest flex items-center gap-2 mt-0.5">
+                                                        {entry.type ? ENTRY_TYPES_CONFIG[entry.type as keyof typeof ENTRY_TYPES_CONFIG]?.label.split(' / ')[0] : 'Arbeit'}
+                                                        {!(entry as any).isAbsence && entry.start_time && <span>• {entry.start_time} - {entry.end_time}</span>}
                                                     </span>
                                                 </div>
-                                                <div className="text-xs text-white/40 flex flex-wrap gap-2 mb-1">
-                                                    <span>{new Date(entry.date).toLocaleDateString()}</span>
-                                                    {! (entry as any).isAbsence && entry.start_time && <span>• {entry.start_time} - {entry.end_time}</span>}
-                                                    {entry.order_number && <span className="text-white/30">• #{entry.order_number}</span>}
-                                                </div>
-                                                {entry.note && <p className="text-sm text-white/60 italic truncate">"{entry.note}"</p>}
 
-                                                {/* AUTO SUBMISSION TIMER */}
-                                                <div className="mt-2">
-                                                    <SubmissionTimer 
-                                                        entryDate={entry.date} 
-                                                        submitted={!!entry.submitted} 
-                                                    />
-                                                </div>
-
-                                                {/* Entry Actions */}
-                                                <div className="mt-2 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                <div className="flex gap-1.5 transition-all">
                                                     {!(entry as any).isAbsence && (
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => handleEditEntry(entry)}
-                                                            className="px-2 py-1 rounded bg-blue-500/20 text-blue-300 text-[10px] font-bold hover:bg-blue-500/30"
+                                                        <button 
+                                                            onClick={() => handleEditEntry(entry)} 
+                                                            className="p-1.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-white transition-all"
                                                         >
-                                                            EDIT
+                                                            <Edit2 size={14} />
                                                         </button>
                                                     )}
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => setDeleteConfirm({ isOpen: true, entryId: entry.id, entryName: entry.client_name || 'Eintrag', isAbsence: (entry as any).isAbsence })}
-                                                        className="px-2 py-1 rounded bg-red-500/20 text-red-300 text-[10px] font-bold hover:bg-red-500/30"
+                                                    <button 
+                                                        onClick={() => setDeleteConfirm({ isOpen: true, entryId: entry.id, entryName: entry.client_name || 'Eintrag', isAbsence: (entry as any).isAbsence })} 
+                                                        className="p-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 rounded-lg transition-all"
                                                     >
-                                                        LÖSCHEN
+                                                        <Trash2 size={14} />
                                                     </button>
                                                 </div>
                                             </div>
+
+                                            {entry.note && (
+                                                <div className="mt-2 text-sm text-white/70 italic bg-white/5 p-2 rounded-xl border border-white/5 relative group/note">
+                                                    <StickyNote size={12} className="absolute -top-1 -left-1 text-white/20 rotate-12" />
+                                                    {entry.note}
+                                                </div>
+                                            )}
+
+                                            <div className="mt-3 pt-3 border-t border-white/5 flex items-center justify-between">
+                                                <div className="flex items-center gap-3">
+                                                    <SubmissionTimer entryDate={entry.date} submitted={!!entry.submitted} />
+                                                    {entry.confirmed_at ? (
+                                                        <div className="flex items-center gap-1 text-[10px] font-black uppercase tracking-widest text-emerald-400/70">
+                                                            <CheckCircle size={10} /> Bestätigt
+                                                        </div>
+                                                    ) : (entry.responsible_user_id || entry.late_reason) && (
+                                                        <div className="flex items-center gap-1 text-[10px] font-black uppercase tracking-widest text-orange-400/70 animate-pulse">
+                                                            <Hourglass size={10} /> Prüfung
+                                                        </div>
+                                                    )}
+                                                </div>
+                                                <div className="text-lg font-black tracking-tighter text-white">
+                                                    <span className="flex items-baseline gap-1">
+                                                        {(entry as any).isAbsence ? (entry.hours || 0).toFixed(2) : formatDuration(entry.calc_duration_minutes ? entry.calc_duration_minutes / 60 : entry.hours)}
+                                                        <span className="text-[10px] opacity-40 font-bold uppercase ml-0.5">h</span>
+                                                    </span>
+                                                </div>
+                                            </div>
                                         </div>
-                                    </GlassCard>
+                                    </div>
+                                </div>
                                 );
                             })
                         ) : (
-                            <div className="text-center py-10 text-white/20 text-sm">Keine Einträge gefunden</div>
+                            <div className="text-center py-10 text-muted-foreground text-sm">Keine Einträge gefunden</div>
                         )}
                     </div>
                 </div>
@@ -2565,19 +2607,19 @@ const EntryPage: React.FC = () => {
 
             {/* TEAM CONFIRM MODAL */}
             {teamConfirmModal && (
-                <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-black/90 backdrop-blur-md animate-in fade-in duration-300">
-                    <GlassCard className="w-full max-w-md border-indigo-500/50 shadow-2xl shadow-indigo-900/20 relative bg-gray-900/95">
+                <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-input backdrop-blur-md animate-in fade-in duration-300">
+                    <GlassCard className="w-full max-w-md border-indigo-500/50 shadow-2xl shadow-indigo-900/20 relative bg-card">
                         <div className="p-6 text-center space-y-6">
                             <div className="mx-auto w-16 h-16 bg-indigo-500/20 rounded-full flex items-center justify-center ring-1 ring-indigo-500/50 relative">
                                 <Users size={32} className="text-indigo-300" />
                             </div>
 
                             <div>
-                                <h2 className="text-xl font-bold text-white mb-2">Team-Eintrag erstellen?</h2>
-                                <p className="text-white/60 mb-2">Du hast <span className="text-indigo-300 font-bold">{selectedTeamIds.length} Kollegen</span> ausgewählt.</p>
-                                <div className="max-h-32 overflow-y-auto bg-white/5 rounded-lg p-2 text-sm text-left border border-white/10">
+                                <h2 className="text-xl font-bold text-foreground mb-2">Team-Eintrag erstellen?</h2>
+                                <p className="text-muted-foreground mb-2">Du hast <span className="text-indigo-300 font-bold">{selectedTeamIds.length} Kollegen</span> ausgewählt.</p>
+                                <div className="max-h-32 overflow-y-auto bg-muted rounded-lg p-2 text-sm text-left border border-border">
                                     {installers.filter(i => selectedTeamIds.includes(i.user_id!)).map(i => (
-                                        <div key={i.user_id} className="py-1 px-2 border-b border-white/5 last:border-0 text-white/80">{i.display_name}</div>
+                                        <div key={i.user_id} className="py-1 px-2 border-b border-border last:border-0 text-muted-foreground">{i.display_name}</div>
                                     ))}
                                 </div>
                             </div>
@@ -2585,7 +2627,7 @@ const EntryPage: React.FC = () => {
                             <div className="space-y-3">
                                 <button
                                     onClick={() => handleTeamConfirm(false)}
-                                    className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 rounded-xl text-white font-bold transition-all shadow-lg shadow-indigo-900/20 active:scale-95 flex items-center justify-center gap-2"
+                                    className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 rounded-xl text-foreground font-bold transition-all shadow-lg shadow-indigo-900/20 active:scale-95 flex items-center justify-center gap-2"
                                 >
                                     <CheckCircle size={18} />
                                     Für ALLE ({selectedTeamIds.length + 1}) buchen
@@ -2593,7 +2635,7 @@ const EntryPage: React.FC = () => {
 
                                 <button
                                     onClick={() => handleTeamConfirm(true)}
-                                    className="w-full py-3 bg-white/10 hover:bg-white/20 rounded-xl text-white font-bold transition-all flex items-center justify-center gap-2"
+                                    className="w-full py-3 bg-card hover:bg-accent rounded-xl text-foreground font-bold transition-all flex items-center justify-center gap-2"
                                 >
                                     <User size={18} />
                                     Nur für MICH buchen
@@ -2601,7 +2643,7 @@ const EntryPage: React.FC = () => {
 
                                 <button
                                     onClick={() => setTeamConfirmModal(false)}
-                                    className="w-full py-2 text-white/30 hover:text-white/50 text-sm"
+                                    className="w-full py-2 text-muted-foreground hover:text-muted-foreground text-sm"
                                 >
                                     Abbrechen
                                 </button>
@@ -2613,27 +2655,27 @@ const EntryPage: React.FC = () => {
 
             {/* Overlap Warning Modal */}
             {overlapWarning.isOpen && (
-                <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-black/90 backdrop-blur-md animate-in fade-in duration-300">
-                    <GlassCard className="w-full max-w-lg border-orange-500/50 shadow-2xl shadow-orange-900/20 relative bg-gray-900/95">
+                <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-input backdrop-blur-md animate-in fade-in duration-300">
+                    <GlassCard className="w-full max-w-lg border-orange-500/50 shadow-2xl shadow-orange-900/20 relative bg-card">
                         <div className="p-6 text-center space-y-6">
                             <div className="mx-auto w-16 h-16 bg-orange-500/20 rounded-full flex items-center justify-center ring-1 ring-orange-500/50 relative">
                                 <AlertTriangle size={32} className="text-orange-300" />
                             </div>
 
                             <div>
-                                <h2 className="text-xl font-bold text-white mb-2">Überschneidung erkannt</h2>
-                                <p className="text-white/60">
+                                <h2 className="text-xl font-bold text-foreground mb-2">Überschneidung erkannt</h2>
+                                <p className="text-muted-foreground">
                                     Die eingetragene Pause überschneidet sich mit bestehenden Einträgen.
                                     Soll die Arbeitszeit der betroffenen Einträge automatisch reduziert werden?
                                 </p>
                             </div>
 
-                            <div className="bg-white/5 rounded-xl p-4 border border-white/10 space-y-3 max-h-40 overflow-y-auto">
+                            <div className="bg-muted rounded-xl p-4 border border-border space-y-3 max-h-40 overflow-y-auto">
                                 {overlapWarning.overlappedEntries.map((item, idx) => (
                                     <div key={idx} className="flex justify-between items-center text-sm">
                                         <div className="flex flex-col text-left">
-                                            <span className="font-bold text-white">{item.entry.client_name}</span>
-                                            <span className="text-white/40 text-xs">
+                                            <span className="font-bold text-foreground">{item.entry.client_name}</span>
+                                            <span className="text-muted-foreground text-xs">
                                                 {item.entry.start_time} - {item.entry.end_time}
                                             </span>
                                         </div>
@@ -2647,13 +2689,13 @@ const EntryPage: React.FC = () => {
                             <div className="grid grid-cols-2 gap-3">
                                 <button
                                     onClick={() => setOverlapWarning({ isOpen: false, overlappedEntries: [], newEntryData: null })}
-                                    className="w-full py-3 bg-white/10 hover:bg-white/20 rounded-xl text-white font-bold transition-all"
+                                    className="w-full py-3 bg-card hover:bg-accent rounded-xl text-foreground font-bold transition-all"
                                 >
                                     Abbrechen
                                 </button>
                                 <button
                                     onClick={handleOverlapConfirm}
-                                    className="w-full py-3 bg-orange-600 hover:bg-orange-500 rounded-xl text-white font-bold transition-all shadow-lg shadow-orange-900/20 active:scale-95"
+                                    className="w-full py-3 bg-orange-600 hover:bg-orange-500 rounded-xl text-foreground font-bold transition-all shadow-lg shadow-orange-900/20 active:scale-95"
                                 >
                                     Bestätigen & Buchen
                                 </button>
@@ -2666,60 +2708,60 @@ const EntryPage: React.FC = () => {
             {/* Quota Notification Modal */}
             {
                 pendingQuotaNotifications.length > 0 && isNotificationModalOpen && (
-                    <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-black/90 backdrop-blur-md animate-in fade-in duration-300">
-                        <GlassCard className="w-full max-w-lg border-purple-500/50 shadow-2xl shadow-purple-900/20 relative bg-gray-900/95">
+                    <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-input backdrop-blur-md animate-in fade-in duration-300">
+                        <GlassCard className="w-full max-w-lg border-purple-500/50 shadow-2xl shadow-purple-900/20 relative bg-card">
                             <div className="p-6 text-center space-y-6">
                                 <div className="mx-auto w-16 h-16 bg-purple-500/20 rounded-full flex items-center justify-center ring-1 ring-purple-500/50 relative">
                                     <Palmtree size={32} className="text-purple-300" />
                                     <button
                                         onClick={() => setIsNotificationModalOpen(false)}
-                                        className="absolute -top-2 -right-2 bg-white/10 hover:bg-white/20 p-1.5 rounded-full text-white/50 hover:text-white transition-colors"
+                                        className="absolute -top-2 -right-2 bg-card hover:bg-accent p-1.5 rounded-full text-muted-foreground hover:text-foreground transition-colors"
                                     >
                                         <X size={14} />
                                     </button>
                                 </div>
 
                                 <div>
-                                    <h2 className="text-xl font-bold text-white mb-2">Urlaubsanspruch Aktualisiert</h2>
-                                    <p className="text-white/60">
+                                    <h2 className="text-xl font-bold text-foreground mb-2">Urlaubsanspruch Aktualisiert</h2>
+                                    <p className="text-muted-foreground">
                                         Für das Jahr <span className="text-purple-300 font-bold">{pendingQuotaNotifications[0].year}</span> wurde dein Urlaubsanspruch angepasst.
                                     </p>
                                 </div>
 
-                                <div className="bg-white/5 rounded-xl p-4 border border-white/10 space-y-3">
+                                <div className="bg-muted rounded-xl p-4 border border-border space-y-3">
                                     <div className="flex justify-between items-center text-sm">
-                                        <span className="text-white/50">Basis-Anspruch</span>
+                                        <span className="text-muted-foreground">Basis-Anspruch</span>
                                         <div className="flex items-center gap-2">
-                                            <span className="text-white/30 line-through">{pendingQuotaNotifications[0].previous_value?.base}</span>
-                                            <ArrowRight size={12} className="text-white/30" />
-                                            <span className="text-white font-bold">{pendingQuotaNotifications[0].new_value?.base}</span>
+                                            <span className="text-muted-foreground line-through">{pendingQuotaNotifications[0].previous_value?.base}</span>
+                                            <ArrowRight size={12} className="text-muted-foreground" />
+                                            <span className="text-foreground font-bold">{pendingQuotaNotifications[0].new_value?.base}</span>
                                         </div>
                                     </div>
                                     <div className="flex justify-between items-center text-sm">
-                                        <span className="text-white/50">Resturlaub (Vorjahr)</span>
+                                        <span className="text-muted-foreground">Resturlaub (Vorjahr)</span>
                                         <div className="flex items-center gap-2">
-                                            <span className="text-white/30 line-through">{pendingQuotaNotifications[0].previous_value?.carryover}</span>
-                                            <ArrowRight size={12} className="text-white/30" />
-                                            <span className="text-white font-bold">{pendingQuotaNotifications[0].new_value?.carryover}</span>
+                                            <span className="text-muted-foreground line-through">{pendingQuotaNotifications[0].previous_value?.carryover}</span>
+                                            <ArrowRight size={12} className="text-muted-foreground" />
+                                            <span className="text-foreground font-bold">{pendingQuotaNotifications[0].new_value?.carryover}</span>
                                         </div>
                                     </div>
-                                    <div className="pt-3 border-t border-white/10 flex justify-between items-center">
+                                    <div className="pt-3 border-t border-border flex justify-between items-center">
                                         <span className="text-purple-300 font-bold">Gesamtanspruch</span>
-                                        <span className="text-xl font-bold text-white">{pendingQuotaNotifications[0].new_value?.total} Tage</span>
+                                        <span className="text-xl font-bold text-foreground">{pendingQuotaNotifications[0].new_value?.total} Tage</span>
                                     </div>
                                 </div>
 
                                 <div className="space-y-3">
                                     <button
                                         onClick={() => handleQuotaResponse('confirmed')}
-                                        className="w-full py-3 bg-purple-600 hover:bg-purple-500 rounded-xl text-white font-bold transition-all shadow-lg shadow-purple-900/20 active:scale-95"
+                                        className="w-full py-3 bg-purple-600 hover:bg-purple-500 rounded-xl text-foreground font-bold transition-all shadow-lg shadow-purple-900/20 active:scale-95"
                                     >
                                         Änderungen bestätigen
                                     </button>
 
                                     <div className="relative">
                                         <details className="group">
-                                            <summary className="list-none w-full py-2 text-white/40 hover:text-white/60 text-sm cursor-pointer transition-colors flex items-center justify-center gap-2">
+                                            <summary className="list-none w-full py-2 text-muted-foreground hover:text-muted-foreground text-sm cursor-pointer transition-colors flex items-center justify-center gap-2">
                                                 Ablehnen & Melden
                                                 <ChevronDown size={14} className="group-open:rotate-180 transition-transform" />
                                             </summary>
@@ -2728,7 +2770,7 @@ const EntryPage: React.FC = () => {
                                                     value={notificationRejectionReason}
                                                     onChange={(e) => setNotificationRejectionReason(e.target.value)}
                                                     placeholder="Bitte gib einen Grund an..."
-                                                    className="w-full h-24 bg-black/40 border border-white/10 rounded-xl p-3 text-white text-sm focus:border-red-500/50 outline-none resize-none"
+                                                    className="w-full h-24 bg-input border border-border rounded-xl p-3 text-foreground text-sm focus:border-red-500/50 outline-none resize-none"
                                                 />
                                                 <button
                                                     onClick={() => handleQuotaResponse('rejected')}
@@ -2743,7 +2785,7 @@ const EntryPage: React.FC = () => {
 
                                     <button
                                         onClick={() => setIsNotificationModalOpen(false)}
-                                        className="w-full py-2 text-white/20 hover:text-white/40 text-xs uppercase font-bold tracking-wider transition-colors mt-2"
+                                        className="w-full py-2 text-muted-foreground hover:text-muted-foreground text-xs uppercase font-bold tracking-wider transition-colors mt-2"
                                     >
                                         Später erinnern
                                     </button>
@@ -2753,67 +2795,92 @@ const EntryPage: React.FC = () => {
                     </div>
                 )
             }
-            {
-                showDatePicker && (
-                    RANGE_ABSENCE_TYPES.includes(entryType) ? (
-                        <GlassDatePicker
-                            value={date}
-                            onChange={setDate}
-                            onClose={() => setShowDatePicker(false)}
-                            rangeMode={true}
-                            rangeStart={date}
-                            rangeEnd={endDate || date}
-                            onRangeChange={(start, end) => {
-                                setDate(start);
-                                setEndDate(end);
-                            }}
-                        />
-                    ) : (
-                        <GlassDatePicker
-                            value={date}
-                            onChange={setDate}
-                            onClose={() => setShowDatePicker(false)}
-                            gracePeriodCutoff={gracePeriodCutoff}
-                        />
-                    )
-                )
-            }
+            
             {/* DELETE CONFIRMATION MODAL */}
-            {deleteConfirm.isOpen && (
-                <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+                        {deleteConfirm.isOpen && (
+                <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm animate-in fade-in duration-200">
                     <GlassCard className="w-full max-w-sm !p-0 overflow-hidden ring-1 ring-red-500/20 shadow-2xl">
-                        <div className="p-5 bg-gradient-to-b from-red-900/20 to-transparent">
+<div className="p-5 bg-gradient-to-b from-red-900/20 to-transparent">
                             <div className="flex items-center gap-3 mb-3">
                                 <div className="w-10 h-10 rounded-xl bg-red-500/10 flex items-center justify-center">
                                     <Trash2 size={20} className="text-red-400" />
                                 </div>
                                 <div>
-                                    <h3 className="text-base font-bold text-white">Eintrag löschen?</h3>
-                                    <p className="text-xs text-white/50">Diese Aktion kann nicht rückgängig gemacht werden.</p>
+                                    <h3 className="text-base font-bold text-foreground">Eintrag löschen?</h3>
+                                    <p className="text-xs text-muted-foreground">Diese Aktion kann nicht rückgängig gemacht werden.</p>
                                 </div>
                             </div>
-                            <div className="bg-white/5 rounded-lg px-3 py-2 border border-white/10">
-                                <span className="text-sm text-white/80 font-medium">{deleteConfirm.entryName}</span>
+                            <div className="bg-muted rounded-lg px-3 py-2 border border-border">
+                                <span className="text-sm text-muted-foreground font-medium">{deleteConfirm.entryName}</span>
                             </div>
                         </div>
-                        <div className="flex border-t border-white/10">
+                        <div className="flex border-t border-border">
                             <button
                                 onClick={() => setDeleteConfirm({ isOpen: false, entryId: null, entryName: '' })}
-                                className="flex-1 py-3 text-sm font-bold text-white/50 hover:text-white hover:bg-white/5 transition-colors uppercase tracking-wider"
+                                className="flex-1 py-3 text-sm font-bold text-muted-foreground hover:text-foreground hover:bg-muted transition-colors uppercase tracking-wider"
                             >
                                 Abbrechen
                             </button>
                             <button
                                 onClick={() => deleteConfirm.entryId && handleDeleteEntry(deleteConfirm.entryId, deleteConfirm.isAbsence)}
-                                className="flex-1 py-3 text-sm font-bold text-red-400 hover:text-red-300 hover:bg-red-500/10 transition-colors uppercase tracking-wider border-l border-white/10"
+                                className="flex-1 py-3 text-sm font-bold text-red-400 hover:text-red-300 hover:bg-red-500/10 transition-colors uppercase tracking-wider border-l border-border"
                             >
                                 Löschen
                             </button>
                         </div>
-                    </GlassCard>
+                                        </GlassCard>
                 </div>
             )}
-        </div >
+
+            {/* FLOATING OVERLAY CALENDAR (FIXED) */}
+            <AnimatePresence>
+                {showDatePicker && (
+                    <div className="fixed inset-0 z-[999] flex items-center justify-center p-4">
+                        {/* Backdrop with Blur */}
+                        <motion.div 
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            onClick={() => setShowDatePicker(false)}
+                            className="absolute inset-0 bg-background/60 backdrop-blur-sm"
+                        />
+                        
+                        {/* Calendar Card */}
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.9, y: 20 }}
+                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.9, y: 20 }}
+                            transition={{ type: "spring", damping: 25, stiffness: 300 }}
+                            className="relative z-10 w-full max-w-sm"
+                        >
+                            {RANGE_ABSENCE_TYPES.includes(entryType) ? (
+                                <GlassDatePicker
+                                    value={date}
+                                    onChange={setDate}
+                                    onClose={() => setShowDatePicker(false)}
+                                    rangeMode={true}
+                                    rangeStart={date}
+                                    rangeEnd={endDate || date}
+                                    onRangeChange={(start, end) => {
+                                        setDate(start);
+                                        setEndDate(end);
+                                    }}
+                                    inline={true}
+                                />
+                            ) : (
+                                <GlassDatePicker
+                                    value={date}
+                                    onChange={setDate}
+                                    onClose={() => setShowDatePicker(false)}
+                                    gracePeriodCutoff={gracePeriodCutoff}
+                                    inline={true}
+                                />
+                            )}
+                        </motion.div>
+                    </div>
+                )}
+            </AnimatePresence>
+        </div>
     );
 };
 

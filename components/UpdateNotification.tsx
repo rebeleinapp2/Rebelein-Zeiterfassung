@@ -16,7 +16,7 @@ export const UpdateNotification: React.FC<UpdateNotificationProps> = ({ onUpdate
             <DownloadCloud size={24} />
           </div>
           <div className="flex-1">
-            <h3 className="text-white font-bold text-lg">Update verfügbar</h3>
+            <h3 className="text-foreground font-bold text-lg">Update verfügbar</h3>
             <p className="text-teal-100/70 text-xs mt-1 mb-3">
               Eine neue Version der Anwendung wurde heruntergeladen. Bitte aktualisieren, um die neuesten Funktionen zu nutzen.
             </p>

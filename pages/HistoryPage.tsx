@@ -9,6 +9,24 @@ import { supabase } from '../services/supabaseClient';
 import { formatDuration } from '../services/utils/timeUtils';
 import { SubmissionTimer } from '../components/SubmissionTimer';
 
+
+const ENTRY_TYPES_CONFIG: Record<string, { label: string; icon: any; color: string }> = {
+    'work': { label: 'Arbeit', icon: Briefcase, color: 'text-primary' },
+    'break': { label: 'Pause', icon: Coffee, color: 'text-orange-400' },
+    'company': { label: 'Firma / Lager', icon: Building2, color: 'text-blue-400' },
+    'office': { label: 'Büro', icon: Building, color: 'text-purple-400' },
+    'warehouse': { label: 'Lager', icon: Warehouse, color: 'text-amber-400' },
+    'car': { label: 'Firmenauto Pflege', icon: Car, color: 'text-slate-400' },
+    'vacation': { label: 'Urlaub', icon: Palmtree, color: 'text-purple-400' },
+    'sick': { label: 'Krank', icon: Stethoscope, color: 'text-red-400' },
+    'holiday': { label: 'Feiertag', icon: PartyPopper, color: 'text-blue-400' },
+    'unpaid': { label: 'Unbezahlt', icon: Ban, color: 'text-slate-500' },
+    'sick_child': { label: 'Kind krank', icon: Stethoscope, color: 'text-red-400' },
+    'sick_pay': { label: 'Krankengeld', icon: TrendingDown, color: 'text-rose-400' },
+    'overtime_reduction': { label: 'Überstunden-Abbau', icon: TrendingDown, color: 'text-pink-400' },
+    'emergency_service': { label: 'Notdienst', icon: Siren, color: 'text-rose-400' }
+};
+
 const HistoryPage: React.FC = () => {
     const { showToast } = useToast();
     const { entries, deleteEntry, updateEntry, markAsSubmitted, loading, lockedDays, entryHistory, fetchEntryHistory, addEntry } = useTimeEntries();
@@ -436,8 +454,8 @@ const HistoryPage: React.FC = () => {
                 case 'vacation': return `border-purple-500/20 bg-purple-900/10 text-purple-200 ${entry.submitted ? 'ring-1 ring-emerald-500/50' : ''}`;
                 case 'sick': return `border-red-500/20 bg-red-900/10 text-red-200 ${entry.submitted ? 'ring-1 ring-emerald-500/50' : ''}`;
                 case 'holiday': return `border-blue-500/20 bg-blue-900/10 text-blue-200 ${entry.submitted ? 'ring-1 ring-emerald-500/50' : ''}`;
-                case 'unpaid': return `border-gray-500/20 bg-gray-800/30 text-gray-300 ${entry.submitted ? 'ring-1 ring-emerald-500/50' : ''}`;
-                default: return `border-white/10 bg-white/5 ${entry.submitted ? 'ring-1 ring-emerald-500/50' : ''}`;
+                case 'unpaid': return `border-border bg-card text-muted-foreground ${entry.submitted ? 'ring-1 ring-emerald-500/50' : ''}`;
+                default: return `border-border bg-muted ${entry.submitted ? 'ring-1 ring-emerald-500/50' : ''}`;
             }
         }
         if (entry.type === 'emergency_service') return 'border-rose-500/20 bg-rose-900/10 text-rose-200';
@@ -456,9 +474,9 @@ const HistoryPage: React.FC = () => {
             case 'company': return 'border-blue-500/20 bg-blue-900/10 text-blue-200';
             case 'office': return 'border-purple-500/20 bg-purple-900/10 text-purple-200';
             case 'warehouse': return 'border-amber-500/20 bg-amber-900/10 text-amber-200';
-            case 'car': return 'border-gray-500/20 bg-gray-800/30 text-gray-300';
+            case 'car': return 'border-border bg-card text-muted-foreground';
             case 'overtime_reduction': return 'border-pink-500/20 bg-pink-900/10 text-pink-200';
-            default: return 'md:hover:bg-white/10 transition-colors';
+            default: return 'md:hover:bg-card transition-colors';
         }
     };
 
@@ -627,38 +645,45 @@ const HistoryPage: React.FC = () => {
         <div className="p-6 pb-24 h-full flex flex-col overflow-hidden md:max-w-6xl md:mx-auto w-full">
             <div className="flex flex-col gap-4 mb-4 md:flex-row md:justify-between md:items-center md:mb-6">
                 <div className="flex justify-between items-center">
-                    <h2 className="text-2xl font-bold text-white">Verlauf</h2>
-                    <button onClick={() => setShowPdfModal(true)} className="bg-white/10 p-2 rounded-lg text-white hover:bg-white/20 transition-colors flex items-center md:hidden">
-                        <Check size={20} />
-                    </button>
+                    <h2 className="text-2xl font-bold text-foreground">Verlauf</h2>
                 </div>
 
-                <div className="bg-white/10 p-1 rounded-xl flex w-full md:w-auto self-center">
-                    <button onClick={() => setViewMode('projects')} className={`flex-1 flex items-center justify-center gap-2 py-2 px-4 rounded-lg text-sm font-medium transition-all duration-200 ${viewMode === 'projects' ? 'bg-teal-500 text-white shadow-lg' : 'text-white/50 hover:text-white'}`}>
+                <div className="bg-card/40 backdrop-blur-xl border border-white/10 p-1.5 rounded-2xl flex w-full md:w-auto self-center shadow-xl">
+                    <button 
+                        onClick={() => setViewMode('projects')} 
+                        className={`flex-1 flex items-center justify-center gap-2 py-2 px-6 rounded-xl text-xs font-black uppercase tracking-widest transition-all duration-300 ${viewMode === 'projects' ? 'bg-primary text-primary-foreground shadow-lg shadow-primary/20' : 'text-muted-foreground hover:text-foreground hover:bg-white/5'}`}
+                    >
                         <List size={16} /> Projekte
                     </button>
-                    <button onClick={() => setViewMode('attendance')} className={`flex-1 flex items-center justify-center gap-2 py-2 px-4 rounded-lg text-sm font-medium transition-all duration-200 ${viewMode === 'attendance' ? 'bg-blue-500 text-white shadow-lg' : 'text-white/50 hover:text-white'}`}>
+                    <button 
+                        onClick={() => setViewMode('attendance')} 
+                        className={`flex-1 flex items-center justify-center gap-2 py-2 px-6 rounded-xl text-xs font-black uppercase tracking-widest transition-all duration-300 ${viewMode === 'attendance' ? 'bg-primary text-primary-foreground shadow-lg shadow-primary/20' : 'text-muted-foreground hover:text-foreground hover:bg-white/5'}`}
+                    >
                         <UserCheck size={16} /> Anwesenheit
                     </button>
                 </div>
 
-                <div className="flex gap-2 justify-between md:justify-end">
-                    <div className="flex items-center bg-white/5 rounded-lg p-1 backdrop-blur-md w-full md:w-auto justify-between md:justify-center">
-                        <button onClick={prevMonth} className="p-1.5 hover:bg-white/10 rounded text-white"><ChevronLeft size={18} /></button>
-                        <span className="mx-2 text-sm font-medium text-white whitespace-nowrap w-32 text-center">
+                <div className="flex gap-3 justify-between md:justify-end">
+                    <div className="flex items-center bg-card/40 backdrop-blur-xl border border-white/10 rounded-2xl p-1 shadow-xl w-full md:w-auto justify-between md:justify-center">
+                        <button onClick={prevMonth} className="p-2 hover:bg-white/5 rounded-xl text-foreground transition-colors"><ChevronLeft size={20} /></button>
+                        <span className="mx-4 text-sm font-black text-foreground whitespace-nowrap min-w-[140px] text-center uppercase tracking-widest">
                             {viewDate.toLocaleDateString('de-DE', { month: 'long', year: 'numeric' })}
                         </span>
-                        <button onClick={nextMonth} className="p-1.5 hover:bg-white/10 rounded text-white"><ChevronRight size={18} /></button>
+                        <button onClick={nextMonth} className="p-2 hover:bg-white/5 rounded-xl text-foreground transition-colors"><ChevronRight size={20} /></button>
                     </div>
-                    <button onClick={() => setShowPdfModal(true)} className="hidden md:flex bg-gradient-to-r from-teal-500 to-emerald-600 p-2 px-4 rounded-lg text-white shadow-lg hover:scale-105 transition-transform items-center justify-center gap-2">
-                        <Check size={20} /> <span className="text-sm font-medium">Abgeben</span>
-                    </button>
+                    <GlassButton 
+                        onClick={() => setShowPdfModal(true)} 
+                        className="flex !w-auto !py-2 !px-6"
+                        variant="primary"
+                    >
+                        <Check size={18} /> Abgeben
+                    </GlassButton>
                 </div>
             </div>
 
             <div className="mb-6">
-                <GlassCard className={`py-3 px-4 flex justify-between items-center border md:p-6 ${viewMode === 'projects' ? 'bg-white/10 border-white/20' : 'bg-blue-900/20 border-blue-400/30'}`}>
-                    <span className="text-sm text-white/60 font-medium uppercase tracking-wide md:text-lg">
+                <GlassCard className={`py-3 px-4 flex justify-between items-center border md:p-6 ${viewMode === 'projects' ? 'bg-card border-border' : 'bg-blue-900/20 border-blue-400/30'}`}>
+                    <span className="text-sm text-muted-foreground font-medium uppercase tracking-wide md:text-lg">
                         {viewMode === 'projects' ? 'Projektstunden' : 'Anwesenheit (Netto)'} {viewDate.toLocaleDateString('de-DE', { month: 'long' })}
                     </span>
                     <span className={`text-xl font-bold font-mono md:text-3xl ${viewMode === 'projects' ? 'text-teal-300' : 'text-blue-300'}`}>
@@ -672,7 +697,7 @@ const HistoryPage: React.FC = () => {
                 {viewMode === 'projects' && (
                     <>
                         {currentMonthData.length === 0 && (
-                            <div className="flex flex-col items-center justify-center h-40 text-white/30">
+                            <div className="flex flex-col items-center justify-center h-40 text-muted-foreground">
                                 <List size={48} className="mb-2 opacity-50" />
                                 <p>Keine Projektdaten in diesem Monat</p>
                             </div>
@@ -695,8 +720,8 @@ const HistoryPage: React.FC = () => {
                             const allSubmitted = dayEntries.every(e => e.submitted || e.isAbsence || e.is_deleted);
 
                             return (
-                                <div key={dateStr} className="relative md:bg-white/5 md:p-4 md:rounded-2xl md:border md:border-white/5">
-                                    <div className={`flex items-center justify-between mb-2 px-1 md:px-0 ${allSubmitted ? 'text-emerald-300' : 'text-white/70'}`}>
+                                <div key={dateStr} className="relative md:bg-muted md:p-4 md:rounded-2xl md:border md:border-border">
+                                    <div className={`flex items-center justify-between mb-2 px-1 md:px-0 ${allSubmitted ? 'text-emerald-300' : 'text-muted-foreground'}`}>
                                         <div className="flex items-center gap-2">
                                             <span className={`text-sm font-bold md:text-base ${isWeekend ? 'text-red-300/70' : ''}`}>
                                                 {dateObj.toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit' })}
@@ -706,180 +731,147 @@ const HistoryPage: React.FC = () => {
                                             {dayEntries.some(e => e.rejected_at) && <div className="flex items-center gap-1 text-xs bg-red-500/20 px-2 py-0.5 rounded-full border border-red-500/30 text-red-300"><AlertTriangle size={12} /> <span>Abgelehnt</span></div>}
                                             {dayEntries.some(e => (e.responsible_user_id || e.late_reason) && !e.rejected_at && !e.confirmed_at) && <div className="flex items-center gap-1 text-xs bg-orange-500/20 px-2 py-0.5 rounded-full border border-orange-500/30 text-orange-300"><Hourglass size={12} /> <span>In Prüfung</span></div>}
                                         </div>
-                                        <span className="text-xs font-mono bg-white/5 px-2 py-1 rounded text-white/50 md:text-sm md:bg-white/10">{dayTotal.toFixed(2)} h</span>
+                                        <span className="text-xs font-mono bg-muted px-2 py-1 rounded text-muted-foreground md:text-sm md:bg-card">{dayTotal.toFixed(2)} h</span>
                                     </div>
 
                                     <div className="space-y-2 md:grid md:grid-cols-2 lg:grid-cols-3 md:gap-4 md:space-y-0">
                                         {dayEntries.map(entry => (
-                                            <GlassCard key={entry.id} className={`!p-3 flex flex-col justify-between group ${getEntryStyle(entry)}`}>
-                                                {editingEntry?.id === entry.id && !entry.isAbsence ? (
-                                                    <div className="w-full space-y-2">
-                                                        <div className="flex gap-2">
-                                                            <GlassInput type="text" value={editForm.client_name} onChange={e => setEditForm({ ...editForm, client_name: e.target.value })} className="!py-1 !text-sm h-8 flex-[2]" placeholder="Projekt..." />
-                                                            <GlassInput type="text" value={editForm.order_number} onChange={e => setEditForm({ ...editForm, order_number: e.target.value })} className="!py-1 !text-sm h-8 flex-1 font-mono text-white/70" placeholder="Auftrag #" />
-                                                        </div>
-                                                        <div className="flex gap-1 items-center">
-                                                            <GlassInput type="time" value={editForm.start_time} onChange={e => setEditForm({ ...editForm, start_time: e.target.value })} className="!py-1 !text-sm h-8 text-center flex-1" />
-                                                            <span className="text-white/50">-</span>
-                                                            <GlassInput type="time" value={editForm.end_time} onChange={e => setEditForm({ ...editForm, end_time: e.target.value })} className="!py-1 !text-sm h-8 text-center flex-1" />
-                                                            <div className="mx-1 w-px h-6 bg-white/10"></div>
-                                                            <GlassInput
-                                                                type="text"
-                                                                value={editForm.hours}
-                                                                onChange={e => handleHoursChange(e.target.value)}
-                                                                className="!py-1 !text-sm h-8 w-16 text-center font-bold text-teal-300"
-                                                                placeholder="h"
-                                                            />
-                                                        </div>
-                                                        <input
-                                                            type="text"
-                                                            value={editForm.note}
-                                                            onChange={e => setEditForm({ ...editForm, note: e.target.value })}
-                                                            placeholder="Notiz..."
-                                                            className="w-full bg-white/5 border border-white/10 rounded px-2 py-1 text-xs text-white focus:outline-none"
-                                                        />
+                                            <div
+        key={entry.id}
+        className="relative w-full overflow-hidden rounded-2xl p-4 bg-slate-900/30 backdrop-blur-xl border border-white/10 shadow-lg transition-all duration-500 hover:scale-[1.01] hover:shadow-2xl hover:border-white/20 group"
+    >
+            {editingEntry?.id === entry.id && !entry.isAbsence ? (
+                /* EDIT MODE (Kept similar but styled for the card) */
+                <div className="w-full space-y-3">
+                    <div className="flex gap-3">
+                        <div className="flex-1 relative bg-black/40 rounded-xl border border-white/10 shadow-inner p-1">
+                            <span className="absolute top-0.5 left-2 text-[8px] text-muted-foreground uppercase font-black tracking-widest opacity-60">Kunde</span>
+                            <input type="text" value={editForm.client_name} onChange={e => setEditForm({ ...editForm, client_name: e.target.value })} className="w-full bg-transparent border-none text-foreground text-sm h-10 pt-3 px-2 focus:outline-none" />
+                        </div>
+                        <div className="w-24 relative bg-black/40 rounded-xl border border-white/10 shadow-inner p-1">
+                            <span className="absolute top-0.5 left-2 text-[8px] text-muted-foreground uppercase font-black tracking-widest opacity-60">Nr.</span>
+                            <input type="text" value={editForm.order_number} onChange={e => setEditForm({ ...editForm, order_number: e.target.value })} className="w-full bg-transparent border-none text-foreground font-mono text-sm h-10 pt-3 px-2 focus:outline-none" />
+                        </div>
+                    </div>
+                    <div className="flex gap-2 items-center">
+                        <div className="flex-1 flex gap-2 items-center bg-black/40 rounded-xl border border-white/10 p-1">
+                             <input type="time" value={editForm.start_time} onChange={e => setEditForm({ ...editForm, start_time: e.target.value })} className="bg-transparent border-none text-center text-foreground font-mono text-sm h-8 flex-1 focus:outline-none" />
+                             <span className="text-white/20">-</span>
+                             <input type="time" value={editForm.end_time} onChange={e => setEditForm({ ...editForm, end_time: e.target.value })} className="bg-transparent border-none text-center text-foreground font-mono text-sm h-8 flex-1 focus:outline-none" />
+                        </div>
+                        <div className="w-20 relative bg-black/40 rounded-xl border border-white/10 p-1">
+                             <span className="absolute top-0.5 left-0 w-full text-center text-[8px] text-cyan-400 font-black tracking-widest">Std</span>
+                             <input type="text" value={editForm.hours} onChange={e => handleHoursChange(e.target.value)} className="w-full bg-transparent border-none text-center text-cyan-300 font-bold h-8 pt-2 focus:outline-none" />
+                        </div>
+                    </div>
+                    <div className="flex gap-2 justify-end pt-2">
+                        <button onClick={() => setEditingEntry(null)} className="p-2 bg-white/5 hover:bg-white/10 rounded-lg text-white transition-colors"><X size={16} /></button>
+                        <button onClick={handleSaveEdit} className="p-2 bg-emerald-500/20 hover:bg-emerald-500/40 border border-emerald-500/30 rounded-lg text-emerald-400 transition-colors"><Save size={16} /></button>
+                    </div>
+                </div>
+            ) : (
+                /* VIEW MODE - TWEET STYLE */
+                <>
+                    <div className="flex gap-3">
+                        <div className="shrink-0">
+                            <div className={`h-10 w-10 rounded-full flex items-center justify-center border border-white/10 shadow-inner ${entry.type === 'break' ? 'bg-orange-500/20 text-orange-400' : entry.isAbsence ? 'bg-purple-500/20 text-purple-300' : 'bg-primary/20 text-primary'}`}>
+                                {getEntryIcon(entry.type)}
+                            </div>
+                        </div>
 
-                                                        <div className="flex gap-2 justify-end mt-1">
-                                                            <button onClick={() => setEditingEntry(null)} className="p-1.5 bg-white/10 rounded text-white"><X size={16} /></button>
-                                                            <button onClick={handleSaveEdit} className="p-1.5 bg-teal-500 rounded text-white"><Save size={16} /></button>
-                                                            <button onClick={() => handleDeleteClick(entry)} className="p-1.5 hover:bg-white/10 rounded text-red-400 hover:text-red-300 transition-colors" title="Löschen">
-                                                                <Trash2 size={14} />
-                                                            </button>
-                                                        </div>
-                                                    </div>
-                                                ) : (
-                                                    <div className="w-full">
-                                                        <div className="flex justify-between items-start">
-                                                            <p className={`text-sm font-medium truncate flex-1 ${entry.type === 'break' ? 'text-orange-300' :
-                                                                entry.isAbsence && entry.type === 'vacation' ? 'text-purple-100' :
-                                                                    entry.isAbsence && entry.type === 'sick' ? 'text-red-100' :
-                                                                        entry.isAbsence && entry.type === 'holiday' ? 'text-blue-100' :
-                                                                            entry.isAbsence ? 'text-white/70' :
-                                                                                entry.type === 'overtime_reduction' ? 'text-pink-200' :
-                                                                                    'text-white'
-                                                                }`}>
-                                                                {getEntryIcon(entry.type)}
-                                                                {entry.client_name}
-                                                                {entry.order_number && (
-                                                                    <span
-                                                                        onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(entry.order_number || ''); }}
-                                                                        className="ml-2 inline-flex items-center gap-0.5 bg-white/10 px-1.5 py-0.5 rounded text-[10px] text-white/50 font-mono tracking-wide border border-white/5 cursor-pointer hover:bg-white/20 active:scale-95 transition-all"
-                                                                        title="Klicken zum Kopieren"
-                                                                    >
-                                                                        {entry.order_number}
-                                                                    </span>
-                                                                )}
-                                                                {entry.has_history && (
-                                                                    <span title="Bearbeitungsverlauf vorhanden" className="ml-2 inline-flex">
-                                                                        <HistoryIcon size={14} className="text-purple-300" />
-                                                                    </span>
-                                                                )}
-                                                            </p>
-                                                            {(entry.start_time || entry.end_time) && !entry.isAbsence && (
-                                                                <span className="text-[10px] text-white/40 font-mono bg-white/5 px-1.5 py-0.5 rounded ml-2 whitespace-nowrap">
-                                                                    {entry.start_time || '??:??'} - {entry.end_time || '??:??'}
-                                                                </span>
-                                                            )}
-                                                        </div>
+                        <div className="flex-1 min-w-0">
+                            <div className="flex items-start justify-between gap-2">
+                                <div className="flex flex-col min-w-0">
+                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                        <span className={`font-black tracking-tight truncate ${entry.type === 'break' ? 'text-orange-300' : entry.isAbsence ? 'text-purple-200' : 'text-white'}`}>
+                                            {entry.client_name}
+                                        </span>
+                                        {entry.submitted && (
+                                            <div className="bg-emerald-500/20 p-0.5 rounded-full border border-emerald-500/30">
+                                                <CheckCircle size={10} className="text-emerald-400" />
+                                            </div>
+                                        )}
+                                        {entry.order_number && (
+                                            <span className="text-[10px] font-mono text-white/40 bg-white/5 px-1.5 py-0.5 rounded border border-white/5 uppercase tracking-widest">
+                                                #{entry.order_number}
+                                            </span>
+                                        )}
+                                    </div>
+                                    <span className="text-[11px] font-bold text-white/40 uppercase tracking-widest flex items-center gap-2 mt-0.5">
+                                        {entry.type ? ENTRY_TYPES_CONFIG[entry.type]?.label.split(' / ')[0] : 'Unbekannt'}
+                                        {entry.start_time && <span>• {entry.start_time} - {entry.end_time}</span>}
+                                    </span>
+                                </div>
 
-                                                        {entry.note && (
-                                                            <div className="flex items-start gap-1 mt-1 mb-1">
-                                                                <StickyNote size={10} className="text-white/20 mt-0.5" />
-                                                                <p className="text-xs text-white/40 italic">{entry.note}</p>
-                                                            </div>
-                                                        )}
+                                <div className="flex gap-1.5 transition-all">
+                                    {isLocked ? (
+                                         entry.submitted && !entry.isAbsence && (
+                                            <button onClick={() => handleEditClick(entry)} className="p-1.5 bg-blue-500/10 hover:bg-blue-500/20 text-blue-300 border border-blue-500/20 rounded-lg transition-all" title="Änderungsantrag">
+                                                <RefreshCw size={14} />
+                                            </button>
+                                         )
+                                    ) : (
+                                        <>
+                                            <button onClick={() => handleEditClick(entry)} className="p-1.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-white transition-all">
+                                                <Edit2 size={14} />
+                                            </button>
+                                            <button onClick={() => handleDeleteClick(entry)} className="p-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 rounded-lg transition-all">
+                                                <Trash2 size={14} />
+                                            </button>
+                                        </>
+                                    )}
+                                    <button onClick={() => { setHistoryModal({ isOpen: true, entryId: entry.id }); fetchEntryHistory(entry.id); }} className="p-1.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-white/60 transition-all">
+                                        <HistoryIcon size={14} />
+                                    </button>
+                                </div>
+                            </div>
 
-                                                        {entry.late_reason && (
-                                                            <div className="flex items-start gap-1 mt-1 mb-1 bg-orange-900/20 p-1.5 rounded border border-orange-500/20">
-                                                                <ShieldAlert size={10} className="text-orange-400 mt-0.5 shrink-0" />
-                                                                <p className="text-xs text-orange-200 italic">"Grund: {entry.late_reason}"</p>
-                                                            </div>
-                                                        )}
+                            {entry.note && (
+                                <div className="mt-2 text-sm text-white/70 italic bg-white/5 p-2 rounded-xl border border-white/5 relative group/note">
+                                    <StickyNote size={12} className="absolute -top-1 -left-1 text-white/20 rotate-12" />
+                                    {entry.note}
+                                </div>
+                            )}
 
-                                                        {/* Modification: Show Pending/Confirmed status for ALL types if relevant (e.g. late entry) or if it's a specific type requiring confirmation */}
-                                                        {((['company', 'office', 'warehouse', 'car'].includes(entry.type || '') || entry.late_reason || entry.responsible_user_id) && !entry.is_deleted) && (
-                                                            <div className="mt-2 text-[10px] flex items-center gap-1 border-t border-white/5 pt-1">
-                                                                {entry.confirmed_at ? (
-                                                                    <span className="text-emerald-400 flex items-center gap-1"><CheckCircle size={10} /> Bestätigt</span>
-                                                                ) : (
-                                                                    <span className="text-orange-400 flex items-center gap-1">
-                                                                        {entry.late_reason ? <ShieldAlert size={10} /> : <Hourglass size={10} />}
-                                                                        {entry.late_reason ? 'Admin-Freigabe erforderlich' : 'Bestätigung ausstehend'}
-                                                                    </span>
-                                                                )}
-                                                            </div>
-                                                        )}
+                            {entry.late_reason && (
+                                <div className="mt-2 text-xs text-orange-200/80 bg-orange-500/10 p-2 rounded-xl border border-orange-500/20 flex items-start gap-2">
+                                    <ShieldAlert size={14} className="shrink-0 text-orange-400" />
+                                    <span>"{entry.late_reason}"</span>
+                                </div>
+                            )}
 
-                                                        <div className="mt-2 pt-2 border-t border-white/5 flex flex-wrap gap-2 items-center justify-between">
-                                                            <div className="flex items-center gap-3">
-                                                                {!entry.is_deleted && (
-                                                                    <SubmissionTimer 
-                                                                        entryDate={entry.date} 
-                                                                        submitted={!!entry.submitted} 
-                                                                        isAbsence={!!entry.isAbsence}
-                                                                    />
-                                                                )}
-                                                                
-                                                                <div className="flex items-center gap-2">
-                                                                    {entry.isAbsence ? (
-                                                                        <span className="text-xs text-white/40 flex items-center gap-1 md:text-sm">
-                                                                            <Clock size={10} className="md:w-4 md:h-4" /> {entry.hours.toFixed(2)} h (Soll)
-                                                                        </span>
-                                                                    ) : (
-                                                                        <span className="text-xs text-white/40 flex items-center gap-1 md:text-sm">
-                                                                            <Clock size={10} className="md:w-4 md:h-4" />
-                                                                            {entry.type === 'emergency_service' && entry.surcharge ? (
-                                                                                <span title={`Basis: ${entry.hours.toFixed(2)}h + ${entry.surcharge}% Zuschlag`}>
-                                                                                    {(entry.hours * (1 + entry.surcharge / 100)).toFixed(2)} h <span className="text-[10px] opacity-70">(+{entry.surcharge}%)</span>
-                                                                                </span>
-                                                                            ) : (
-                                                                                `${entry.hours.toFixed(2)} h`
-                                                                            )}
-                                                                        </span>
-                                                                    )}
-                                                                </div>
-                                                            </div>
-
-                                                            <div className="flex items-center gap-2">
-                                                                {!isLocked && settings?.is_active !== false && !entry.is_deleted && (
-                                                                    <div className={`flex items-center gap-2 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity ${entry.submitted && !entry.rejected_at ? '' : ''}`}>
-                                                                        {!entry.isAbsence && (
-                                                                            <button onClick={() => handleEditClick(entry)} className={`p-1.5 rounded-lg transition-colors ${entry.rejected_at ? 'text-teal-300 bg-teal-500/10 hover:bg-teal-500/20' : entry.submitted ? 'text-blue-300/60 hover:text-blue-300 hover:bg-blue-500/10' : 'text-white/30 hover:text-white hover:bg-white/10'}`} title={entry.submitted ? 'Änderungsantrag stellen' : 'Bearbeiten'}>
-                                                                                {entry.rejected_at ? <RefreshCw size={14} /> : <Edit2 size={14} />}
-                                                                            </button>
-                                                                        )}
-
-                                                                        <button
-                                                                            onClick={() => {
-                                                                                setHistoryModal({ isOpen: true, entryId: entry.id });
-                                                                                fetchEntryHistory(entry.id);
-                                                                            }}
-                                                                            title="Verlauf anzeigen"
-                                                                            className="p-1.5 text-white/30 hover:text-teal-300 hover:bg-teal-500/10 rounded-lg transition-colors"
-                                                                        >
-                                                                            <HistoryIcon size={14} />
-                                                                        </button>
-                                                                        {!entry.isAbsence && (
-                                                                            <button
-                                                                                onClick={() => handleDeleteClick(entry)}
-                                                                                className="p-1.5 text-red-400/50 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
-                                                                            >
-                                                                                <Trash2 size={14} />
-                                                                            </button>
-                                                                        )}
-                                                                    </div>
-                                                                )}
-                                                                {entry.is_deleted && (
-                                                                    <div className="text-[10px] text-red-400/50 font-bold uppercase tracking-widest border border-red-500/20 px-2 py-0.5 rounded select-none">
-                                                                        Gelöscht
-                                                                    </div>
-                                                                )}
-                                                                {entry.submitted && <span className="text-emerald-500/50 p-1"><CheckCircle size={14} /></span>}
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                )}
-                                            </GlassCard>
+                            <div className="mt-3 pt-3 border-t border-white/5 flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                    <SubmissionTimer entryDate={entry.date} submitted={!!entry.submitted} isAbsence={!!entry.isAbsence} />
+                                    {entry.confirmed_at ? (
+                                        <div className="flex items-center gap-1 text-[10px] font-black uppercase tracking-widest text-emerald-400/70">
+                                            <CheckCircle size={10} /> Bestätigt
+                                        </div>
+                                    ) : (entry.responsible_user_id || entry.late_reason) && (
+                                        <div className="flex items-center gap-1 text-[10px] font-black uppercase tracking-widest text-orange-400/70 animate-pulse">
+                                            <Hourglass size={10} /> Prüfung
+                                        </div>
+                                    )}
+                                </div>
+                                <div className="text-lg font-black tracking-tighter text-white">
+                                    {entry.type === 'emergency_service' && entry.surcharge ? (
+                                        <span className="flex items-baseline gap-1">
+                                            {(entry.hours * (1 + entry.surcharge / 100)).toFixed(2)}
+                                            <span className="text-[10px] opacity-40 font-bold uppercase">h (+{entry.surcharge}%)</span>
+                                        </span>
+                                    ) : (
+                                        <span className="flex items-baseline gap-1">
+                                            {entry.hours.toFixed(2)}
+                                            <span className="text-[10px] opacity-40 font-bold uppercase">h</span>
+                                        </span>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </>
+            )}
+    </div>
                                         ))}
                                     </div>
                                 </div>
@@ -892,7 +884,7 @@ const HistoryPage: React.FC = () => {
                 {viewMode === 'attendance' && (
                     <>
                         {currentMonthAttendance.length === 0 && (
-                            <div className="flex flex-col items-center justify-center h-40 text-white/30">
+                            <div className="flex flex-col items-center justify-center h-40 text-muted-foreground">
                                 <UserCheck size={48} className="mb-2 opacity-50" />
                                 <p>Keine Anwesenheitszeiten erfasst</p>
                             </div>
@@ -919,10 +911,10 @@ const HistoryPage: React.FC = () => {
 
                                 return (
                                     <GlassCard key={item.date} className={`${cardStyle}`}>
-                                        <div className="flex items-center justify-between border-b border-white/5 pb-2 mb-2">
+                                        <div className="flex items-center justify-between border-b border-border pb-2 mb-2">
                                             <div className="flex items-center gap-2">
                                                 <Calendar size={14} className={absence ? 'text-purple-300' : 'text-blue-300'} />
-                                                <span className="text-sm font-bold text-white">{dateObj.toLocaleDateString('de-DE', { weekday: 'long', day: '2-digit', month: '2-digit' })}</span>
+                                                <span className="text-sm font-bold text-foreground">{dateObj.toLocaleDateString('de-DE', { weekday: 'long', day: '2-digit', month: '2-digit' })}</span>
                                             </div>
                                             <span className={`text-lg font-mono font-bold ${absence ? 'text-purple-300' : 'text-blue-300'}`}>{formatDuration(netDuration)} h</span>
                                         </div>
@@ -930,28 +922,28 @@ const HistoryPage: React.FC = () => {
                                             {log ? (
                                                 <>
                                                     <div>
-                                                        <span className="text-white/40 block uppercase text-[10px] tracking-wider">Zeiten</span>
+                                                        <span className="text-muted-foreground block uppercase text-[10px] tracking-wider">Zeiten</span>
                                                         <div className="flex flex-col gap-2 mt-1">
                                                             {log.segments && log.segments.length > 0 ? (
                                                                 log.segments.map((s: any, i: number) => (
                                                                     <div key={i} className="flex justify-between items-start">
-                                                                        <span className={`${s.type === 'work' ? 'bg-teal-500/10 text-teal-100' : 'bg-orange-500/10 text-orange-100'} px-1.5 py-0.5 rounded border border-white/10`}>
+                                                                        <span className={`${s.type === 'work' ? 'bg-teal-500/10 text-teal-100' : 'bg-orange-500/10 text-orange-100'} px-1.5 py-0.5 rounded border border-border`}>
                                                                             {s.start}-{s.end}
                                                                         </span>
-                                                                        {s.note && <span className="text-white/50 italic ml-2 text-right max-w-[150px] truncate">{s.note}</span>}
+                                                                        {s.note && <span className="text-muted-foreground italic ml-2 text-right max-w-[150px] truncate">{s.note}</span>}
                                                                     </div>
                                                                 ))
                                                             ) : (
                                                                 /* Fallback for legacy data without segments */
                                                                 <>
                                                                     <div className="flex justify-between items-start">
-                                                                        <span className="bg-teal-500/10 text-teal-100 px-1.5 py-0.5 rounded border border-white/10">
+                                                                        <span className="bg-teal-500/10 text-teal-100 px-1.5 py-0.5 rounded border border-border">
                                                                             {log.start_time}-{log.end_time}
                                                                         </span>
                                                                     </div>
                                                                     {log.break_start && log.break_end && (
                                                                         <div className="flex justify-between items-start">
-                                                                            <span className="bg-orange-500/10 text-orange-100 px-1.5 py-0.5 rounded border border-white/10">
+                                                                            <span className="bg-orange-500/10 text-orange-100 px-1.5 py-0.5 rounded border border-border">
                                                                                 Pause: {log.break_start}-{log.break_end}
                                                                             </span>
                                                                         </div>
@@ -969,7 +961,7 @@ const HistoryPage: React.FC = () => {
                                             ) : null}
                                             {projectBreaks.length > 0 && (
                                                 <div>
-                                                    <span className="text-white/40 block uppercase text-[10px] tracking-wider mt-2">Pausen (Erfasst)</span>
+                                                    <span className="text-muted-foreground block uppercase text-[10px] tracking-wider mt-2">Pausen (Erfasst)</span>
                                                     <div className="flex flex-col gap-1 mt-1">
                                                         {projectBreaks.map(pb => (
                                                             <div key={pb.id} className="flex justify-between items-center text-orange-200 bg-orange-900/20 px-2 py-1 rounded border border-orange-500/20">
@@ -991,18 +983,18 @@ const HistoryPage: React.FC = () => {
 
             {/* CHANGE REQUEST MODAL (für abgegebene Einträge) */}
             {changeRequestModal.isOpen && editingEntry && (
-                <div className="fixed inset-0 z-[200] flex items-center justify-center p-6 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
+                <div className="fixed inset-0 z-[200] flex items-center justify-center p-6 bg-input backdrop-blur-sm animate-in fade-in duration-200">
                     <GlassCard className="w-full max-w-sm relative shadow-2xl border-blue-500/30">
                         <div className="flex items-center gap-3 text-blue-400 mb-4">
                             <FileText size={28} />
                             <h3 className="text-xl font-bold">Änderungsantrag</h3>
                         </div>
-                        <p className="text-white/70 text-sm mb-2">
+                        <p className="text-muted-foreground text-sm mb-2">
                             Dieser Eintrag wurde bereits abgegeben. Deine Änderung wird als <strong className="text-blue-300">Antrag</strong> an das Büro gesendet und erst nach Genehmigung wirksam.
                         </p>
-                        <div className="bg-white/5 rounded-lg p-3 mb-4 border border-white/10 text-xs text-white/50">
+                        <div className="bg-muted rounded-lg p-3 mb-4 border border-border text-xs text-muted-foreground">
                             <div className="flex justify-between mb-1">
-                                <span className="font-bold text-white/70">{editForm.client_name}</span>
+                                <span className="font-bold text-muted-foreground">{editForm.client_name}</span>
                                 <span className="font-mono">{editForm.hours} h</span>
                             </div>
                             <div className="flex gap-2">
@@ -1011,12 +1003,12 @@ const HistoryPage: React.FC = () => {
                             </div>
                         </div>
                         <div className="mb-4">
-                            <label className="text-xs font-bold text-white/50 uppercase tracking-wider mb-1 block">Grund der Änderung *</label>
+                            <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1 block">Grund der Änderung *</label>
                             <input
                                 type="text"
                                 value={changeRequestModal.reason}
                                 onChange={(e) => setChangeRequestModal(prev => ({ ...prev, reason: e.target.value }))}
-                                className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder-white/30 focus:outline-none focus:ring-1 focus:ring-blue-500/50"
+                                className="w-full bg-muted border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-blue-500/50"
                                 placeholder="Warum muss der Eintrag geändert werden?"
                                 autoFocus
                                 onKeyDown={(e) => { if (e.key === 'Enter' && changeRequestModal.reason.trim()) submitChangeRequest(); }}
@@ -1025,14 +1017,15 @@ const HistoryPage: React.FC = () => {
                         <div className="flex gap-3">
                             <GlassButton
                                 onClick={() => { setChangeRequestModal({ isOpen: false, reason: '' }); setEditingEntry(null); }}
-                                className="bg-white/10 hover:bg-white/20 border-white/10 text-white"
+                                variant="secondary"
                             >
                                 Abbrechen
                             </GlassButton>
                             <GlassButton
                                 onClick={submitChangeRequest}
                                 disabled={!changeRequestModal.reason.trim() || isSubmittingChangeRequest}
-                                className="bg-blue-500 hover:bg-blue-600 border-blue-500 text-white disabled:opacity-50"
+                                variant="primary"
+                                className="!bg-blue-600 after:!bg-blue-500"
                             >
                                 {isSubmittingChangeRequest ? 'Sende...' : 'Antrag senden'}
                             </GlassButton>
@@ -1044,26 +1037,25 @@ const HistoryPage: React.FC = () => {
             {/* CONFIRMATION MODAL FOR DELETE */}
             {
                 entryToDelete && (
-                    <div className="fixed inset-0 z-[200] flex items-center justify-center p-6 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
+                    <div className="fixed inset-0 z-[200] flex items-center justify-center p-6 bg-input backdrop-blur-sm animate-in fade-in duration-200">
                         <GlassCard className="w-full max-w-sm relative shadow-2xl border-red-500/30">
                             <div className="flex items-center gap-3 text-red-400 mb-4">
                                 <AlertTriangle size={28} />
                                 <h3 className="text-xl font-bold">Löschen bestätigen</h3>
                             </div>
-                            <p className="text-white/80 mb-6">
+                            <p className="text-muted-foreground mb-6">
                                 Möchtest du den Eintrag <strong>{entryToDelete.client_name}</strong> wirklich endgültig löschen?
                             </p>
                             <div className="flex gap-3">
                                 <GlassButton
                                     onClick={() => setEntryToDelete(null)}
-                                    className="bg-white/10 hover:bg-white/20 border-white/10 text-white"
+                                    variant="secondary"
                                 >
                                     Abbrechen
                                 </GlassButton>
                                 <GlassButton
                                     onClick={confirmDelete}
                                     variant="danger"
-                                    className="bg-red-500 hover:bg-red-600 border-red-500 text-white"
                                 >
                                     Löschen
                                 </GlassButton>
@@ -1078,22 +1070,22 @@ const HistoryPage: React.FC = () => {
             {/* HISTORY MODAL */}
             {
                 historyModal.isOpen && (
-                    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
-                        <GlassCard className="w-full max-w-lg max-h-[80vh] overflow-y-auto relative shadow-2xl border-white/20">
-                            <button onClick={() => setHistoryModal({ isOpen: false, entryId: null })} className="absolute top-4 right-4 p-2 bg-white/10 hover:bg-white/20 rounded-full text-white transition-colors"><X size={20} /></button>
-                            <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2"><HistoryIcon size={20} /> Änderungsverlauf</h3>
+                    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-input backdrop-blur-md animate-in fade-in duration-200">
+                        <GlassCard className="w-full max-w-lg max-h-[80vh] overflow-y-auto relative shadow-2xl border-border">
+                            <button onClick={() => setHistoryModal({ isOpen: false, entryId: null })} className="absolute top-4 right-4 p-2 bg-card hover:bg-accent rounded-full text-foreground transition-colors"><X size={20} /></button>
+                            <h3 className="text-xl font-bold text-foreground mb-4 flex items-center gap-2"><HistoryIcon size={20} /> Änderungsverlauf</h3>
 
                             <div className="space-y-4">
                                 {entryHistory.length === 0 ? (
-                                    <p className="text-white/40 italic text-center py-4">Keine Änderungen protokolliert.</p>
+                                    <p className="text-muted-foreground italic text-center py-4">Keine Änderungen protokolliert.</p>
                                 ) : (
                                     entryHistory.map(h => (
-                                        <div key={h.id} className="bg-white/5 p-3 rounded-lg border border-white/10 text-sm">
+                                        <div key={h.id} className="bg-muted p-3 rounded-lg border border-border text-sm">
                                             <div className="flex justify-between items-start mb-2">
-                                                <span className="text-white font-bold">{h.changer_name || 'Unbekannt'}</span>
-                                                <span className="text-white/40 text-xs">{new Date(h.changed_at).toLocaleString('de-DE')}</span>
+                                                <span className="text-foreground font-bold">{h.changer_name || 'Unbekannt'}</span>
+                                                <span className="text-muted-foreground text-xs">{new Date(h.changed_at).toLocaleString('de-DE')}</span>
                                             </div>
-                                            <div className="bg-black/20 p-2 rounded mb-2 font-mono text-xs text-orange-200">
+                                            <div className="bg-input p-2 rounded mb-2 font-mono text-xs text-orange-200">
                                                 {h.reason ? `Grund: ${h.reason}` : 'Kein Grund angegeben'}
                                             </div>
                                             <div className="space-y-1 text-xs mb-3">
@@ -1115,11 +1107,11 @@ const HistoryPage: React.FC = () => {
                                                     const newVal = (h.new_values as any)?.[key];
 
                                                     return (
-                                                        <div key={key} className="grid grid-cols-[100px_1fr] gap-2 items-center bg-white/5 p-1.5 rounded">
-                                                            <span className="text-white/40 uppercase font-bold text-[10px]">{label}</span>
+                                                        <div key={key} className="grid grid-cols-[100px_1fr] gap-2 items-center bg-muted p-1.5 rounded">
+                                                            <span className="text-muted-foreground uppercase font-bold text-[10px]">{label}</span>
                                                             <div className="flex items-center gap-1.5 flex-wrap">
                                                                 <span className="text-red-300 line-through decoration-red-500/50">{oldVal !== undefined && oldVal !== null ? String(oldVal) : '(leer)'}</span>
-                                                                <span className="text-white/30">→</span>
+                                                                <span className="text-muted-foreground">→</span>
                                                                 <span className="text-emerald-300 font-bold">{newVal !== undefined && newVal !== null ? String(newVal) : '(gelöscht)'}</span>
                                                             </div>
                                                         </div>
@@ -1128,7 +1120,7 @@ const HistoryPage: React.FC = () => {
                                             </div>
 
                                             {h.status === 'pending' && (
-                                                <div className="flex gap-2 justify-end border-t border-white/5 pt-2">
+                                                <div className="flex gap-2 justify-end border-t border-border pt-2">
                                                     {rejectingHistoryId === h.id ? (
                                                         <div className="flex-1 flex gap-2">
                                                             <input
@@ -1137,10 +1129,10 @@ const HistoryPage: React.FC = () => {
                                                                 value={rejectionNote}
                                                                 onChange={e => setRejectionNote(e.target.value)}
                                                                 placeholder="Grund für Ablehnung..."
-                                                                className="flex-1 bg-black/20 border border-white/10 rounded px-2 text-xs text-white"
+                                                                className="flex-1 bg-input border border-border rounded px-2 text-xs text-foreground"
                                                             />
-                                                            <button onClick={() => handleRejectChange(h.id)} className="bg-red-500 hover:bg-red-600 text-white px-2 py-1 rounded text-xs font-bold">Senden</button>
-                                                            <button onClick={() => setRejectingHistoryId(null)} className="text-white/40 hover:text-white"><X size={14} /></button>
+                                                            <button onClick={() => handleRejectChange(h.id)} className="bg-red-500 hover:bg-red-600 text-foreground px-2 py-1 rounded text-xs font-bold">Senden</button>
+                                                            <button onClick={() => setRejectingHistoryId(null)} className="text-muted-foreground hover:text-foreground"><X size={14} /></button>
                                                         </div>
                                                     ) : (
                                                         <>
@@ -1169,7 +1161,7 @@ const HistoryPage: React.FC = () => {
                                                             <X size={12} />
                                                             <span>Abgelehnt am {h.user_response_at ? new Date(h.user_response_at).toLocaleString('de-DE') : 'Unbekannt'}</span>
                                                         </div>
-                                                        {h.user_response_note && <span className="text-white/60 font-normal">"{h.user_response_note}"</span>}
+                                                        {h.user_response_note && <span className="text-muted-foreground font-normal">"{h.user_response_note}"</span>}
                                                     </div>
                                                 </div>
                                             )}
@@ -1184,46 +1176,46 @@ const HistoryPage: React.FC = () => {
 
             {
                 showPdfModal && (
-                    <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/80 backdrop-blur-sm">
+                    <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-input backdrop-blur-sm">
                         <GlassCard className="w-full max-w-sm relative shadow-2xl border-teal-500/30">
-                            <button onClick={() => setShowPdfModal(false)} className="absolute top-4 right-4 text-white/50 hover:text-white"><X size={20} /></button>
+                            <button onClick={() => setShowPdfModal(false)} className="absolute top-4 right-4 text-muted-foreground hover:text-foreground"><X size={20} /></button>
                             <div className="flex items-center gap-3 text-teal-300 mb-6"><FileDown size={24} /><h3 className="text-xl font-bold">PDF Exportieren</h3></div>
                             <div className="space-y-4">
 
                                 {/* MONATS-SELEKTOR FÜR ABGABE */}
-                                <div className="flex items-center justify-between bg-white/5 p-3 rounded-lg border border-white/10">
+                                <div className="flex items-center justify-between bg-muted p-3 rounded-lg border border-border">
                                     <div className="flex flex-col">
-                                        <span className="text-sm font-bold text-white">Monat abgeben</span>
-                                        <span className="text-[10px] text-white/50">Alle Einträge im Monat als abgegeben markieren</span>
+                                        <span className="text-sm font-bold text-foreground">Monat abgeben</span>
+                                        <span className="text-[10px] text-muted-foreground">Alle Einträge im Monat als abgegeben markieren</span>
                                     </div>
                                 </div>
-                                <div className="flex items-center justify-center bg-white/5 rounded-lg p-2 border border-white/10">
-                                    <button onClick={() => setSubmitMonth(new Date(submitMonth.getFullYear(), submitMonth.getMonth() - 1, 1))} className="p-1.5 hover:bg-white/10 rounded text-white">
+                                <div className="flex items-center justify-center bg-muted rounded-lg p-2 border border-border">
+                                    <button onClick={() => setSubmitMonth(new Date(submitMonth.getFullYear(), submitMonth.getMonth() - 1, 1))} className="p-1.5 hover:bg-card rounded text-foreground">
                                         <ChevronLeft size={18} />
                                     </button>
-                                    <span className="mx-3 text-sm font-bold text-white w-36 text-center">
+                                    <span className="mx-3 text-sm font-bold text-foreground w-36 text-center">
                                         {submitMonth.toLocaleDateString('de-DE', { month: 'long', year: 'numeric' })}
                                     </span>
-                                    <button onClick={() => setSubmitMonth(new Date(submitMonth.getFullYear(), submitMonth.getMonth() + 1, 1))} className="p-1.5 hover:bg-white/10 rounded text-white">
+                                    <button onClick={() => setSubmitMonth(new Date(submitMonth.getFullYear(), submitMonth.getMonth() + 1, 1))} className="p-1.5 hover:bg-card rounded text-foreground">
                                         <ChevronRight size={18} />
                                     </button>
                                 </div>
 
-                                <hr className="border-white/10" />
+                                <hr className="border-border" />
                                 
                                 {/* DATUMSBEREICH FÜR PDF EXPORT */}
                                 <div className="space-y-3">
                                     <div>
-                                        <label className="text-xs uppercase font-bold text-white/50 mb-1 block">Von Datum</label>
-                                        <div onClick={() => setActivePdfDatePicker('start')} className="flex items-center justify-between w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white cursor-pointer hover:bg-white/10"><span>{formatDateDisplay(startDate)}</span><Calendar size={18} className="text-white/50" /></div>
+                                        <label className="text-xs uppercase font-bold text-muted-foreground mb-1 block">Von Datum</label>
+                                        <div onClick={() => setActivePdfDatePicker('start')} className="flex items-center justify-between w-full bg-muted border border-border rounded-xl px-4 py-3 text-foreground cursor-pointer hover:bg-card"><span>{formatDateDisplay(startDate)}</span><Calendar size={18} className="text-muted-foreground" /></div>
                                     </div>
                                     <div>
-                                        <label className="text-xs uppercase font-bold text-white/50 mb-1 block">Bis Datum</label>
-                                        <div onClick={() => setActivePdfDatePicker('end')} className="flex items-center justify-between w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white cursor-pointer hover:bg-white/10"><span>{formatDateDisplay(endDate)}</span><Calendar size={18} className="text-white/50" /></div>
+                                        <label className="text-xs uppercase font-bold text-muted-foreground mb-1 block">Bis Datum</label>
+                                        <div onClick={() => setActivePdfDatePicker('end')} className="flex items-center justify-between w-full bg-muted border border-border rounded-xl px-4 py-3 text-foreground cursor-pointer hover:bg-card"><span>{formatDateDisplay(endDate)}</span><Calendar size={18} className="text-muted-foreground" /></div>
                                     </div>
                                 </div>
 
-                                <div className="bg-white/5 rounded-lg p-3 space-y-3">
+                                <div className="bg-muted rounded-lg p-3 space-y-3">
                                     <button onClick={generateProjectPDF} className="w-full flex items-center gap-3 p-3 rounded-lg bg-teal-600/20 border border-teal-500/30 hover:bg-teal-600/40 group"><FileText className="text-teal-300" size={20} /><div className="text-left"><div className="text-sm font-bold text-teal-100">Projekte Exportieren</div><div className="text-[10px] text-teal-200/60">Querformat • Mit Start/Ende</div><div className="text-[10px] text-emerald-300 mt-0.5">Markiert Einträge als abgegeben</div></div></button>
                                     <button onClick={generateAttendancePDF} className="w-full flex items-center gap-3 p-3 rounded-lg bg-blue-600/20 border border-blue-500/30 hover:bg-blue-600/40 group"><UserCheck className="text-blue-300" size={20} /><div className="text-left"><div className="text-sm font-bold text-blue-100">Anwesenheit Exportieren</div><div className="text-[10px] text-blue-200/60">Hochformat • Detailübersicht</div></div></button>
                                     <button onClick={handleMarkSubmittedOnly} className="w-full flex items-center gap-3 p-3 rounded-lg bg-emerald-600/20 border border-emerald-500/30 hover:bg-emerald-600/40 group"><CheckCircle className="text-emerald-300" size={20} /><div className="text-left"><div className="text-sm font-bold text-emerald-100">{submitMonth.toLocaleDateString('de-DE', { month: 'long' })} abschließen</div><div className="text-[10px] text-emerald-200/60">Nur als "Abgegeben" markieren</div></div></button>

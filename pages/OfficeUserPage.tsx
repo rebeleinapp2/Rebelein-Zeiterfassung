@@ -4,11 +4,12 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../services/supabaseClient';
 import { GlassCard, GlassButton, GlassInput } from '../components/GlassCard';
+import { SpotlightCard } from '../components/SpotlightCard';
 import {
     ArrowLeft, Calendar, User, Save, Clock, FileText, ChevronLeft, ChevronRight,
     Palmtree, Briefcase, Plus, TrendingDown, Trash2, X, Check, Send,
     AlertTriangle, Layout, Coffee, Siren, Percent, MoreVertical,
-    Lock, Unlock, Edit2, RotateCcw, Scale, Calculator, CalendarHeart, Stethoscope, UserCheck, Ban, Info, XCircle, History as HistoryIcon,
+    Lock, Unlock, Edit2, RotateCcw, Scale, PlusCircle, Calculator, CalendarHeart, Stethoscope, UserCheck, Ban, Info, XCircle, History as HistoryIcon,
     Printer, StickyNote, CheckCircle, TrendingUp, ChevronDown, ChevronUp, CalendarCheck, ShieldAlert, List, Hash, PartyPopper, Building2, Building, Warehouse, Car
 } from 'lucide-react';
 import {
@@ -65,6 +66,10 @@ const OfficeUserPage: React.FC = () => {
 
     // Modal & Editing
     const [selectedDay, setSelectedDay] = useState<Date | null>(null);
+    const [showVacationModal, setShowVacationModal] = useState(false);
+    const [showWorkModelModal, setShowWorkModelModal] = useState(false);
+    const [showBalanceModal, setShowBalanceModal] = useState(false);
+
     const [editingEntry, setEditingEntry] = useState<TimeEntry | null>(null);
     const [editForm, setEditForm] = useState<{ date: string; client_name: string; hours: string; start_time: string; end_time: string; note: string; reason: string; type?: string; surcharge?: number; }>({
         date: '',
@@ -1142,22 +1147,31 @@ const OfficeUserPage: React.FC = () => {
     }, [dailyLogs, selectedDateStr, modalEntries]);
 
     return (
-        <div className="p-6 pb-24 h-full overflow-y-auto md:max-w-6xl md:mx-auto w-full">
-            <div className="flex items-center justify-between mb-6">
-                <button onClick={() => navigate('/office/users')} className="flex items-center gap-2 text-white/50 hover:text-white transition-colors">
-                    <ChevronLeft size={20} /> Zurück
+        <div className="p-6 pb-24 h-full overflow-y-auto w-full">
+
+            {/* NEW DASHBOARD HEADER */}
+            <div className="mb-6 animate-in slide-in-from-top-4 duration-500">
+                <button onClick={() => navigate('/office/users')} className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors mb-4 text-sm font-bold uppercase tracking-wider">
+                    <ChevronLeft size={16} /> Zurück zur Übersicht
                 </button>
-                <h1 className="text-2xl font-bold text-white flex items-center gap-3">
-                    {currentUser?.display_name || 'Benutzer'}
+                <div className="flex items-center gap-3 mb-2 text-primary font-bold uppercase tracking-widest text-xs">
+                    <PartyPopper size={16} /> Mitarbeiter Dashboard
+                </div>
+                <h1 className="text-3xl md:text-4xl font-black text-foreground tracking-tighter leading-tight flex items-center gap-3 flex-wrap">
+                    <span>Profil von <span className="text-primary">{currentUser?.display_name || 'Benutzer'}</span></span>
                     {currentUser?.is_active === false && (
-                        <span className="flex items-center gap-1 text-xs border border-red-500/50 bg-red-500/20 text-red-300 px-2 py-0.5 rounded-full uppercase tracking-wider">
-                            <Ban size={12} /> Deaktiviert
+                        <span className="flex items-center gap-1 text-sm border border-red-500/50 bg-red-500/20 text-red-300 px-3 py-1 rounded-full uppercase tracking-wider font-bold">
+                            <Ban size={14} /> Deaktiviert
                         </span>
                     )}
                 </h1>
+                <p className="mt-2 text-muted-foreground text-sm">
+                    Verwalte Zeiten, Urlaube und Modelle mit Präzision.
+                </p>
             </div>
 
             {/* PERMISSION WARNING */}
+
             {!canManage && (
                 <div className="mb-6 animate-in slide-in-from-top-2">
                     <div className="bg-orange-500/10 border border-orange-500/30 rounded-xl p-3 flex items-center gap-3">
@@ -1172,891 +1186,187 @@ const OfficeUserPage: React.FC = () => {
                 </div>
             )}
 
-            {/* PENDING REQUESTS SECTION */}
-            {pendingRequests.length > 0 && (
-                <div className="mb-8 animate-in slide-in-from-top-4 duration-300">
-                    <GlassCard className="!border-purple-500/30 bg-purple-900/10">
-                        <div className="flex items-center gap-2 text-purple-400 font-bold uppercase text-xs tracking-wider mb-3">
-                            <CalendarHeart size={16} /> Offene Urlaubsanträge ({pendingRequests.length})
+            
+
+            {/* HERO SECTION: KPI GRID + CALENDAR */}
+            <div className="grid grid-cols-1 xl:grid-cols-5 gap-6 mb-8 animate-in slide-in-from-bottom-4 duration-500">
+                
+                                {/* KPI GRID OR DAY DETAILS (Left 2/3) */}
+                <div className="col-span-1 xl:col-span-3">
+                    {!selectedDay ? (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-in fade-in duration-500">
+                    
+                    {/* Überstunden */}
+                    <SpotlightCard className="bg-card border border-border p-5 rounded-2xl flex flex-col justify-between transition-all duration-500 hover:border-emerald-500/50 relative overflow-hidden group">
+                        <div className="absolute top-0 right-0 p-5 opacity-5 group-hover:opacity-10 transition-opacity">
+                            <Scale size={80} className="text-emerald-500 rotate-12 group-hover:rotate-0 transition-transform duration-700" />
                         </div>
-                        <div className="space-y-3">
-                            {pendingRequests.map(req => (
-                                <div key={req.id} className="bg-white/5 p-3 rounded-xl border border-white/10 flex flex-col md:flex-row md:items-center justify-between gap-4">
-                                    <div>
-                                        <div className="font-bold text-white text-lg">
-                                            {new Date(req.start_date).toLocaleDateString('de-DE')} - {new Date(req.end_date).toLocaleDateString('de-DE')}
-                                        </div>
-                                        {req.note && <div className="text-white/50 text-sm italic">"{req.note}"</div>}
-                                    </div>
-                                    <div className="flex gap-2">
-                                        {canManage && (
-                                            <>
-                                                <button onClick={() => rejectRequest(req.id)} className="flex items-center gap-2 px-3 py-2 bg-red-500/20 text-red-300 border border-red-500/30 rounded-lg hover:bg-red-500/30 font-bold text-sm transition-colors">
-                                                    <XCircle size={16} /> Ablehnen
-                                                </button>
-                                                <button onClick={() => generateVacationRequestPDF(req)} className="flex items-center gap-2 px-3 py-2 bg-blue-500/20 text-blue-300 border border-blue-500/30 rounded-lg hover:bg-blue-500/30 font-bold text-sm transition-colors" title="PDF drucken">
-                                                    <Printer size={16} />
-                                                </button>
-                                                <button onClick={() => handleApproveRequest(req)} className="flex items-center gap-2 px-3 py-2 bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 rounded-lg hover:bg-emerald-500/30 font-bold text-sm transition-colors">
-                                                    <CalendarCheck size={16} /> Genehmigen & Eintragen
-                                                </button>
-                                            </>
-                                        )}
-                                        {!canManage && (
-                                            <span className="text-white/30 text-xs italic flex items-center">Keine Berechtigung</span>
-                                        )}
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    </GlassCard>
-                </div>
-            )}
-
-
-
-            {/* PENDING CONFIRMATIONS */}
-            {pendingEntries.length > 0 && (
-                <div className="mb-8 animate-in slide-in-from-top-4 duration-300">
-                    <GlassCard className="!border-orange-500/30 bg-orange-900/10">
-                        <div className="flex items-center gap-2 text-orange-400 font-bold uppercase text-xs tracking-wider mb-3">
-                            <AlertTriangle size={16} /> Offene Bestätigungen ({pendingEntries.length})
-                        </div>
-                        <div className="space-y-2">
-                            {pendingEntries.map(entry => (
-                                <div key={entry.id} className="bg-white/5 p-3 rounded-xl border border-white/10 flex flex-col md:flex-row items-start md:items-center justify-between gap-3 group hover:bg-white/10 transition-colors">
-                                    <div className="flex-1 min-w-0">
-                                        <div className="flex flex-wrap items-center gap-2 text-white mb-1">
-                                            <span className="font-bold text-lg font-mono">
-                                                {new Date(entry.date).toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit' })}
-                                            </span>
-                                            <span className={`text-[10px] px-2 py-0.5 rounded uppercase font-bold tracking-wider ${entry.type === 'office' ? 'bg-blue-500/20 text-blue-300' :
-                                                entry.type === 'company' ? 'bg-purple-500/20 text-purple-300' :
-                                                    entry.type === 'warehouse' ? 'bg-amber-500/20 text-amber-300' :
-                                                        'bg-gray-500/20 text-gray-300'
-                                                }`}>
-                                                {entry.type === 'company' ? 'Firma' : entry.type === 'office' ? 'Büro' : entry.type === 'warehouse' ? 'Lager' : entry.type}
-                                            </span>
-                                            <span className="font-bold text-emerald-400 font-mono text-lg ml-2">
-                                                {entry.hours} h
-                                            </span>
-                                            {entry.start_time && entry.end_time && (
-                                                <span className="text-xs text-white/50 font-mono bg-black/20 px-1.5 py-0.5 rounded">
-                                                    {entry.start_time} - {entry.end_time}
-                                                </span>
-                                            )}
-                                        </div>
-                                        {entry.note && (
-                                            <div className="text-white/70 text-sm italic flex items-start gap-1.5">
-                                                <StickyNote size={14} className="mt-0.5 shrink-0 opacity-50" />
-                                                <span>{entry.note}</span>
-                                            </div>
-                                        )}
-                                    </div>
-
-                                    {canManage && (
-                                        <div className="flex gap-2 self-end md:self-center">
-                                            {/* Optional: Add Edit/Reject buttons here if needed later */}
-                                            <button
-                                                onClick={() => confirmEntry(entry.id)}
-                                                className="flex items-center gap-2 px-4 py-2 bg-emerald-500 text-white rounded-lg hover:bg-emerald-400 font-bold text-sm shadow-lg shadow-emerald-900/20 transition-all hover:scale-105"
-                                                title="Eintrag bestätigen"
-                                            >
-                                                <CheckCircle size={16} /> Bestätigen
-                                            </button>
-                                        </div>
-                                    )}
-                                </div>
-                            ))}
-                        </div>
-                    </GlassCard>
-                </div>
-            )}
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                {/* OVERTIME ACCOUNT / LIFETIME BALANCE */}
-                <GlassCard className={`relative overflow-hidden group bg-emerald-900/10 border-emerald-500/20 flex flex-col justify-between transition-all duration-300 ${collapsedTiles['overtime'] ? 'self-start' : ''}`}>
-                    <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-                        <Scale size={100} className="text-emerald-300" />
-                    </div>
-                    <div className="flex justify-between items-start z-10">
-                        <div className="flex items-center gap-2 text-emerald-400 font-bold uppercase text-xs tracking-wider mb-3">
-                            <Clock size={16} /> Überstundenkonto
-                        </div>
-                        <button onClick={() => toggleTile('overtime')} className="p-1 hover:bg-white/10 rounded text-emerald-300 transition-colors">
-                            {collapsedTiles['overtime'] ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
-                        </button>
-                    </div>
-
-                    {!collapsedTiles['overtime'] ? (
-                        <>
-                            <div>
-                                <div className="flex items-baseline gap-2 mb-1">
-                                    <span className={`text-4xl font-bold font-mono ${totalBalanceStats.diff >= 0 ? 'text-emerald-300' : 'text-red-300'}`}>
-                                        {totalBalanceStats.diff > 0 ? '+' : ''}{totalBalanceStats.diff.toFixed(2)}
-                                    </span>
-                                    <span className="text-sm text-white/40 font-bold">Std</span>
-                                </div>
-                                <div className={`text-xs font-bold flex items-center gap-1 ${totalBalanceStats.diff >= 0 ? 'text-emerald-400/70' : 'text-red-400/70'}`}>
-                                    {totalBalanceStats.diff >= 0 ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
-                                    {totalBalanceStats.diff >= 0 ? 'Guthaben' : 'Minusstunden'}
-                                </div>
+                        <div className="flex items-center gap-2 mb-4 relative z-10">
+                            <div className="w-8 h-8 rounded-xl bg-emerald-500/10 flex items-center justify-center text-emerald-500 shadow-inner">
+                                <Clock size={16} />
                             </div>
-                            <div className="mt-4 pt-3 border-t border-white/5 space-y-1">
-                                <div className="flex justify-between text-xs">
-                                    <span className="text-white/50">Gesamt Ist:</span>
-                                    <span className="text-white font-mono">{totalBalanceStats.actual.toFixed(2)} h</span>
-                                </div>
-                                <div className="flex justify-between text-xs">
-                                    <span className="text-white/50">Gesamt Soll:</span>
-                                    <span className="text-white font-mono">{totalBalanceStats.target.toFixed(2)} h</span>
-                                </div>
-                                <div className="flex justify-between text-xs mt-2 text-white/30 italic">
-                                    <span>Seit:</span>
-                                    <span>{totalBalanceStats.startStr ? new Date(totalBalanceStats.startStr).toLocaleDateString('de-DE') : '-'}</span>
-                                </div>
-                                <div className="flex justify-between text-xs text-white/30 italic">
-                                    <span>Stand (Abgegeben / Abbau):</span>
-                                    <span>{totalBalanceStats.cutoffStr ? new Date(totalBalanceStats.cutoffStr).toLocaleDateString('de-DE') : '-'}</span>
-                                </div>
-                            </div>
-                        </>
-                    ) : (
-                        <div className="flex items-baseline gap-2 pb-1 relative z-10">
-                            <span className={`text-xl font-bold font-mono ${totalBalanceStats.diff >= 0 ? 'text-emerald-300' : 'text-red-300'}`}>
+                            <span className="text-emerald-500 font-black uppercase tracking-widest text-xs">Überstundenkonto</span>
+                        </div>
+                        <div className="flex items-baseline gap-2 relative z-10">
+                            <span className={`text-4xl font-black tracking-tighter leading-none ${totalBalanceStats.diff >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                                 {totalBalanceStats.diff > 0 ? '+' : ''}{totalBalanceStats.diff.toFixed(2)}
                             </span>
-                            <span className="text-xs text-white/40 font-bold">Std</span>
+                            <span className="text-sm text-muted-foreground font-bold">Std</span>
                         </div>
-                    )}
-                </GlassCard>
-
-                {/* INITIAL BALANCE / TRANSFER (MULTI-ENTRY) */}
-                <GlassCard className={`bg-cyan-900/10 border-cyan-500/20 relative flex flex-col justify-between overflow-hidden transition-all duration-300 ${collapsedTiles['balance'] ? 'self-start' : ''}`}>
-                    <div className="flex justify-between items-start mb-2">
-                        <div className="flex items-center gap-2 text-cyan-300 font-bold uppercase text-xs tracking-wider">
-                            <Calculator size={16} /> Startsaldo / Übertrag
-                        </div>
-                        <div className="flex gap-1">
-                            {!collapsedTiles['balance'] && (
-                                <button
-                                    onClick={() => setShowBalanceList(!showBalanceList)}
-                                    className="p-1 hover:bg-white/10 rounded text-cyan-200 transition-colors"
-                                    title={showBalanceList ? "Liste verbergen" : "Liste anzeigen"}
-                                >
-                                    <List size={16} />
-                                </button>
-                            )}
-                            <button onClick={() => toggleTile('balance')} className="p-1 hover:bg-white/10 rounded text-cyan-200 transition-colors">
-                                {collapsedTiles['balance'] ? <ChevronDown size={16} /> : <ChevronUp size={16} />}
-                            </button>
-                        </div>
-                    </div>
-
-                    {!collapsedTiles['balance'] ? (
-                        <>
-                            <div className="mb-2">
-                                <div className="flex items-baseline gap-2">
-                                    <span className="text-3xl font-bold font-mono text-white">
-                                        {balanceEntries.reduce((sum, e) => sum + e.hours, 0).toFixed(2)}
-                                    </span>
-                                    <span className="text-sm text-white/40 font-bold">h</span>
-                                </div>
-                                <p className="text-[10px] text-white/40">
-                                    Summe aller manuellen Überträge.
-                                </p>
-                            </div>
-
-                            {showBalanceList && (
-                                <div className="mt-2 pt-2 border-t border-white/10 animate-in slide-in-from-top-2">
-                                    <div className="max-h-40 overflow-y-auto space-y-2 pr-1 mb-2 custom-scrollbar">
-                                        {balanceEntries.length === 0 ? (
-                                            <p className="text-xs text-white/30 italic text-center py-2">Keine Einträge vorhanden.</p>
-                                        ) : (
-                                            balanceEntries.map(entry => (
-                                                <div key={entry.id} className="bg-black/20 p-2 rounded border border-white/5 text-xs">
-                                                    <div className="flex justify-between items-center mb-1">
-                                                        <span className={`font-mono font-bold ${entry.hours >= 0 ? 'text-emerald-300' : 'text-red-300'}`}>
-                                                            {entry.hours > 0 ? '+' : ''}{entry.hours.toFixed(2)} h
-                                                        </span>
-                                                        <span className="text-[10px] text-white/30">
-                                                            {entry.created_at ? new Date(entry.created_at).toLocaleDateString('de-DE') : '-'}
-                                                        </span>
-                                                    </div>
-                                                    <div className="text-white/70 italic break-words">{entry.reason}</div>
-                                                </div>
-                                            ))
-                                        )}
-                                    </div>
-
-                                    {/* ADD FORM - ADMIN ONLY */}
-                                    {canManage && (currentUser?.role === 'admin' || viewerSettings?.role === 'admin') ? (
-                                        <div className="bg-white/5 p-2 rounded border border-white/10 mt-2">
-                                            <div className="text-[10px] uppercase font-bold text-cyan-400 mb-2">Neuer Eintrag</div>
-                                            <div className="flex gap-2 mb-2">
-                                                <GlassInput
-                                                    type="number"
-                                                    placeholder="Std"
-                                                    value={balanceForm.hours}
-                                                    onChange={e => setBalanceForm({ ...balanceForm, hours: e.target.value })}
-                                                    className="w-20 !py-1 !px-2 !text-xs text-center font-mono"
-                                                />
-                                                <GlassInput
-                                                    type="text"
-                                                    placeholder="Grund (Pflicht)"
-                                                    value={balanceForm.reason}
-                                                    onChange={e => setBalanceForm({ ...balanceForm, reason: e.target.value })}
-                                                    className="flex-1 !py-1 !px-2 !text-xs"
-                                                />
-                                            </div>
-                                            <button
-                                                disabled={!balanceForm.hours || !balanceForm.reason}
-                                                onClick={async () => {
-                                                    const h = parseFloat(balanceForm.hours);
-                                                    if (isNaN(h)) return;
-                                                    await addBalanceEntry(h, balanceForm.reason);
-                                                    setBalanceForm({ hours: '', reason: '' });
-                                                }}
-                                                className="w-full py-1 bg-cyan-500/20 hover:bg-cyan-500/40 text-cyan-200 text-xs font-bold rounded border border-cyan-500/30 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                                            >
-                                                Hinzufügen
-                                            </button>
-                                        </div>
-                                    ) : (
-                                        <div className="text-[10px] text-white/30 italic text-center mt-2">
-                                            Nur Administratoren können Einträge erstellen.
-                                        </div>
-                                    )}
-                                </div>
-                            )}
-                        </>
-                    ) : (
-                        <div className="flex items-baseline gap-2 pb-1">
-                            <span className="text-xl font-bold font-mono text-white">
-                                {balanceEntries.reduce((sum, e) => sum + e.hours, 0).toFixed(2)}
+                        <div className="flex items-center gap-1.5 mt-1 relative z-10">
+                            <TrendingDown size={14} className={totalBalanceStats.diff >= 0 ? 'rotate-180 text-emerald-400' : 'text-red-400'} />
+                            <span className={`text-[10px] font-bold uppercase tracking-wider ${totalBalanceStats.diff >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                                {totalBalanceStats.diff >= 0 ? 'Guthaben' : 'Minusstunden'}
                             </span>
-                            <span className="text-xs text-white/40 font-bold">h</span>
                         </div>
-                    )}
-                </GlassCard>
-
-                {/* WORK MODEL CONFIG (SIMPLE) */}
-                <GlassCard className={`bg-blue-900/10 border-blue-500/20 relative flex flex-col transition-all duration-300 ${collapsedTiles['work_model'] ? 'self-start' : 'h-full'}`}>
-                    <div className="flex justify-between items-start mb-2">
-                        <div className="flex items-center gap-2 text-blue-300 font-bold uppercase text-xs tracking-wider">
-                            <Briefcase size={16} /> Arbeitszeit-Modell
-                        </div>
-                        <div className="flex gap-1 z-10">
-                            {!collapsedTiles['work_model'] && (
-                                <>
-                                    {isEditingWorkModel ? (
-                                        <div className="flex gap-2">
-                                            <button onClick={() => setIsEditingWorkModel(false)} className="p-1 bg-white/10 hover:bg-white/20 rounded text-white/60"><RotateCcw size={14} /></button>
-                                            <button onClick={handleSaveWorkModel} className="p-1 bg-teal-500 hover:bg-teal-400 rounded text-white"><Save size={14} /></button>
-                                        </div>
-                                    ) : (
-                                        <div className="flex items-center gap-2">
-
-
-                                            <button onClick={handleToggleLock} className="p-1 hover:bg-white/10 rounded" title={isWorkModelLocked ? "Entsperren" : "Sperren"}>
-                                                {isWorkModelLocked ? <Lock size={14} className="text-red-400" /> : <Unlock size={14} className="text-emerald-400" />}
-                                            </button>
-                                            <button 
-                                               onClick={() => !isWorkModelLocked && setIsEditingWorkModel(true)} 
-                                               className={`p-1 hover:bg-white/10 rounded transition-colors ${isWorkModelLocked ? 'text-white/10 cursor-not-allowed' : 'text-white/40 hover:text-white'}`} 
-                                               title={isWorkModelLocked ? "Gesperrt" : "Bearbeiten"}
-                                               disabled={isWorkModelLocked}
-                                            >
-                                                <Edit2 size={14} />
-                                            </button>                                        </div>
-                                    )}
-                                </>
-                            )}
-                            <button onClick={() => toggleTile('work_model')} className="p-1 hover:bg-white/10 rounded text-blue-300 transition-colors">
-                                {collapsedTiles['work_model'] ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
-                            </button>
-                        </div>
-                    </div>
-
-                    {!collapsedTiles['work_model'] ? (
-                        <>
-                            <div className="flex-1 overflow-y-auto mt-2">
-                                <div className="grid grid-cols-3 gap-1 mb-2 px-1">
-                                    <span className="text-[10px] uppercase font-bold text-white/30">Tag</span>
-                                    <span className="text-[10px] uppercase font-bold text-white/30 text-center">Start</span>
-                                    <span className="text-[10px] uppercase font-bold text-white/30 text-right">Std</span>
-                                </div>
-                                <div className="space-y-1">
-                                    {dayIndices.map((d, i) => {
-                                        const target = workModelTargets[d] || 0;
-                                        const start = workModelConfig[d] || "07:00";
-                                        return (
-                                            <div key={d} className={`grid grid-cols-3 gap-1 items-center px-2 py-1.5 rounded border ${isEditingWorkModel ? 'bg-white/10 border-white/10' : 'bg-transparent border-transparent'}`}>
-                                                <span className={`text-xs font-bold ${d === 0 || d === 6 ? 'text-red-300/70' : 'text-white/70'}`}>{dayNames[i]}</span>
-                                                {isEditingWorkModel ? (
-                                                    <>
-                                                        <input type="time" value={start} onChange={e => handleWorkModelConfigChange(d, e.target.value)} className="bg-black/30 text-white text-xs rounded px-1 py-0.5 text-center border border-white/10 w-full" />
-                                                        <input type="number" value={target} onChange={e => handleWorkModelTargetChange(d, e.target.value)} className="bg-black/30 text-white text-xs rounded px-1 py-0.5 text-right border border-white/10 w-full" />
-                                                    </>
-                                                ) : (
-                                                    <>
-                                                        <span className="text-xs text-white/50 text-center">{start}</span>
-                                                        <span className={`text-xs font-mono text-right font-bold ${target > 0 ? 'text-white' : 'text-white/20'}`}>{target} h</span>
-                                                    </>
-                                                )}
-                                            </div>
-                                        )
-                                    })}
-                                </div>
-                                </div>
-
-                                {/* Employment Start Date */}
-                                <div className={`mt-3 pt-3 border-t border-white/10 flex items-center justify-between ${isEditingWorkModel ? 'opacity-100' : 'opacity-60'}`}>
-                                <div className="flex flex-col">
-                                    <span className="text-xs font-bold text-white">Eintrittsdatum</span>
-                                    <span className="text-[10px] text-white/40">Basis für Kontoberechnung</span>
-                                </div>
-                                {isEditingWorkModel ? (
-                                    <input
-                                        type="date"
-                                        value={employmentStartDateEdit}
-                                        onChange={(e) => setEmploymentStartDateEdit(e.target.value)}
-                                        className="bg-black/20 border border-white/10 rounded px-2 py-1 text-xs text-white outline-none focus:border-blue-500"
-                                    />
-                                ) : (
-                                    <div className="text-xs font-bold text-white bg-white/5 px-2 py-1 rounded border border-white/5">
-                                        {employmentStartDateEdit ? new Date(employmentStartDateEdit).toLocaleDateString('de-DE') : 'Nicht gesetzt'}
-                                    </div>
-                                )}
-                                </div>
-
-                                {/* Confirmation Toggle */}                            <div className={`mt-3 pt-3 border-t border-white/10 flex items-center justify-between ${isEditingWorkModel ? 'opacity-100' : 'opacity-60'}`}>
-                                <div className="flex flex-col">
-                                    <span className="text-xs font-bold text-white">Bestätigungspflicht</span>
-                                    <span className="text-[10px] text-white/40">Muss Zeiten bestätigen lassen</span>
-                                </div>
-                                {isEditingWorkModel ? (
-                                    <button
-                                        onClick={() => setWorkModelConfirmation(!workModelConfirmation)}
-                                        className={`w-10 h-6 rounded-full p-1 transition-all ${workModelConfirmation ? 'bg-blue-500 justify-end' : 'bg-white/10 justify-start'} flex items-center`}
-                                    >
-                                        <div className={`w-4 h-4 rounded-full bg-white shadow-sm`} />
-                                    </button>
-                                ) : (
-                                    <div className={`text-xs font-bold px-2 py-1 rounded ${workModelConfirmation ? 'bg-blue-500/20 text-blue-200' : 'bg-white/10 text-white/50'}`}>
-                                        {workModelConfirmation ? 'Aktiv' : 'Inaktiv'}
-                                    </div>
-                                )}
+                    
+                        <div className="mt-6 pt-4 border-t border-white/5 space-y-1 relative z-10">
+                            <div className="flex justify-between items-center text-[10px] text-muted-foreground uppercase font-black tracking-widest">
+                                <span>Gesamt Ist:</span>
+                                <span className="text-foreground font-mono">{totalBalanceStats.actual.toFixed(2)} h</span>
                             </div>
-
-                            {/* Visibility Toggle */}
-                            <div className={`mt-3 pt-3 border-t border-white/10 flex items-center justify-between ${isEditingWorkModel ? 'opacity-100' : 'opacity-60'}`}>
-                                <div className="flex flex-col">
-                                    <span className="text-xs font-bold text-white">Sichtbarkeit</span>
-                                    <span className="text-[10px] text-white/40">Für Azubi/Monteur sichtbar</span>
-                                </div>
-                                {isEditingWorkModel ? (
-                                    <button
-                                        onClick={() => setVisibleToOthers(!visibleToOthers)}
-                                        className={`w-10 h-6 rounded-full p-1 transition-all ${visibleToOthers ? 'bg-emerald-500 justify-end' : 'bg-white/10 justify-start'} flex items-center`}
-                                    >
-                                        <div className={`w-4 h-4 rounded-full bg-white shadow-sm`} />
-                                    </button>
-                                ) : (
-                                    <div className={`text-xs font-bold px-2 py-1 rounded ${visibleToOthers ? 'bg-emerald-500/20 text-emerald-200' : 'bg-white/10 text-white/50'}`}>
-                                        {visibleToOthers ? 'Sichtbar' : 'Versteckt'}
-                                    </div>
-                                )}
+                            <div className="flex justify-between items-center text-[10px] text-muted-foreground uppercase font-black tracking-widest">
+                                <span>Gesamt Soll:</span>
+                                <span className="text-foreground font-mono">{totalBalanceStats.target.toFixed(2)} h</span>
                             </div>
-
-                            {isEditingWorkModel && (
-                                <div className="mt-2 text-[10px] text-orange-300 italic flex items-center gap-1">
-                                    <Unlock size={10} /> Bearbeitungsmodus aktiv
-                                </div>
-                            )}
-                        </>
-                    ) : (
-                        <div className="flex items-center gap-2 pb-1 text-white/50 text-xs">
-                            <span className="font-bold text-white">
-                                {dayIndices.reduce((sum, d) => sum + (Number(workModelTargets[d]) || 0), 0).toLocaleString('de-DE', { maximumFractionDigits: 2 })}h
-                            </span> / Woche
-                        </div>
-                    )}
-                </GlassCard>
-
-                {/* Vacation Mgmt */}
-                <GlassCard className={`bg-purple-900/10 border-purple-500/20 relative flex flex-col transition-all duration-300 ${collapsedTiles['vacation'] ? 'self-start' : 'h-full'}`}>
-                    <div className="flex justify-between items-start mb-2">
-                        <div className="flex items-center gap-2 text-purple-300 font-bold uppercase text-xs tracking-wider">
-                            <Palmtree size={16} /> Urlaubsverwaltung
-                        </div>
-                        <div className="flex gap-1 z-10">
-                            {!collapsedTiles['vacation'] && (
-                                <div className="flex items-center gap-2">
-                                    <div className="flex items-center bg-white/5 rounded-lg px-2 py-1 gap-2">
-                                        <button onClick={() => setVacationViewYear(y => y - 1)} className="text-purple-200 hover:text-white"><ChevronLeft size={14} /></button>
-                                        <span className="text-sm font-bold text-white">{vacationViewYear}</span>
-                                        <button onClick={() => setVacationViewYear(y => y + 1)} className="text-purple-200 hover:text-white"><ChevronRight size={14} /></button>
-                                    </div>
-                                </div>
-                            )}
-                            <button onClick={() => toggleTile('vacation')} className="p-1 hover:bg-white/10 rounded text-purple-300 transition-colors">
-                                {collapsedTiles['vacation'] ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
-                            </button>
-                        </div>
-                    </div>
-
-                    {!collapsedTiles['vacation'] ? (
-                        <>
-                            <div className="flex flex-col mb-4">
-                                <div className="text-right w-full">
-                                    <span className="text-3xl font-bold text-purple-100">{takenVacationDays}</span>
-                                    <span className="text-purple-300/50 text-sm"> / {effectiveVacationClaim.toFixed(1)} Tage</span>
-                                </div>
-                                <div className="flex justify-between items-center mt-2 px-2 py-1.5 bg-emerald-900/10 border border-emerald-500/10 rounded">
-                                    <div className="flex flex-col">
-                                        <span className="text-[10px] text-emerald-400 uppercase font-bold">Verdienter Urlaub</span>
-                                        <span className="text-sm font-bold text-white">{earnedVacation.toFixed(2)} Tage</span>
-                                    </div>
-                                    <div className="text-right flex flex-col">
-                                        <span className="text-[10px] text-white/40 uppercase font-bold">Jahresurlaub gesamt</span>
-                                        <span className="text-sm font-bold text-white/70">{(vacationDaysEdit || 30).toFixed(1)} Tage</span>
-                                    </div>
-                                </div>
+                            <div className="flex justify-between items-center text-[10px] text-muted-foreground uppercase font-black tracking-widest">
+                                <span>Seit:</span>
+                                <span className="text-foreground font-mono">{totalBalanceStats.startStr ? new Date(totalBalanceStats.startStr).toLocaleDateString('de-DE') : '-'}</span>
                             </div>
-                            {unpaidDaysInYear > 0 && (
-                                <div className="mb-3 px-2 py-1.5 bg-red-900/20 border border-red-500/10 rounded text-xs text-red-200 flex items-start gap-2">
-                                    <Info size={14} className="mt-0.5 shrink-0" />
-                                    <div>
-                                        <span className="font-bold">{unpaidDaysInYear} Tage Unbezahlt.</span>
-                                        <br />
-                                        <span className="opacity-70">Anspruch reduziert um {(vacationDaysEdit! - effectiveVacationClaim).toFixed(1)} Tage.</span>
-                                    </div>
-                                </div>
-                            )}
-                            <div className="pt-2 border-t border-white/5 flex flex-col gap-2 mb-4">
-                                {/* BASIS + CARRYOVER INPUTS */}
-                                <div className="flex items-center justify-between">
-                                    <div className="flex flex-col">
-                                        <label className="text-[10px] text-white/50 uppercase font-bold">Basis-Anspruch</label>
-                                        <input
-                                            type="number"
-                                            disabled={isQuotaLocked}
-                                            value={vacationDaysEdit ?? ''}
-                                            onChange={e => {
-                                                const val = parseFloat(e.target.value);
-                                                setVacationDaysEdit(isNaN(val) ? 0 : val);
-                                            }}
-                                            className={`w-16 bg-white/5 border border-white/10 rounded px-2 py-1 text-right text-sm text-white focus:outline-none ${isQuotaLocked ? 'opacity-50 cursor-not-allowed' : 'focus:border-purple-500/50'}`}
-                                        />
-                                    </div>
-                                    <div className="text-white/30 font-bold">+</div>
-                                    <div className="flex flex-col">
-                                        <label className="text-[10px] text-white/50 uppercase font-bold">Rest (VJ)</label>
-                                        <input
-                                            type="number"
-                                            disabled={isQuotaLocked}
-                                            value={vacationCarryoverEdit ?? ''}
-                                            onChange={e => {
-                                                const val = parseFloat(e.target.value);
-                                                setVacationCarryoverEdit(isNaN(val) ? 0 : val);
-                                            }}
-                                            className={`w-16 bg-white/5 border border-white/10 rounded px-2 py-1 text-right text-sm text-white focus:outline-none ${isQuotaLocked ? 'opacity-50 cursor-not-allowed' : 'focus:border-purple-500/50'}`}
-                                        />
-                                    </div>
-                                    <div className="text-white/30 font-bold">=</div>
-                                    <div className="flex flex-col items-end">
-                                        <label className="text-[10px] text-white/50 uppercase font-bold">Gesamt</label>
-                                        <span className="text-lg font-bold text-purple-200 font-mono">
-                                            {((vacationDaysEdit || 0) + (vacationCarryoverEdit || 0)).toFixed(1)}
-                                        </span>
-                                    </div>
-                                </div>
-
-                                {/* ACTIONS: SAVE, LOCK, HISTORY */}
-                                <div className="flex items-center justify-between mt-2">
-                                    <div className="flex gap-2">
-                                        <button
-                                            onClick={() => {
-                                                if (userId) {
-                                                    // Fetch Quota ID first, then logs
-                                                    supabase.from('yearly_vacation_quotas')
-                                                        .select('id')
-                                                        .eq('user_id', userId)
-                                                        .eq('year', vacationViewYear)
-                                                        .single()
-                                                        .then(({ data }) => {
-                                                            if (data) {
-                                                                fetchVacationAuditLog(data.id).then(setQuotaAuditLogs);
-                                                                setShowQuotaHistory(true);
-                                                            } else {
-                                                                showToast("Keine Historie vorhanden.", "warning");
-                                                            }
-                                                        });
-                                                }
-                                            }}
-                                            className="p-1.5 bg-white/5 hover:bg-white/10 rounded text-white/50 hover:text-white transition-colors"
-                                            title="Historie anzeigen"
-                                        >
-                                            <HistoryIcon size={14} />
-                                        </button>
-                                        <button
-                                            onClick={() => setIsQuotaLocked(!isQuotaLocked)}
-                                            className={`p-1.5 rounded transition-colors ${isQuotaLocked ? 'bg-white/5 text-white/50 hover:text-white' : 'bg-orange-500/20 text-orange-200 hover:bg-orange-500/30'}`}
-                                            title={isQuotaLocked ? "Entsperren zum Bearbeiten" : "Bearbeitung sperren"}
-                                        >
-                                            {isQuotaLocked ? <Lock size={14} /> : <Unlock size={14} />}
-                                        </button>
-                                    </div>
-
-                                    {!isQuotaLocked && (
-                                        <button
-                                            onClick={() => {
-                                                // Permission Check: Only Admin/Office allowed
-                                                const role = viewerSettings?.role;
-                                                if (role !== 'super_admin' && role !== 'admin' && role !== 'office' && (role as string) !== 'chef') {
-                                                    setShowPermissionError(true);
-                                                    return;
-                                                }
-
-                                                if (userId && vacationDaysEdit !== null) {
-                                                    updateYearlyQuota(userId, vacationViewYear, {
-                                                        total_days: vacationDaysEdit,
-                                                        manual_carryover: vacationCarryoverEdit,
-                                                        is_locked: true // Auto-lock on save
-                                                    });
-                                                    // Optimistic Update: Set "Locked" immediately
-                                                    setIsQuotaLocked(true);
-                                                    // Refresh notifications to show "Pending" state immediately
-                                                    setTimeout(async () => {
-                                                        const notifs = await fetchQuotaNotifications(userId);
-                                                        if (notifs) setQuotaNotifications(notifs);
-                                                    }, 500);
-                                                }
-                                            }}
-                                            className="px-3 py-1 bg-purple-500 hover:bg-purple-600 rounded text-white text-xs font-bold transition-colors flex items-center gap-2 shadow-lg shadow-purple-900/20"
-                                        >
-                                            <Save size={14} /> {quotaNotifications.some(n => n.status === 'pending') ? 'Vorschlag aktualisieren' : 'Speichern'}
-                                        </button>
-                                    )}
-                                </div>
-
-                                {/* PENDING / REJECTED WARNING */}
-                                {quotaNotifications.length > 0 && (
-                                    <div className="mt-3 space-y-2">
-                                        {quotaNotifications.filter(n => n.status === 'pending').map(n => (
-                                            <div key={n.id} className="bg-yellow-500/10 border border-yellow-500/30 p-2 rounded text-xs text-yellow-200 flex items-center gap-2 animate-pulse">
-                                                <Clock size={12} />
-                                                <span>Änderung auf <strong>{n.new_value.total} Tage</strong> wartet auf Bestätigung durch den Mitarbeiter.</span>
-                                            </div>
-                                        ))}
-                                        {quotaNotifications.filter(n => n.status === 'rejected').map(n => (
-                                            <div key={n.id} className="bg-red-500/10 border border-red-500/30 p-2 rounded text-xs text-red-200">
-                                                <div className="flex items-center gap-2 font-bold mb-1">
-                                                    <XCircle size={12} />
-                                                    <span>Änderung abgelehnt!</span>
-                                                </div>
-                                                <div className="opacity-80">Grund: "{n.rejection_reason}"</div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                )}
+                            <div className="flex justify-between items-center text-[10px] text-muted-foreground uppercase font-black tracking-widest">
+                                <span>Stand (Abgegeben / Abbau):</span>
+                                <span className="text-foreground font-mono">{totalBalanceStats.cutoffStr ? new Date(totalBalanceStats.cutoffStr).toLocaleDateString('de-DE') : '-'}</span>
                             </div>
-
-                            {/* APPROVED REQUESTS SUB-SECTION */}
-                            {canManage && approvedRequests.length > 0 && (
-                                <div className="mt-4 pt-3 border-t border-white/5">
-                                    <label className="text-[10px] uppercase font-bold text-emerald-400/70 block mb-2 flex items-center gap-2">
-                                        <CheckCircle size={12} /> Genehmigte Urlaubsanträge (Letzte 5)
-                                    </label>
-                                    <div className="space-y-2">
-                                        {approvedRequests.map(req => (
-                                            <div key={req.id} className="bg-emerald-500/5 p-2 rounded border border-emerald-500/10 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                                                <div>
-                                                    <div className="font-bold text-white text-xs">
-                                                        {new Date(req.start_date).toLocaleDateString('de-DE')} - {new Date(req.end_date).toLocaleDateString('de-DE')}
-                                                    </div>
-                                                    <div className="text-emerald-200/50 text-[10px]">
-                                                        {new Date(req.created_at).toLocaleDateString('de-DE')} • {req.approved_by_name || 'Admin'}
-                                                    </div>
-                                                </div>
-                                                <button
-                                                    onClick={() => generateVacationRequestPDF(req, true)}
-                                                    className="px-2 py-1 bg-white/5 text-white/60 border border-white/10 rounded hover:bg-white/10 hover:text-white text-[10px] transition-colors flex items-center gap-1 self-start sm:self-center"
-                                                    title="Kopie drucken"
-                                                >
-                                                    <Printer size={10} /> Kopie
-                                                </button>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
-                            <div className="flex-1 overflow-y-auto max-h-32 space-y-1 pr-1 border-t border-white/5 pt-2 mt-auto">
-                                <label className="text-[10px] uppercase font-bold text-white/30 block mb-1">Abwesenheiten ({vacationViewYear})</label>
-                                {groupedAbsences.length === 0 ? (
-                                    <p className="text-xs text-white/30 italic">Keine Einträge für {vacationViewYear}.</p>
-                                ) : (
-                                    groupedAbsences.map((group, idx) => {
-                                        const start = new Date(group.start).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
-                                        const end = new Date(group.end).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
-                                        const isRange = group.start !== group.end;
-                                        let typeColor = 'text-white';
-                                        let typeLabel = '';
-
-                                        if (group.type === 'vacation') { typeColor = 'text-purple-300'; typeLabel = 'Urlaub'; }
-                                        else if (group.type === 'sick') { typeColor = 'text-red-300'; typeLabel = 'Krank'; }
-                                        else if (group.type === 'holiday') { typeColor = 'text-blue-300'; typeLabel = 'Feiertag'; }
-                                        else if (group.type === 'sick_child') { typeColor = 'text-orange-300'; typeLabel = 'Kind krank'; }
-                                        else if (group.type === 'sick_pay') { typeColor = 'text-rose-300'; typeLabel = 'Krankengeld'; }
-                                        else if (group.type === 'unpaid') { typeColor = 'text-gray-400'; typeLabel = 'Unbezahlt'; }
-                                        return (
-                                            <div key={idx} className="flex justify-between items-center text-xs bg-white/5 px-2 py-1 rounded">
-                                                <div className="flex flex-col">
-                                                    <span className={`font-mono ${typeColor}`}>{isRange ? `${start} - ${end}` : start}</span>
-                                                    {group.note && group.type === 'unpaid' && <span className="text-[9px] text-white/30 italic">{group.note}</span>}
-                                                </div>
-                                                <span className={`opacity-50 text-[10px] uppercase ${typeColor}`}>{typeLabel}</span>
-                                            </div>
-                                        );
-                                    })
-                                )}
-                            </div>
-                        </>
-                    ) : (
-                        <div className="flex items-baseline gap-2 pb-1">
-                            <span className="text-xl font-bold font-mono text-purple-100">{takenVacationDays}</span>
-                            <span className="text-purple-300/50 text-xs font-bold"> / {effectiveVacationClaim.toFixed(1)} Tage</span>
                         </div>
-                    )}
-                </GlassCard>
+                    </SpotlightCard>
 
-                {/* Monthly Attendance Tile */}
-                <GlassCard className={`bg-cyan-900/10 border-cyan-500/20 relative flex flex-col justify-between transition-all duration-300 ${collapsedTiles['attendance'] ? 'self-start' : ''}`}>
-                    {!collapsedTiles['attendance'] && (
-                        <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-                            <UserCheck size={100} className="text-cyan-300" />
+                    {/* Urlaubsverwaltung */}
+                    <SpotlightCard onClick={() => setShowVacationModal(true)} className="cursor-pointer bg-card border border-border p-5 rounded-2xl flex flex-col justify-between transition-all duration-500 hover:border-purple-500/50 hover:shadow-lg hover:shadow-purple-500/10 hover:-translate-y-1 relative overflow-hidden group">
+                        <div className="absolute top-0 right-0 p-5 opacity-5 group-hover:opacity-10 transition-opacity">
+                            <Palmtree size={80} className="text-purple-500 rotate-12 group-hover:rotate-0 transition-transform duration-700" />
                         </div>
-                    )}
-                    <div className="flex justify-between items-start z-10">
-                        <div className="flex items-center gap-2 text-cyan-400 font-bold uppercase text-xs tracking-wider mb-3">
-                            <Clock size={16} /> Anwesenheit (Monat)
+                        <div className="flex items-center gap-2 mb-4 relative z-10">
+                            <div className="w-8 h-8 rounded-xl bg-purple-500/10 flex items-center justify-center text-purple-500 shadow-inner">
+                                <Palmtree size={16} />
+                            </div>
+                            <span className="text-purple-500 font-black uppercase tracking-widest text-xs">Urlaubsverwaltung</span>
                         </div>
-                        <button onClick={() => toggleTile('attendance')} className="p-1 hover:bg-white/10 rounded text-cyan-300 transition-colors">
-                            {collapsedTiles['attendance'] ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
-                        </button>
-                    </div>
+                        <div className="flex items-baseline gap-2 relative z-10">
+                            <span className="text-4xl font-black tracking-tighter text-foreground">
+                                {takenVacationDays.toFixed(1)}
+                            </span>
+                            <span className="text-sm text-muted-foreground font-bold">/ {effectiveVacationClaim.toFixed(1)} Tage</span>
+                        </div>
+                    </SpotlightCard>
 
-                    {!collapsedTiles['attendance'] ? (
-                        <>
-                            <div>
-                                <div className="flex items-baseline gap-2 mb-1">
-                                    <span className="text-4xl font-bold font-mono text-cyan-300">
-                                        {formatDuration(monthlyAttendance)}
-                                    </span>
-                                    <span className="text-sm text-white/40 font-bold">h</span>
-                                </div>
-                                <div className="text-xs text-white/40 font-bold">
-                                    Netto-Arbeitszeit
-                                </div>
+                    {/* Arbeitszeit-Modell */}
+                    <SpotlightCard onClick={() => setShowWorkModelModal(true)} className="cursor-pointer bg-card border border-border p-5 rounded-2xl flex flex-col justify-between transition-all duration-500 hover:border-blue-500/50 hover:shadow-lg hover:shadow-blue-500/10 hover:-translate-y-1 relative overflow-hidden group">
+                        <div className="absolute top-0 right-0 p-5 opacity-5 group-hover:opacity-10 transition-opacity">
+                            <Briefcase size={80} className="text-blue-500 rotate-12 group-hover:rotate-0 transition-transform duration-700" />
+                        </div>
+                        <div className="flex items-center gap-2 mb-4 relative z-10">
+                            <div className="w-8 h-8 rounded-xl bg-blue-500/10 flex items-center justify-center text-blue-500 shadow-inner">
+                                <Briefcase size={16} />
                             </div>
-                            <div className="mt-4 pt-3 border-t border-white/5">
-                                <div className="flex justify-between text-xs text-white/30 italic">
-                                    <span>Basis:</span>
-                                    <span>Kommen/Gehen - Pause</span>
-                                </div>
+                            <span className="text-blue-500 font-black uppercase tracking-widest text-xs">Arbeitszeit-Modell</span>
+                        </div>
+                        <div className="flex items-baseline gap-2 relative z-10">
+                            <span className="text-4xl font-black tracking-tighter text-blue-400">
+                                {dayIndices.reduce((sum, d) => sum + (Number(workModelTargets[d]) || 0), 0).toLocaleString('de-DE', { maximumFractionDigits: 2 })}
+                            </span>
+                            <span className="text-sm text-muted-foreground font-bold">h / Woche</span>
+                        </div>
+                    </SpotlightCard>
+
+                    {/* Anwesenheit */}
+                    <SpotlightCard className="bg-card border border-border p-5 rounded-2xl flex flex-col justify-between transition-all duration-500 hover:border-blue-500/50 relative overflow-hidden group">
+                        <div className="absolute top-0 right-0 p-5 opacity-5 group-hover:opacity-10 transition-opacity">
+                            <UserCheck size={80} className="text-blue-500 rotate-12 group-hover:rotate-0 transition-transform duration-700" />
+                        </div>
+                        <div className="flex items-center gap-2 mb-4 relative z-10">
+                            <div className="w-8 h-8 rounded-xl bg-blue-500/10 flex items-center justify-center text-blue-500 shadow-inner">
+                                <UserCheck size={16} />
                             </div>
-                        </>
-                    ) : (
-                        <div className="flex items-baseline gap-2 pb-1 relative z-10">
-                            <span className="text-xl font-bold font-mono text-cyan-300">
+                            <span className="text-blue-500 font-black uppercase tracking-widest text-xs">Anwesenheit (Monat)</span>
+                        </div>
+                        <div className="flex items-baseline gap-2 relative z-10">
+                            <span className="text-4xl font-black tracking-tighter text-blue-400">
                                 {formatDuration(monthlyAttendance)}
                             </span>
-                            <span className="text-xs text-white/40 font-bold">h</span>
+                            <span className="text-sm text-muted-foreground font-bold">h</span>
                         </div>
-                    )}
-                </GlassCard>
+                    </SpotlightCard>
 
-                {/* NEW: MONTHLY BALANCE TILE */}
-                <GlassCard className={`bg-teal-900/10 border-teal-500/20 relative flex flex-col justify-between transition-all duration-300 ${collapsedTiles['monthly_balance'] ? 'self-start' : ''}`}>
-                    {!collapsedTiles['monthly_balance'] && (
-                        <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-                            <Scale size={100} className="text-teal-300" />
+                    {/* Startsaldo */}
+                    <SpotlightCard onClick={() => setShowBalanceModal(true)} className="cursor-pointer bg-card border border-border p-5 rounded-2xl flex flex-col justify-between transition-all duration-500 hover:border-cyan-500/50 hover:shadow-lg hover:shadow-cyan-500/10 hover:-translate-y-1 relative overflow-hidden group">
+                        <div className="absolute top-0 right-0 p-5 opacity-5 group-hover:opacity-10 transition-opacity">
+                            <Calculator size={80} className="text-cyan-500 rotate-12 group-hover:rotate-0 transition-transform duration-700" />
                         </div>
-                    )}
-                    <div className="flex justify-between items-start z-10">
-                        <div className="flex items-center gap-2 text-teal-400 font-bold uppercase text-xs tracking-wider mb-3">
-                            <Scale size={16} /> Monatsbilanz
+                        <div className="flex items-center gap-2 mb-4 relative z-10">
+                            <div className="w-8 h-8 rounded-xl bg-cyan-500/10 flex items-center justify-center text-cyan-500 shadow-inner">
+                                <Calculator size={16} />
+                            </div>
+                            <span className="text-cyan-500 font-black uppercase tracking-widest text-xs">Startsaldo / Übertrag</span>
                         </div>
-                        <button onClick={() => toggleTile('monthly_balance')} className="p-1 hover:bg-white/10 rounded text-teal-300 transition-colors">
-                            {collapsedTiles['monthly_balance'] ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
-                        </button>
-                    </div>
+                        <div className="flex items-baseline gap-2 relative z-10">
+                            <span className="text-4xl font-black tracking-tighter text-cyan-400">
+                                {balanceEntries.reduce((sum, e) => sum + e.hours, 0).toFixed(2)}
+                            </span>
+                            <span className="text-sm text-muted-foreground font-bold">h</span>
+                        </div>
+                    </SpotlightCard>
 
-                    {!collapsedTiles['monthly_balance'] ? (
-                        <>
-                            <div>
-                                <div className="flex items-baseline gap-2 mb-1">
-                                    <span className={`text-4xl font-bold font-mono ${monthlyStats.diff >= 0 ? 'text-teal-300' : 'text-red-300'}`}>
-                                        {monthlyStats.diff > 0 ? '+' : ''}{monthlyStats.diff.toFixed(2)}
-                                    </span>
-                                    <span className="text-sm text-white/40 font-bold">Std</span>
-                                </div>
-                                <div className={`text-xs font-bold flex items-center gap-1 ${monthlyStats.diff >= 0 ? 'text-teal-400/70' : 'text-red-400/70'}`}>
-                                    {monthlyStats.diff >= 0 ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
-                                    Differenz (Soll/Ist)
-                                </div>
+                    {/* Monatsbilanz */}
+                    <SpotlightCard className="bg-card border border-border p-5 rounded-2xl flex flex-col justify-between transition-all duration-500 hover:border-teal-500/50 relative overflow-hidden group">
+                        <div className="absolute top-0 right-0 p-5 opacity-5 group-hover:opacity-10 transition-opacity">
+                            <Scale size={80} className="text-teal-500 rotate-12 group-hover:rotate-0 transition-transform duration-700" />
+                        </div>
+                        <div className="flex items-center gap-2 mb-4 relative z-10">
+                            <div className="w-8 h-8 rounded-xl bg-teal-500/10 flex items-center justify-center text-teal-500 shadow-inner">
+                                <Scale size={16} />
                             </div>
-                            <div className="mt-4 pt-3 border-t border-white/5 space-y-1">
-                                <div className="flex justify-between text-xs">
-                                    <span className="text-white/50">Soll (Monat):</span>
-                                    <span className="text-white font-mono">{monthlyStats.target.toFixed(2)} h</span>
-                                </div>
-                                <div className="flex justify-between text-xs">
-                                    <span className="text-white/50">Ist (inkl. Urlaub/Krank):</span>
-                                    <span className="text-white font-mono">{monthlyStats.actual.toFixed(2)} h</span>
-                                </div>
-                            </div>
-                        </>
-                    ) : (
-                        <div className="flex items-baseline gap-2 pb-1 relative z-10">
-                            <span className={`text-xl font-bold font-mono ${monthlyStats.diff >= 0 ? 'text-teal-300' : 'text-red-300'}`}>
+                            <span className="text-teal-500 font-black uppercase tracking-widest text-xs">Monatsbilanz</span>
+                        </div>
+                        <div className="flex items-baseline gap-2 relative z-10">
+                            <span className={`text-4xl font-black tracking-tighter ${monthlyStats.diff >= 0 ? 'text-teal-400' : 'text-red-400'}`}>
                                 {monthlyStats.diff > 0 ? '+' : ''}{monthlyStats.diff.toFixed(2)}
                             </span>
-                            <span className="text-xs text-white/40 font-bold">Std</span>
+                            <span className="text-sm text-muted-foreground font-bold">h</span>
                         </div>
-                    )}
-                </GlassCard>
-            </div >
-
-            <div className="mb-4 flex justify-between items-center bg-white/5 p-2 rounded-xl">
-                <div className="flex items-center gap-2">
-                    <button onClick={() => setSelectedMonth(new Date(year, month - 1))} className="p-2 text-white hover:bg-white/10 rounded"><ChevronLeft /></button>
-                    <span className="font-bold text-white">{selectedMonth.toLocaleDateString('de-DE', { month: 'long', year: 'numeric' })}</span>
-                    <button onClick={() => setSelectedMonth(new Date(year, month + 1))} className="p-2 text-white hover:bg-white/10 rounded"><ChevronRight /></button>
-                </div>
-            </div>
-
-            <div className="grid grid-cols-7 gap-2 mb-8">
-                {['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'].map(d => <div key={d} className="text-center text-xs text-white/30 font-bold uppercase">{d}</div>)}
-                {blanks.map(b => <div key={`b-${b}`} />)}
-                {days.map(day => {
-                    const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-                    const target = getDailyTargetForDate(dateStr, currentUser?.target_hours || {});
-                    const absence = absences.find(a => dateStr >= a.start_date && dateStr <= a.end_date);
-                    const isSchoolHoliday = schoolHolidays.some(h => dateStr >= h.start && dateStr <= h.end);
-
-                    // Calculate hours (Ist) - EXCLUDE DELETED
-                    // Calculate hours (Ist) - EXCLUDE DELETED & DEDUCT BREAK OVERLAPS
-                    const dayEntries = monthEntries.filter(e => e.date === dateStr && !e.is_deleted && !e.deleted_at);
-                    const isEmergency = dayEntries.some(e => e.type === 'emergency_service');
-                    let hours = 0;
-                    if (dayEntries.length > 0) {
-                        const workEntries = dayEntries.filter(e => e.type !== 'break');
-                        const breakEntries = dayEntries.filter(e => e.type === 'break');
-
-                        let workSum = workEntries.reduce((acc, e) => {
-                            const duration = (e.calc_duration_minutes !== undefined && e.calc_duration_minutes !== 0)
-                                ? e.calc_duration_minutes / 60
-                                : (Number(e.hours) || 0);
-                            
-                            let surcharge = e.calc_surcharge_hours || 0;
-                            
-                            // Fallback for emergency surcharge if server hasn't calculated it yet
-                            if (e.type === 'emergency_service' && surcharge === 0 && e.surcharge) {
-                                surcharge = duration * (e.surcharge / 100);
-                            }
-
-                            return acc + duration + surcharge;
-                        }, 0);
-
-                        // Deduct overlaps
-                        let overlapDeduction = 0;
-                        workEntries.forEach(w => {
-                            breakEntries.forEach(b => {
-                                const mins = calculateOverlapInMinutes(w.start_time || '', w.end_time || '', b.start_time || '', b.end_time || '');
-                                overlapDeduction += (mins / 60);
-                            });
-                        });
-
-                        hours = Math.max(0, workSum - overlapDeduction);
-                    }
-
-                    // ADDED: Consider Absences (Vacation, Sick, Holiday...) as effective working time (Ist)
-                    if (absence && ['vacation', 'sick', 'holiday', 'sick_child', 'sick_pay'].includes(absence.type)) {
-                        // If there's a full-day paid absence, we assume the target is met as base.
-                        // Any additional worked hours (entries) are added ON TOP (e.g. emergency service on holiday).
-                        if (target > 0) hours = hours + target;
-                    }
-
-                    let status = 'empty';
-                    if (absence) status = absence.type;
-                    else {
-                        if (dayEntries.length > 0) {
-                            if (hours >= target && target > 0) status = 'full';
-                            else if (hours > 0) status = 'partial';
-                        }
-                    }
-
-                    let bg = isSchoolHoliday ? 'bg-blue-400/10 border-blue-400/20' : 'bg-white/5 border-white/5';
-                    let text = 'text-white/50';
-                    let icon = null;
-                    if (status === 'vacation') { bg = 'bg-purple-500/20 border-purple-500/40'; text = 'text-purple-200'; icon = <Palmtree size={12} className="text-purple-300 mt-1" />; }
-                    else if (status === 'sick') { bg = 'bg-red-500/20 border-red-500/40'; text = 'text-red-200'; icon = <Stethoscope size={12} className="text-red-300 mt-1" />; }
-                    else if (status === 'holiday') { bg = 'bg-blue-500/20 border-blue-500/40'; text = 'text-blue-200'; icon = <CalendarHeart size={12} className="text-blue-300 mt-1" />; }
-                    else if (status === 'unpaid') { bg = 'bg-gray-700/40 border-gray-500/40'; text = 'text-gray-300'; icon = <Ban size={12} className="text-gray-400 mt-1" />; }
-                    else if (status === 'full') { bg = 'bg-emerald-500/20 border-emerald-500/40'; text = 'text-emerald-200'; }
-                    else if (status === 'sick_child') { bg = 'bg-orange-500/20 border-orange-500/40'; text = 'text-orange-200'; icon = <UserCheck size={12} className="text-orange-300 mt-1" />; }
-                    else if (status === 'sick_pay') { bg = 'bg-rose-500/20 border-rose-500/40'; text = 'text-rose-200'; icon = <Stethoscope size={12} className="text-rose-300 mt-1" />; }
-                    else if (status === 'partial') { bg = 'bg-yellow-500/20 border-yellow-500/40'; text = 'text-yellow-200'; }
-
-                    if (isEmergency) {
-                        bg = 'bg-rose-500/20 border-rose-500/40 shadow-[0_0_10px_rgba(244,63,94,0.1)]';
-                        text = 'text-rose-200';
-                    }
-
-                    return (
-                        <div
-                            key={day}
-                            onClick={() => handleDayClick(day)}
-                            className={`aspect-square rounded-lg border ${bg} flex flex-col items-center justify-center cursor-pointer hover:scale-105 transition-transform relative p-0.5`}
-                        >
-                            {isSchoolHoliday && status === 'empty' && !isEmergency && (
-                                <div className="absolute top-1 left-1 w-1.5 h-1.5 bg-blue-400 rounded-full opacity-50" title="Schulferien" />
-                            )}
-                            {isEmergency && <Siren size={10} className="absolute top-1 right-1 text-rose-400" />}
-                            <span className={`text-sm font-bold ${text}`}>{day}</span>
-
-                            {(target > 0 || hours > 0 || isEmergency) && (
-                                <div className="flex flex-col items-center leading-none mt-0.5 space-y-0 w-full">
-                                    {target > 0 && <span className="text-[10px] text-white/60 font-medium">Soll: {target.toLocaleString('de-DE', { maximumFractionDigits: 1 })}</span>}
-                                    {(hours > 0 || isEmergency) && (
-                                        <span className={`text-[10px] font-bold ${hours >= target ? 'text-emerald-400' : 'text-red-400'}`}>
-                                            Ist: {hours >= target && !['vacation', 'sick', 'holiday', 'sick_child', 'sick_pay'].includes(status) ? '+' : ''}{hours.toLocaleString('de-DE', { maximumFractionDigits: 2 })}
-                                        </span>
-                                    )}
-                                </div>
-                            )}
-                            {icon}
+                        <div className="flex items-center gap-1.5 mt-1 relative z-10">
+                            <Scale size={14} className={monthlyStats.diff >= 0 ? 'text-teal-400' : 'text-red-400'} />
+                            <span className={`text-[10px] font-bold uppercase tracking-wider ${monthlyStats.diff >= 0 ? 'text-teal-400' : 'text-red-400'}`}>
+                                Differenz (Soll/Ist)
+                            </span>
                         </div>
-                    )
-                })}
-            </div>
+                    
+                        <div className="mt-6 pt-4 border-t border-white/5 space-y-1 relative z-10">
+                            <div className="flex justify-between items-center text-[10px] text-muted-foreground uppercase font-black tracking-widest">
+                                <span>Soll (Monat):</span>
+                                <span className="text-foreground font-mono">{monthlyStats.target.toFixed(2)} h</span>
+                            </div>
+                            <div className="flex justify-between items-center text-[10px] text-muted-foreground uppercase font-black tracking-widest">
+                                <span>Ist (inkl. Urlaub/Krank):</span>
+                                <span className="text-foreground font-mono">{monthlyStats.actual.toFixed(2)} h</span>
+                            </div>
+                        </div>
+                    </SpotlightCard>
 
-            {/* MODAL: Calendar Day Detail (RESTORED) */}
-            {
-                selectedDay && (
-                    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
-                        <GlassCard className="w-full max-w-7xl max-h-[90vh] overflow-y-auto relative shadow-2xl border-white/20">
-                            <button onClick={() => setSelectedDay(null)} className="absolute top-4 right-4 p-2 bg-white/10 hover:bg-white/20 rounded-full text-white transition-colors"><X size={20} /></button>
+                
+                        </div>
+                    ) : (
+                        <div className="bg-card border border-border rounded-3xl shadow-xl overflow-hidden animate-in slide-in-from-left-8 fade-in duration-500 h-[650px] xl:h-full max-h-[80vh] overflow-y-auto scrollbar-thin p-6 md:p-8 relative">
+                            {/* Decorative background glow */}
+                            <div className="absolute top-0 right-0 w-1/2 h-full bg-gradient-to-l from-blue-500/5 to-transparent pointer-events-none" />
+                            <button onClick={() => setSelectedDay(null)} className="absolute top-6 right-6 p-2 bg-muted hover:bg-red-500/20 text-muted-foreground hover:text-red-400 rounded-xl transition-all z-10"><X size={24} /></button>
                             <div className="mb-6">
-                                <h3 className="text-2xl font-bold text-white">
+                                <h3 className="text-2xl font-bold text-foreground">
                                     {selectedDay.toLocaleDateString('de-DE', { weekday: 'long', day: '2-digit', month: 'long' })}
-                                    <span className="ml-3 text-lg font-normal text-white/50">
+                                    <span className="ml-3 text-lg font-normal text-muted-foreground">
                                         — {currentUser?.display_name || 'Benutzer'}
                                     </span>
                                 </h3>
-                                <p className="text-white/40 text-sm">Tagesdetails bearbeiten</p>
+                                <p className="text-muted-foreground text-sm">Tagesdetails bearbeiten</p>
                             </div>
 
                             {currentAbsence ? (
@@ -2066,7 +1376,7 @@ const OfficeUserPage: React.FC = () => {
                                             currentAbsence.type === 'holiday' ? 'bg-blue-900/20 border-blue-500/30' :
                                                 currentAbsence.type === 'sick_child' ? 'bg-orange-900/20 border-orange-500/30' :
                                                     currentAbsence.type === 'sick_pay' ? 'bg-rose-900/20 border-rose-500/30' :
-                                                        'bg-gray-800/40 border-gray-500/30'
+                                                        'bg-card border-border'
                                         }`}>
                                         <div className="flex items-center justify-between">
                                             <div className="flex items-center gap-3">
@@ -2075,7 +1385,7 @@ const OfficeUserPage: React.FC = () => {
                                                         currentAbsence.type === 'holiday' ? <CalendarHeart size={24} className="text-blue-300" /> :
                                                             currentAbsence.type === 'sick_child' ? <UserCheck size={24} className="text-orange-300" /> :
                                                                 currentAbsence.type === 'sick_pay' ? <Stethoscope size={24} className="text-rose-300" /> :
-                                                                    <Ban size={24} className="text-gray-300" />}
+                                                                    <Ban size={24} className="text-muted-foreground" />}
                                                 <div>
                                                     <h4 className={`font-bold ${currentAbsence.type === 'vacation' ? 'text-purple-100' :
                                                         currentAbsence.type === 'sick' ? 'text-red-100' :
@@ -2093,11 +1403,11 @@ const OfficeUserPage: React.FC = () => {
                                                     </h4>
                                                 </div>
                                             </div>
-                                            <button onClick={() => handleRemoveAbsence(currentAbsence.id)} className="px-3 py-2 bg-white/10 hover:bg-red-500/20 hover:text-red-200 border border-white/10 hover:border-red-500/30 rounded-lg text-xs font-bold transition-all flex items-center gap-2">
+                                            <button onClick={() => handleRemoveAbsence(currentAbsence.id)} className="px-3 py-2 bg-card hover:bg-red-500/20 hover:text-red-200 border border-border hover:border-red-500/30 rounded-lg text-xs font-bold transition-all flex items-center gap-2">
                                                 <Trash2 size={14} /> Löschen
                                             </button>
                                         </div>
-                                        {currentAbsence.note && <div className="text-xs text-white/50 italic mt-1 border-t border-white/5 pt-2">"{currentAbsence.note}"</div>}
+                                        {currentAbsence.note && <div className="text-xs text-muted-foreground italic mt-1 border-t border-border pt-2">"{currentAbsence.note}"</div>}
                                     </div>
                                 </div>
                             ) : (
@@ -2105,7 +1415,7 @@ const OfficeUserPage: React.FC = () => {
                                     <button onClick={() => handleAddAbsence('vacation')} className="flex flex-col items-center justify-center gap-2 p-4 rounded-xl border border-purple-500/30 bg-purple-900/20 hover:bg-purple-900/40 transition-all text-purple-100 font-bold text-xs"><Palmtree size={20} /> Urlaub</button>
                                     <button onClick={() => handleAddAbsence('sick')} className="flex flex-col items-center justify-center gap-2 p-4 rounded-xl border border-red-500/30 bg-red-900/20 hover:bg-red-900/40 transition-all text-red-100 font-bold text-xs"><Stethoscope size={20} /> Krank</button>
                                     <button onClick={() => handleAddAbsence('holiday')} className="flex flex-col items-center justify-center gap-2 p-4 rounded-xl border border-blue-500/30 bg-blue-900/20 hover:bg-blue-900/40 transition-all text-blue-100 font-bold text-xs"><CalendarHeart size={20} /> Feiertag</button>
-                                    <button onClick={() => { if (!unpaidReason) return; handleAddAbsence('unpaid'); }} disabled={!unpaidReason} className="w-full h-full flex flex-col items-center justify-center gap-2 p-4 rounded-xl border border-gray-500/30 bg-gray-800/40 hover:bg-gray-800/60 transition-all text-gray-200 font-bold text-xs disabled:opacity-50"><Ban size={20} /> Unbezahlt</button>
+                                    <button onClick={() => { if (!unpaidReason) return; handleAddAbsence('unpaid'); }} disabled={!unpaidReason} className="w-full h-full flex flex-col items-center justify-center gap-2 p-4 rounded-xl border border-border bg-card hover:bg-card transition-all text-gray-200 font-bold text-xs disabled:opacity-50"><Ban size={20} /> Unbezahlt</button>
                                     <button onClick={() => handleAddAbsence('sick_child')} className="flex flex-col items-center justify-center gap-2 p-4 rounded-xl border border-orange-500/30 bg-orange-900/20 hover:bg-orange-900/40 transition-all text-orange-100 font-bold text-xs"><UserCheck size={20} /> Kind krank</button>
                                     <button onClick={() => handleAddAbsence('sick_pay')} className="flex flex-col items-center justify-center gap-2 p-4 rounded-xl border border-rose-500/30 bg-rose-900/20 hover:bg-rose-900/40 transition-all text-rose-100 font-bold text-xs"><Stethoscope size={20} /> Krankengeld</button>
                                     {/* NEW Overtime Reduction Button */}
@@ -2123,12 +1433,12 @@ const OfficeUserPage: React.FC = () => {
                                     </button>
 
                                     <div className="col-span-2 md:col-span-5 mt-2">
-                                        <input type="text" placeholder="Begründung für Unbezahlt (z.B. Kinderkrank)..." value={unpaidReason} onChange={e => setUnpaidReason(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-xs text-white placeholder-white/30 focus:border-gray-500/50 outline-none" />
+                                        <input type="text" placeholder="Begründung für Unbezahlt (z.B. Kinderkrank)..." value={unpaidReason} onChange={e => setUnpaidReason(e.target.value)} className="w-full bg-muted border border-border rounded-lg px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground focus:border-border outline-none" />
                                     </div>
                                 </div>
                             )}
 
-                            <div className="w-full h-px bg-white/10 mb-6" />
+                            <div className="w-full h-px bg-card mb-6" />
 
                             {/* 1. ATTENDANCE SECTION (Once) */}
                             {modalAttendanceStats && (
@@ -2156,10 +1466,10 @@ const OfficeUserPage: React.FC = () => {
                             )}
 
                             <div className="space-y-4 mb-8">
-                                <h4 className="text-xs uppercase font-bold text-white/50 tracking-wider">Arbeits-Einträge</h4>
+                                <h4 className="text-xs uppercase font-bold text-muted-foreground tracking-wider">Arbeits-Einträge</h4>
                                 {modalEntries.length === 0 && (
-                                    <div className="text-center py-6 bg-white/5 rounded-xl border border-white/5 border-dashed">
-                                        <p className="text-white/30 text-sm italic">Keine Einträge für diesen Tag.</p>
+                                    <div className="text-center py-6 bg-muted rounded-xl border border-border border-dashed">
+                                        <p className="text-muted-foreground text-sm italic">Keine Einträge für diesen Tag.</p>
                                     </div>
                                 )}
                                 {modalEntries.map(entry => {
@@ -2185,27 +1495,27 @@ const OfficeUserPage: React.FC = () => {
                                     }
 
                                     return (
-                                        <div key={entry.id} className={`group relative p-4 rounded-xl border transition-all ${entry.type === 'emergency_service' ? 'bg-rose-500/10 border-rose-500/50 shadow-[0_0_15px_rgba(244,63,94,0.15)]' : 'bg-white/5 border-white/10 hover:bg-white/10'} ${isDeleted ? 'opacity-50 grayscale border-dashed !bg-black/40' : ''}`}>
+                                        <div key={entry.id} className={`group relative p-4 rounded-xl border transition-all ${entry.type === 'emergency_service' ? 'bg-rose-500/10 border-rose-500/50 shadow-[0_0_15px_rgba(244,63,94,0.15)]' : 'bg-muted border-border hover:bg-card'} ${isDeleted ? 'opacity-50 grayscale border-dashed !bg-input' : ''}`}>
                                             {editingEntry?.id === entry.id ? (
                                                 <div className="space-y-4 animate-in fade-in duration-200">
                                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                                         <div>
-                                                            <label className="text-[10px] text-white/40 uppercase font-bold mb-1 block">Kunde / Projekt</label>
+                                                            <label className="text-[10px] text-muted-foreground uppercase font-bold mb-1 block">Kunde / Projekt</label>
                                                             <div className="flex gap-2">
                                                                 <div className="w-1/3 min-w-[100px]">
                                                                     <select
                                                                         value={(editForm as any).type || 'work'}
                                                                         onChange={e => setEditForm({ ...editForm, type: e.target.value } as any)}
-                                                                        className="w-full bg-white/5 border border-white/10 rounded-lg px-2 py-2 text-white text-sm appearance-none focus:outline-none focus:border-teal-500/50"
+                                                                        className="w-full bg-muted border border-border rounded-lg px-2 py-2 text-foreground text-sm appearance-none focus:outline-none focus:border-teal-500/50"
                                                                     >
-                                                                        <option value="work" className="bg-gray-800">Projekt</option>
-                                                                        <option value="break" className="bg-gray-800 text-amber-300">Pause</option>
-                                                                        <option value="company" className="bg-gray-800">Firma</option>
-                                                                        <option value="office" className="bg-gray-800">Büro</option>
-                                                                        <option value="warehouse" className="bg-gray-800">Lager</option>
-                                                                        <option value="car" className="bg-gray-800">Auto</option>
-                                                                        <option value="overtime_reduction" className="bg-gray-800 text-pink-300">Gutstunden</option>
-                                                                        <option value="emergency_service" className="bg-gray-800 text-rose-300">Notdienst</option>
+                                                                        <option value="work" className="bg-card">Projekt</option>
+                                                                        <option value="break" className="bg-card text-amber-300">Pause</option>
+                                                                        <option value="company" className="bg-card">Firma</option>
+                                                                        <option value="office" className="bg-card">Büro</option>
+                                                                        <option value="warehouse" className="bg-card">Lager</option>
+                                                                        <option value="car" className="bg-card">Auto</option>
+                                                                        <option value="overtime_reduction" className="bg-card text-pink-300">Gutstunden</option>
+                                                                        <option value="emergency_service" className="bg-card text-rose-300">Notdienst</option>
                                                                     </select>
                                                                 </div>
                                                                 <GlassInput type="text" value={editForm.client_name} onChange={e => setEditForm({ ...editForm, client_name: e.target.value })} className="!py-2 !text-sm flex-1" />
@@ -2213,7 +1523,7 @@ const OfficeUserPage: React.FC = () => {
                                                         </div>
                                                         <div className="grid grid-cols-2 gap-2">
                                                             <div>
-                                                                <label className="text-[10px] text-white/40 uppercase font-bold mb-1 block">Start</label>
+                                                                <label className="text-[10px] text-muted-foreground uppercase font-bold mb-1 block">Start</label>
                                                                 <GlassInput
                                                                     type="time"
                                                                     value={editForm.start_time}
@@ -2234,7 +1544,7 @@ const OfficeUserPage: React.FC = () => {
                                                                 />
                                                             </div>
                                                             <div>
-                                                                <label className="text-[10px] text-white/40 uppercase font-bold mb-1 block">Ende</label>
+                                                                <label className="text-[10px] text-muted-foreground uppercase font-bold mb-1 block">Ende</label>
                                                                 <GlassInput
                                                                     type="time"
                                                                     value={editForm.end_time}
@@ -2258,7 +1568,7 @@ const OfficeUserPage: React.FC = () => {
                                                     </div>
                                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                                         <div>
-                                                            <label className="text-[10px] text-white/40 uppercase font-bold mb-1 block">Stunden (Dezimal)</label>
+                                                            <label className="text-[10px] text-muted-foreground uppercase font-bold mb-1 block">Stunden (Dezimal)</label>
                                                             <GlassInput type="number" value={editForm.hours} onChange={e => setEditForm({ ...editForm, hours: e.target.value })} className="!py-2 !text-sm" />
                                                         </div>
                                                         <div>
@@ -2279,7 +1589,7 @@ const OfficeUserPage: React.FC = () => {
                                                                         onClick={() => setEditForm({ ...editForm, surcharge: val } as any)}
                                                                         className={`px-2 py-1 rounded text-[10px] font-bold font-mono border transition-all ${(editForm as any).surcharge === val
                                                                             ? 'bg-rose-500/20 text-rose-100 border-rose-500/50'
-                                                                            : 'bg-white/5 text-white/30 border-white/5 hover:bg-white/10'
+                                                                            : 'bg-muted text-muted-foreground border-border hover:bg-card'
                                                                             }`}
                                                                     >
                                                                         {val}%
@@ -2288,25 +1598,25 @@ const OfficeUserPage: React.FC = () => {
                                                             </div>
                                                         </div>
                                                     )}
-                                                    <div className="flex justify-end gap-2 pt-2 border-t border-white/5">
-                                                        <button onClick={() => setEditingEntry(null)} className="px-3 py-2 rounded-lg bg-white/10 hover:bg-white/20 text-white text-xs font-bold transition-colors">Abbrechen</button>
-                                                        <button onClick={handleSaveEntryEdit} className="px-3 py-2 rounded-lg bg-teal-500 hover:bg-teal-600 text-white text-xs font-bold transition-colors flex items-center gap-2"><Save size={14} /> Speichern</button>
+                                                    <div className="flex justify-end gap-2 pt-2 border-t border-border">
+                                                        <button onClick={() => setEditingEntry(null)} className="px-3 py-2 rounded-lg bg-card hover:bg-accent text-foreground text-xs font-bold transition-colors">Abbrechen</button>
+                                                        <button onClick={handleSaveEntryEdit} className="px-3 py-2 rounded-lg bg-teal-500 hover:bg-teal-600 text-foreground text-xs font-bold transition-colors flex items-center gap-2"><Save size={14} /> Speichern</button>
                                                     </div>
                                                 </div>
                                             ) : (
                                                 <div className="flex flex-col">
                                                     <div className="flex flex-col md:flex-row gap-4 items-start md:items-center">
                                                         {/* TIME & DURATION */}
-                                                        <div className="flex flex-row md:flex-col items-center md:items-start gap-3 md:gap-1 min-w-[100px] border-b md:border-b-0 md:border-r border-white/10 pb-2 md:pb-0 md:pr-4 w-full md:w-auto">
-                                                            <div className="text-white font-mono font-bold text-lg leading-none">
-                                                                {displayHours.toFixed(2)}<span className="text-xs text-white/40 font-sans ml-1">h</span>
+                                                        <div className="flex flex-row md:flex-col items-center md:items-start gap-3 md:gap-1 min-w-[100px] border-b md:border-b-0 md:border-r border-border pb-2 md:pb-0 md:pr-4 w-full md:w-auto">
+                                                            <div className="text-foreground font-mono font-bold text-lg leading-none">
+                                                                {displayHours.toFixed(2)}<span className="text-xs text-muted-foreground font-sans ml-1">h</span>
                                                             </div>
                                                             {deduction > 0 && (
                                                                 <div className="text-[10px] text-orange-300/60 font-mono mt-0.5 leading-tight" title="Pausenabzug">
                                                                     {entry.hours.toFixed(2)} - {deduction.toFixed(2)}
                                                                 </div>
                                                             )}
-                                                            <div className="text-xs text-white/40 font-mono flex items-center gap-1">
+                                                            <div className="text-xs text-muted-foreground font-mono flex items-center gap-1">
                                                                 <Clock size={10} />
                                                                 {entry.start_time && entry.end_time ? `${entry.start_time} - ${entry.end_time}` : 'Manuell'}
                                                             </div>
@@ -2315,7 +1625,7 @@ const OfficeUserPage: React.FC = () => {
                                                         {/* MAIN CONTENT */}
                                                         <div className="flex-1 min-w-0 w-full">
                                                             <div className="flex flex-wrap items-center gap-2 mb-1">
-                                                                <span className="font-bold text-white text-base truncate" title={entry.client_name}>
+                                                                <span className="font-bold text-foreground text-base truncate" title={entry.client_name}>
                                                                     {entry.client_name}
                                                                 </span>
                                                                 {entry.order_number && (
@@ -2339,7 +1649,7 @@ const OfficeUserPage: React.FC = () => {
                                                                                     entry.type === 'company' ? 'border-blue-500/30 text-blue-300 bg-blue-500/10' :
                                                                                         entry.type === 'office' ? 'border-purple-500/30 text-purple-300 bg-purple-500/10' :
                                                                                             entry.type === 'warehouse' ? 'border-amber-500/30 text-amber-300 bg-amber-500/10' :
-                                                                                                entry.type === 'car' ? 'border-gray-500/30 text-gray-300 bg-gray-500/10' :
+                                                                                                entry.type === 'car' ? 'border-border text-muted-foreground bg-gray-500/10' :
                                                                                                     'border-emerald-500/30 text-emerald-300 bg-emerald-500/10'}`}>
                                                                     {entry.type === 'break' ? <Coffee size={10} /> :
                                                                         entry.type === 'overtime_reduction' ? <TrendingDown size={10} /> :
@@ -2379,7 +1689,7 @@ const OfficeUserPage: React.FC = () => {
                                                                     // Priorität 2: Gelöscht
                                                                     if (isDeleted) {
                                                                         return (
-                                                                            <span className="text-[10px] font-bold text-white bg-red-500/30 px-1.5 py-0.5 rounded border border-red-500/50 flex items-center gap-1">
+                                                                            <span className="text-[10px] font-bold text-foreground bg-red-500/30 px-1.5 py-0.5 rounded border border-red-500/50 flex items-center gap-1">
                                                                                 <Trash2 size={10} /> GELÖSCHT
                                                                             </span>
                                                                         );
@@ -2444,7 +1754,7 @@ const OfficeUserPage: React.FC = () => {
                                                                     }
                                                                     // Default: Offen (nur für work-Typ ohne spezielle Anforderungen)
                                                                     return (
-                                                                        <span className="text-[10px] font-bold text-white/30 bg-white/5 px-1.5 py-0.5 rounded border border-white/10 flex items-center gap-1">
+                                                                        <span className="text-[10px] font-bold text-muted-foreground bg-muted px-1.5 py-0.5 rounded border border-border flex items-center gap-1">
                                                                             <CheckCircle size={10} /> OK
                                                                         </span>
                                                                     );
@@ -2456,7 +1766,7 @@ const OfficeUserPage: React.FC = () => {
                                                         </div>
 
                                                         {/* ACTIONS */}
-                                                        <div className="flex items-center gap-2 pl-4 border-l border-white/10 md:self-stretch">
+                                                        <div className="flex items-center gap-2 pl-4 border-l border-border md:self-stretch">
                                                             {/* CONFIRMATION BUTTONS */}
                                                             {!entry.confirmed_at && !entry.rejected_at && !isDeleted && (
                                                                 <div className="flex items-center gap-1">
@@ -2501,18 +1811,18 @@ const OfficeUserPage: React.FC = () => {
                                                                 title="Verlauf anzeigen"
                                                                 className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors border ${entry.has_history
                                                                     ? 'text-purple-300 bg-purple-500/10 border-purple-500/30 hover:bg-purple-500/20'
-                                                                    : 'text-white/30 bg-white/5 border-white/10 hover:bg-white/10 hover:text-white'}`}
+                                                                    : 'text-muted-foreground bg-muted border-border hover:bg-card hover:text-foreground'}`}
                                                             >
                                                                 <HistoryIcon size={14} />
                                                             </button>
 
                                                             {/* EDIT / DELETE (Only if allowed) */}
                                                             {canManage && !isDeleted && (
-                                                                <div className="flex items-center gap-2 ml-2 pl-2 border-l border-white/10">
+                                                                <div className="flex items-center gap-2 ml-2 pl-2 border-l border-border">
                                                                     <button
                                                                         onClick={() => { setEditingEntry(entry); setEditForm({ ...editForm, client_name: entry.client_name, hours: entry.hours.toString().replace('.', ','), start_time: entry.start_time || '', end_time: entry.end_time || '', note: entry.note || '', reason: '', type: entry.type, surcharge: entry.surcharge || 0 }) }}
                                                                         title="Bearbeiten"
-                                                                        className="w-8 h-8 rounded-lg flex items-center justify-center transition-colors text-white/50 bg-white/5 border border-white/10 hover:bg-white/10 hover:text-white"
+                                                                        className="w-8 h-8 rounded-lg flex items-center justify-center transition-colors text-muted-foreground bg-muted border border-border hover:bg-card hover:text-foreground"
                                                                     >
                                                                         <Edit2 size={14} />
                                                                     </button>
@@ -2527,7 +1837,7 @@ const OfficeUserPage: React.FC = () => {
                                                                             </button>
                                                                             <button
                                                                                 onClick={() => deleteEntry(entry.id, entry.deletion_request_reason || 'Löschantrag genehmigt')}
-                                                                                className="w-8 h-8 rounded-lg flex items-center justify-center bg-red-500 text-white border border-red-600 shadow-lg shadow-red-900/20 hover:bg-red-600"
+                                                                                className="w-8 h-8 rounded-lg flex items-center justify-center bg-red-500 text-foreground border border-red-600 shadow-lg shadow-red-900/20 hover:bg-red-600"
                                                                             >
                                                                                 <Trash2 size={14} />
                                                                             </button>
@@ -2547,7 +1857,7 @@ const OfficeUserPage: React.FC = () => {
                                                     </div>
 
                                                     {entry.note && (
-                                                        <div className="mt-3 pt-3 border-t border-white/5 w-full flex items-start gap-1.5 text-white/50 text-xs italic">
+                                                        <div className="mt-3 pt-3 border-t border-border w-full flex items-start gap-1.5 text-muted-foreground text-xs italic">
                                                             <StickyNote size={12} className="mt-0.5 shrink-0" />
                                                             <span>{entry.note}</span>
                                                         </div>
@@ -2579,53 +1889,59 @@ const OfficeUserPage: React.FC = () => {
                                 })}
                             </div>
 
-                            <div className="bg-white/5 p-5 rounded-2xl border border-white/10 shadow-inner">
-                                <h4 className="text-xs uppercase font-bold text-white/50 mb-4 tracking-wider flex items-center gap-2"><Plus size={14} className="text-teal-400" /> Neuer Eintrag</h4>
+                            <div className="bg-muted p-5 rounded-2xl border border-border shadow-inner">
+                                <h4 className="text-xs uppercase font-bold text-muted-foreground mb-4 tracking-wider flex items-center gap-2"><Plus size={14} className="text-teal-400" /> Neuer Eintrag</h4>
                                 <div className="space-y-4">
                                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                         <div className="md:col-span-1 relative">
-                                            <select value={newEntryForm.type} onChange={e => setNewEntryForm({ ...newEntryForm, type: e.target.value })} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white appearance-none focus:outline-none focus:ring-2 focus:ring-teal-500/50 transition-all cursor-pointer text-sm font-medium">
-                                                <option value="work" className="bg-gray-800 text-white">Projekt</option>
-                                                <option value="break" className="bg-gray-800 text-amber-300">Pause</option>
-                                                <option value="company" className="bg-gray-800 text-white">Firma</option>
-                                                <option value="office" className="bg-gray-800 text-white">Büro</option>
-                                                <option value="warehouse" className="bg-gray-800 text-white">Lager</option>
-                                                <option value="car" className="bg-gray-800 text-white">Auto</option>
-                                                <option value="overtime_reduction" className="bg-gray-800 text-pink-300">Gutstunden</option>
-                                                <option value="emergency_service" className="bg-gray-800 text-rose-300">Notdienst</option>
+                                            <select value={newEntryForm.type} onChange={e => setNewEntryForm({ ...newEntryForm, type: e.target.value })} className="w-full bg-muted border border-border rounded-xl px-4 py-3 text-foreground appearance-none focus:outline-none focus:ring-2 focus:ring-teal-500/50 transition-all cursor-pointer text-sm font-medium">
+                                                <option value="work" className="bg-card text-foreground">Projekt</option>
+                                                <option value="break" className="bg-card text-amber-300">Pause</option>
+                                                <option value="company" className="bg-card text-foreground">Firma</option>
+                                                <option value="office" className="bg-card text-foreground">Büro</option>
+                                                <option value="warehouse" className="bg-card text-foreground">Lager</option>
+                                                <option value="car" className="bg-card text-foreground">Auto</option>
+                                                <option value="overtime_reduction" className="bg-card text-pink-300">Gutstunden</option>
+                                                <option value="emergency_service" className="bg-card text-rose-300">Notdienst</option>
                                             </select>
-                                            <ChevronDown size={16} className="absolute right-4 top-1/2 -translate-y-1/2 text-white/50 pointer-events-none" />
+                                            <ChevronDown size={16} className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
                                         </div>
                                         <div className="md:col-span-2">
-                                            <GlassInput type="text" placeholder={newEntryForm.type === 'work' ? "Projekt / Kunde" : "Beschreibung"} value={newEntryForm.client_name} onChange={e => setNewEntryForm({ ...newEntryForm, client_name: e.target.value })} className="w-full placeholder-white/30" />
+                                            <GlassInput type="text" placeholder={newEntryForm.type === 'work' ? "Projekt / Kunde" : "Beschreibung"} value={newEntryForm.client_name} onChange={e => setNewEntryForm({ ...newEntryForm, client_name: e.target.value })} className="w-full placeholder:text-muted-foreground" />
                                         </div>
                                     </div>
-                                    <div className="grid grid-cols-3 gap-4">
-                                        <div className="relative group">
-                                            <label className="absolute -top-2 left-3 bg-[#1e2536] px-1 text-[10px] text-white/40 uppercase font-bold z-10 rounded">Von</label>
-                                            <GlassInput
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                        <div className="relative bg-black/30 backdrop-blur-md rounded-2xl border border-white/10 shadow-inner group focus-within:border-primary/50 transition-all">
+                                            <span className="absolute top-1.5 left-0 w-full text-center text-[8px] text-muted-foreground uppercase font-black tracking-widest opacity-60">Von</span>
+                                            <input
                                                 type="text"
-                                                placeholder="HH:MM"
+                                                placeholder="--"
                                                 value={newEntryForm.start_time}
                                                 onChange={e => setNewEntryForm({ ...newEntryForm, start_time: e.target.value })}
                                                 onBlur={e => setNewEntryForm({ ...newEntryForm, start_time: handleSmartTimeInput(e.target.value) })}
-                                                className="text-center font-mono"
+                                                className="w-full bg-transparent border-none text-center text-foreground font-mono text-base h-12 pt-3 focus:outline-none"
                                             />
                                         </div>
-                                        <div className="relative group">
-                                            <label className="absolute -top-2 left-3 bg-[#1e2536] px-1 text-[10px] text-white/40 uppercase font-bold z-10 rounded">Bis</label>
-                                            <GlassInput
+                                        <div className="relative bg-black/30 backdrop-blur-md rounded-2xl border border-white/10 shadow-inner group focus-within:border-primary/50 transition-all">
+                                            <span className="absolute top-1.5 left-0 w-full text-center text-[8px] text-muted-foreground uppercase font-black tracking-widest opacity-60">Bis</span>
+                                            <input
                                                 type="text"
-                                                placeholder="HH:MM"
+                                                placeholder="--"
                                                 value={newEntryForm.end_time}
                                                 onChange={e => setNewEntryForm({ ...newEntryForm, end_time: e.target.value })}
                                                 onBlur={e => setNewEntryForm({ ...newEntryForm, end_time: handleSmartTimeInput(e.target.value) })}
-                                                className="text-center font-mono"
+                                                className="w-full bg-transparent border-none text-center text-foreground font-mono text-base h-12 pt-3 focus:outline-none"
                                             />
                                         </div>
-                                        <div className="relative group">
-                                            <label className="absolute -top-2 right-3 bg-[#1e2536] px-1 text-[10px] text-teal-400 uppercase font-bold z-10 rounded">Std</label>
-                                            <GlassInput type="number" placeholder="0.00" value={newEntryForm.hours} onChange={e => setNewEntryForm({ ...newEntryForm, hours: e.target.value })} className="text-center font-mono font-bold text-teal-300" />
+                                        <div className="relative bg-black/30 backdrop-blur-md rounded-2xl border border-white/10 shadow-inner group focus-within:border-primary/50 transition-all flex flex-col justify-center">
+                                            <span className="absolute top-1.5 left-0 w-full text-center text-[8px] text-teal-400 font-black uppercase tracking-widest opacity-60">Std</span>
+                                            <input
+                                                type="number"
+                                                placeholder="0.00"
+                                                value={newEntryForm.hours}
+                                                onChange={e => setNewEntryForm({ ...newEntryForm, hours: e.target.value })}
+                                                className="w-full bg-transparent border-none text-center text-teal-300 font-black font-mono text-xl h-12 pt-3 focus:outline-none"
+                                            />
                                         </div>
                                     </div>
                                     {newEntryForm.type === 'emergency_service' && (
@@ -2641,7 +1957,7 @@ const OfficeUserPage: React.FC = () => {
                                                         onClick={() => setNewEntryForm({ ...newEntryForm, surcharge: val })}
                                                         className={`px-3 py-1.5 rounded-lg text-xs font-bold font-mono border transition-all ${(newEntryForm as any).surcharge === val
                                                             ? 'bg-rose-500/20 text-rose-100 border-rose-500/50 shadow-[0_0_10px_rgba(244,63,94,0.2)]'
-                                                            : 'bg-white/5 text-white/30 border-white/5 hover:bg-white/10'
+                                                            : 'bg-muted text-muted-foreground border-border hover:bg-card'
                                                             }`}
                                                     >
                                                         {val}%
@@ -2653,21 +1969,624 @@ const OfficeUserPage: React.FC = () => {
                                     <GlassButton onClick={handleAddEntry} className="w-full mt-2 shadow-lg shadow-teal-900/20">Eintrag hinzufügen</GlassButton>
                                 </div>
                             </div>
-                        </GlassCard>
-                    </div >
-                )
-            }
+                        
+                        </div>
+                    )}
+                </div>
 
-            {/* Date Pickers */}
+                {/* CALENDAR (Right 2/5) */}
+                <div className="col-span-1 xl:col-span-2 sticky top-6 z-10">
+                    <SpotlightCard className="bg-card border border-border p-5 rounded-3xl shadow-xl relative overflow-hidden transition-all duration-500 hover:shadow-2xl hover:border-white/20 h-full">
+                        {/* Background Watermark */}
+                        <div className="absolute -top-2 -right-2 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
+                            <CalendarHeart size={80} className="text-foreground rotate-12 group-hover:rotate-0 transition-transform duration-700" />
+                        </div>
+
+                        <div className="mb-4 flex justify-between items-center relative z-10">
+                            <button onClick={() => setSelectedMonth(new Date(year, month - 1))} className="p-1.5 bg-background/50 text-foreground hover:bg-muted border border-border/50 rounded-lg transition-colors shadow-sm"><ChevronLeft size={14} /></button>
+                            <span className="font-black text-base tracking-tighter text-foreground uppercase">{selectedMonth.toLocaleDateString('de-DE', { month: 'long', year: 'numeric' })}</span>
+                            <button onClick={() => setSelectedMonth(new Date(year, month + 1))} className="p-1.5 bg-background/50 text-foreground hover:bg-muted border border-border/50 rounded-lg transition-colors shadow-sm"><ChevronRight size={14} /></button>
+                        </div>
+
+                        <div className="grid grid-cols-7 gap-2 mb-2 relative z-10">
+                {['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'].map(d => <div key={d} className="text-center text-xs text-muted-foreground font-bold uppercase">{d}</div>)}
+                {blanks.map(b => <div key={`b-${b}`} />)}
+                {days.map(day => {
+                    const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                    const target = getDailyTargetForDate(dateStr, currentUser?.target_hours || {});
+                    const absence = absences.find(a => dateStr >= a.start_date && dateStr <= a.end_date);
+                    const isSchoolHoliday = schoolHolidays.some(h => dateStr >= h.start && dateStr <= h.end);
+
+                    // Calculate hours (Ist) - EXCLUDE DELETED
+                    // Calculate hours (Ist) - EXCLUDE DELETED & DEDUCT BREAK OVERLAPS
+                    const dayEntries = monthEntries.filter(e => e.date === dateStr && !e.is_deleted && !e.deleted_at);
+                    const isEmergency = dayEntries.some(e => e.type === 'emergency_service');
+                    let hours = 0;
+                    if (dayEntries.length > 0) {
+                        const workEntries = dayEntries.filter(e => e.type !== 'break');
+                        const breakEntries = dayEntries.filter(e => e.type === 'break');
+
+                        let workSum = workEntries.reduce((acc, e) => {
+                            const duration = (e.calc_duration_minutes !== undefined && e.calc_duration_minutes !== 0)
+                                ? e.calc_duration_minutes / 60
+                                : (Number(e.hours) || 0);
+                            
+                            let surcharge = e.calc_surcharge_hours || 0;
+                            
+                            // Fallback for emergency surcharge if server hasn't calculated it yet
+                            if (e.type === 'emergency_service' && surcharge === 0 && e.surcharge) {
+                                surcharge = duration * (e.surcharge / 100);
+                            }
+
+                            return acc + duration + surcharge;
+                        }, 0);
+
+                        // Deduct overlaps
+                        let overlapDeduction = 0;
+                        workEntries.forEach(w => {
+                            breakEntries.forEach(b => {
+                                const mins = calculateOverlapInMinutes(w.start_time || '', w.end_time || '', b.start_time || '', b.end_time || '');
+                                overlapDeduction += (mins / 60);
+                            });
+                        });
+
+                        hours = Math.max(0, workSum - overlapDeduction);
+                    }
+
+                    // ADDED: Consider Absences (Vacation, Sick, Holiday...) as effective working time (Ist)
+                    if (absence && ['vacation', 'sick', 'holiday', 'sick_child', 'sick_pay'].includes(absence.type)) {
+                        // If there's a full-day paid absence, we assume the target is met as base.
+                        // Any additional worked hours (entries) are added ON TOP (e.g. emergency service on holiday).
+                        if (target > 0) hours = hours + target;
+                    }
+
+                    let status = 'empty';
+                    if (absence) status = absence.type;
+                    else {
+                        if (dayEntries.length > 0) {
+                            if (hours >= target && target > 0) status = 'full';
+                            else if (hours > 0) status = 'partial';
+                        }
+                    }
+
+                    let bg = isSchoolHoliday ? 'bg-blue-400/10 border-blue-400/20' : 'bg-muted border-border';
+                    let text = 'text-muted-foreground';
+                    let icon = null;
+                    if (status === 'vacation') { bg = 'bg-purple-500/20 border-purple-500/40'; text = 'text-purple-200'; icon = <Palmtree size={12} className="text-purple-300 mt-1" />; }
+                    else if (status === 'sick') { bg = 'bg-red-500/20 border-red-500/40'; text = 'text-red-200'; icon = <Stethoscope size={12} className="text-red-300 mt-1" />; }
+                    else if (status === 'holiday') { bg = 'bg-blue-500/20 border-blue-500/40'; text = 'text-blue-200'; icon = <CalendarHeart size={12} className="text-blue-300 mt-1" />; }
+                    else if (status === 'unpaid') { bg = 'bg-gray-700/40 border-border'; text = 'text-muted-foreground'; icon = <Ban size={12} className="text-muted-foreground mt-1" />; }
+                    else if (status === 'full') { bg = 'bg-emerald-500/20 border-emerald-500/40'; text = 'text-emerald-200'; }
+                    else if (status === 'sick_child') { bg = 'bg-orange-500/20 border-orange-500/40'; text = 'text-orange-200'; icon = <UserCheck size={12} className="text-orange-300 mt-1" />; }
+                    else if (status === 'sick_pay') { bg = 'bg-rose-500/20 border-rose-500/40'; text = 'text-rose-200'; icon = <Stethoscope size={12} className="text-rose-300 mt-1" />; }
+                    else if (status === 'partial') { bg = 'bg-yellow-500/20 border-yellow-500/40'; text = 'text-yellow-200'; }
+
+                    if (isEmergency) {
+                        bg = 'bg-rose-500/20 border-rose-500/40 shadow-[0_0_10px_rgba(244,63,94,0.1)]';
+                        text = 'text-rose-200';
+                    }
+
+                    return (
+                        <div
+                            key={day}
+                            onClick={() => handleDayClick(day)}
+                            className={`aspect-square rounded-lg border ${bg} flex flex-col items-center justify-center cursor-pointer hover:scale-105 transition-transform relative p-0.5`}
+                        >
+                            {isSchoolHoliday && status === 'empty' && !isEmergency && (
+                                <div className="absolute top-1 left-1 w-1.5 h-1.5 bg-blue-400 rounded-full opacity-50" title="Schulferien" />
+                            )}
+                            {isEmergency && <Siren size={10} className="absolute top-1 right-1 text-rose-400" />}
+                            <span className={`text-sm font-bold ${text}`}>{day}</span>
+
+                            {(target > 0 || hours > 0 || isEmergency) && (
+                                <div className="flex flex-col items-center leading-none mt-0.5 space-y-0 w-full">
+                                    {target > 0 && <span className="text-[10px] text-muted-foreground font-medium">Soll: {target.toLocaleString('de-DE', { maximumFractionDigits: 1 })}</span>}
+                                    {(hours > 0 || isEmergency) && (
+                                        <span className={`text-[10px] font-bold ${hours >= target ? 'text-emerald-400' : 'text-red-400'}`}>
+                                            Ist: {hours >= target && !['vacation', 'sick', 'holiday', 'sick_child', 'sick_pay'].includes(status) ? '+' : ''}{hours.toLocaleString('de-DE', { maximumFractionDigits: 2 })}
+                                        </span>
+                                    )}
+                                </div>
+                            )}
+                            {icon}
+                        </div>
+
+                    )
+                })}
+                </div>
+            </SpotlightCard>
+        </div>
+    </div>
+
+            {/* KANBAN TASKS */}
+
+            {(pendingRequests.length > 0 || pendingEntries.length > 0) && (
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8 animate-in slide-in-from-bottom-4 duration-500">
+                    
+                    {/* COLUMN 1: URLAUBSANTRÄGE */}
+                    <div className="bg-card/50 border border-border rounded-3xl p-6 flex flex-col gap-4 shadow-lg">
+                        <div className="flex items-center justify-between pb-3 border-b-2 border-purple-500/20 mb-2">
+                            <h2 className="text-xl font-black flex items-center gap-2 text-foreground">
+                                <CalendarHeart className="text-purple-500" size={24} /> Urlaubsanträge
+                            </h2>
+                            <div className="bg-purple-500/10 text-purple-500 text-sm font-black px-3 py-1 rounded-xl border border-purple-500/20">
+                                {pendingRequests.length}
+                            </div>
+                        </div>
+                        <div className="flex flex-col gap-4 overflow-y-auto max-h-[500px] scrollbar-thin pr-2">
+                            {pendingRequests.length === 0 && <p className="text-muted-foreground text-sm italic py-4 text-center">Keine offenen Urlaubsanträge</p>}
+                            {pendingRequests.map(req => (
+                                <SpotlightCard key={req.id} className="bg-background border border-border p-4 rounded-xl shadow-sm hover:shadow-md hover:border-purple-500/50 transition-all flex flex-col gap-3 group">
+                                    <div>
+                                        <div className="font-black text-foreground text-lg mb-1">
+                                            {new Date(req.start_date).toLocaleDateString('de-DE')} - {new Date(req.end_date).toLocaleDateString('de-DE')}
+                                        </div>
+                                        {req.note && <div className="text-muted-foreground text-sm italic">"{req.note}"</div>}
+                                    </div>
+                                    <div className="flex flex-wrap gap-2 mt-auto">
+                                        {canManage ? (
+                                            <>
+                                                <button onClick={() => handleApproveRequest(req)} className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-lg hover:bg-emerald-500/20 font-bold text-xs transition-colors">
+                                                    <CheckCircle size={14} /> Genehmigen
+                                                </button>
+                                                <button onClick={() => rejectRequest(req.id)} className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-red-500/10 text-red-400 border border-red-500/20 rounded-lg hover:bg-red-500/20 font-bold text-xs transition-colors">
+                                                    <XCircle size={14} /> Ablehnen
+                                                </button>
+                                            </>
+                                        ) : (
+                                            <span className="text-muted-foreground text-xs italic flex items-center">Keine Berechtigung</span>
+                                        )}
+                                    </div>
+                                </SpotlightCard>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* COLUMN 2: BESTÄTIGUNGEN */}
+                    <div className="bg-card/50 border border-border rounded-3xl p-6 flex flex-col gap-4 shadow-lg">
+                        <div className="flex items-center justify-between pb-3 border-b-2 border-orange-500/20 mb-2">
+                            <h2 className="text-xl font-black flex items-center gap-2 text-foreground">
+                                <AlertTriangle className="text-orange-500" size={24} /> Zeiten bestätigen
+                            </h2>
+                            <div className="bg-orange-500/10 text-orange-500 text-sm font-black px-3 py-1 rounded-xl border border-orange-500/20">
+                                {pendingEntries.length}
+                            </div>
+                        </div>
+                        <div className="flex flex-col gap-4 overflow-y-auto max-h-[500px] scrollbar-thin pr-2">
+                            {pendingEntries.length === 0 && <p className="text-muted-foreground text-sm italic py-4 text-center">Keine offenen Bestätigungen</p>}
+                            {pendingEntries.map(entry => (
+                                <SpotlightCard key={entry.id} className="bg-background border border-border p-4 rounded-xl shadow-sm hover:shadow-md hover:border-orange-500/50 transition-all flex flex-col gap-3 group">
+                                    <div className="flex-1 min-w-0">
+                                        <div className="flex flex-wrap items-center gap-2 text-foreground mb-2">
+                                            <span className="font-black text-lg font-mono">
+                                                {new Date(entry.date).toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit' })}
+                                            </span>
+                                            <span className={`text-[10px] px-2 py-0.5 rounded uppercase font-bold tracking-wider ${entry.type === 'office' ? 'bg-blue-500/20 text-blue-300' : entry.type === 'company' ? 'bg-purple-500/20 text-purple-300' : entry.type === 'warehouse' ? 'bg-amber-500/20 text-amber-300' : 'bg-gray-500/20 text-muted-foreground'}`}>
+                                                {entry.type === 'company' ? 'Firma' : entry.type === 'office' ? 'Büro' : entry.type === 'warehouse' ? 'Lager' : entry.type}
+                                            </span>
+                                            <span className="font-black text-emerald-400 font-mono text-lg ml-auto">
+                                                {entry.hours} h
+                                            </span>
+                                        </div>
+                                        {entry.start_time && entry.end_time && (
+                                            <div className="text-xs text-muted-foreground font-mono bg-input px-2 py-1 rounded inline-block mb-2">
+                                                {entry.start_time} - {entry.end_time}
+                                            </div>
+                                        )}
+                                        {entry.note && (
+                                            <div className="text-muted-foreground text-xs italic flex items-start gap-1.5 mt-1 bg-muted p-2 rounded-lg">
+                                                <StickyNote size={12} className="mt-0.5 shrink-0 opacity-50" />
+                                                <span>{entry.note}</span>
+                                            </div>
+                                        )}
+                                    </div>
+                                    {canManage && (
+                                        <button onClick={() => confirmEntry(entry.id)} className="w-full mt-auto flex items-center justify-center gap-2 px-4 py-2 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-lg hover:bg-emerald-500/20 font-bold text-xs transition-colors">
+                                            <CheckCircle size={14} /> Bestätigen
+                                        </button>
+                                    )}
+                                </SpotlightCard>
+                            ))}
+                        </div>
+                    </div>
+
+                </div>
+            )}
+
+            
+
+            
+            {/* DYNAMIC MODAL: showVacationModal */}
+            { showVacationModal && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm animate-in fade-in duration-200" onClick={(e) => { if (e.target === e.currentTarget) setShowVacationModal(false); }}>
+                    <GlassCard className="w-full max-w-4xl max-h-[90vh] overflow-y-auto relative shadow-2xl border-border !p-0 bg-background">
+                        <button onClick={() => setShowVacationModal(false)} className="absolute top-4 right-4 p-2 bg-background hover:bg-muted rounded-full text-muted-foreground hover:text-foreground transition-colors z-50"><X size={20} /></button>
+                        <div className="p-4 md:p-6">
+                            {/* URLAUBSVERWALTUNG DETAILS */}
+                <div className="bg-card/50 border border-border rounded-3xl p-6 flex flex-col gap-4 shadow-lg relative overflow-hidden group">
+                    <div className="flex items-center justify-between pb-3 border-b border-purple-500/20 mb-2 relative z-10">
+                        <h2 className="text-xl font-black flex items-center gap-2 text-purple-400">
+                            <Palmtree size={24} /> Urlaubsverwaltung Details
+                        </h2>
+                        <div className="flex items-center bg-background/80 rounded-xl px-2 py-1 gap-2 border border-border shadow-inner">
+                            <button onClick={() => setVacationViewYear(y => y - 1)} className="text-purple-300 hover:text-foreground p-1 transition-colors"><ChevronLeft size={16} /></button>
+                            <span className="text-sm font-black text-foreground w-10 text-center">{vacationViewYear}</span>
+                            <button onClick={() => setVacationViewYear(y => y + 1)} className="text-purple-300 hover:text-foreground p-1 transition-colors"><ChevronRight size={16} /></button>
+                        </div>
+                    </div>
+                    
+                    <div className="flex flex-col relative z-10">
+                        {unpaidDaysInYear > 0 && (
+                            <div className="mb-4 px-4 py-3 bg-red-900/20 border border-red-500/20 rounded-xl text-sm text-red-200 flex items-start gap-3 shadow-inner">
+                                <Info size={18} className="mt-0.5 shrink-0 text-red-400" />
+                                <div>
+                                    <span className="font-bold block mb-1">{unpaidDaysInYear} Tage Unbezahlt.</span>
+                                    <p className="opacity-80 text-xs">Der Urlaubsanspruch wurde automatisch um {(vacationDaysEdit! - effectiveVacationClaim).toFixed(1)} Tage reduziert.</p>
+                                </div>
+                            </div>
+                        )}
+
+                        <div className="flex items-center justify-between bg-muted/50 p-4 rounded-2xl border border-border/50 mb-6">
+                            <div className="flex flex-col gap-1 w-full max-w-[80px]">
+                                <label className="text-[10px] text-muted-foreground uppercase font-black tracking-wider">Basis</label>
+                                <input
+                                    type="number"
+                                    disabled={isQuotaLocked}
+                                    value={vacationDaysEdit ?? ''}
+                                    onChange={e => {
+                                        const val = parseFloat(e.target.value);
+                                        setVacationDaysEdit(isNaN(val) ? 0 : val);
+                                    }}
+                                    className={`w-full bg-background border border-border rounded-lg px-2 py-2 text-center text-sm font-bold text-foreground focus:outline-none ${isQuotaLocked ? 'opacity-50 cursor-not-allowed' : 'focus:border-purple-500/50'}`}
+                                />
+                            </div>
+                            <div className="text-muted-foreground font-black text-xl">+</div>
+                            <div className="flex flex-col gap-1 w-full max-w-[80px]">
+                                <label className="text-[10px] text-muted-foreground uppercase font-black tracking-wider">Rest (VJ)</label>
+                                <input
+                                    type="number"
+                                    disabled={isQuotaLocked}
+                                    value={vacationCarryoverEdit ?? ''}
+                                    onChange={e => {
+                                        const val = parseFloat(e.target.value);
+                                        setVacationCarryoverEdit(isNaN(val) ? 0 : val);
+                                    }}
+                                    className={`w-full bg-background border border-border rounded-lg px-2 py-2 text-center text-sm font-bold text-foreground focus:outline-none ${isQuotaLocked ? 'opacity-50 cursor-not-allowed' : 'focus:border-purple-500/50'}`}
+                                />
+                            </div>
+                            <div className="text-muted-foreground font-black text-xl">=</div>
+                            <div className="flex flex-col items-end gap-1">
+                                <label className="text-[10px] text-muted-foreground uppercase font-black tracking-wider">Gesamt</label>
+                                <span className="text-2xl font-black text-purple-400">
+                                    {((vacationDaysEdit || 0) + (vacationCarryoverEdit || 0)).toFixed(1)}
+                                </span>
+                            </div>
+                        </div>
+
+                        <div className="flex items-center justify-between mb-6">
+                            <button
+                                onClick={() => {
+                                    if (userId) {
+                                        supabase.from('yearly_vacation_quotas')
+                                            .select('id')
+                                            .eq('user_id', userId)
+                                            .eq('year', vacationViewYear)
+                                            .single()
+                                            .then(({ data }) => {
+                                                if (data) {
+                                                    fetchVacationAuditLog(data.id).then(setQuotaAuditLogs);
+                                                    setShowQuotaHistory(true);
+                                                } else {
+                                                    showToast("Keine Historie vorhanden.", "warning");
+                                                }
+                                            });
+                                    }
+                                }}
+                                className="px-4 py-2 bg-background border border-border hover:bg-muted rounded-xl text-muted-foreground hover:text-foreground text-xs font-bold transition-colors flex items-center gap-2"
+                            >
+                                <HistoryIcon size={14} /> Quoten-Historie
+                            </button>
+
+                            <div className="flex gap-2">
+                                <button
+                                    onClick={() => setIsQuotaLocked(!isQuotaLocked)}
+                                    className={`p-2 rounded-xl transition-colors flex items-center justify-center ${isQuotaLocked ? 'bg-muted text-muted-foreground hover:text-foreground' : 'bg-orange-500/20 text-orange-200 hover:bg-orange-500/30'}`}
+                                    title={isQuotaLocked ? "Entsperren zum Bearbeiten" : "Bearbeitung sperren"}
+                                >
+                                    {isQuotaLocked ? <Lock size={16} /> : <Unlock size={16} />}
+                                </button>
+
+                                {!isQuotaLocked && (
+                                    <button
+                                        onClick={() => {
+                                            const role = viewerSettings?.role;
+                                            if (role !== 'super_admin' && role !== 'admin' && role !== 'office' && (role as string) !== 'chef') {
+                                                setShowPermissionError(true);
+                                                return;
+                                            }
+
+                                            if (userId && vacationDaysEdit !== null) {
+                                                updateYearlyQuota(userId, vacationViewYear, {
+                                                    total_days: vacationDaysEdit,
+                                                    manual_carryover: vacationCarryoverEdit,
+                                                    is_locked: true
+                                                });
+                                                setIsQuotaLocked(true);
+                                                setTimeout(async () => {
+                                                    const notifs = await fetchQuotaNotifications(userId);
+                                                    if (notifs) setQuotaNotifications(notifs);
+                                                }, 500);
+                                            }
+                                        }}
+                                        className="px-4 py-2 bg-purple-500 hover:bg-purple-600 rounded-xl text-foreground text-xs font-bold transition-colors flex items-center gap-2 shadow-lg shadow-purple-900/20"
+                                    >
+                                        <Save size={16} /> {quotaNotifications.some(n => n.status === 'pending') ? 'Vorschlag aktualisieren' : 'Speichern'}
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* APPROVED REQUESTS SUB-SECTION */}
+                        {canManage && approvedRequests.length > 0 && (
+                            <div className="pt-4 border-t border-border/50">
+                                <label className="text-[10px] uppercase font-bold text-emerald-400/70 mb-3 flex items-center gap-2">
+                                    <CheckCircle size={14} /> Genehmigte Urlaubsanträge (Letzte 5)
+                                </label>
+                                <div className="space-y-2 max-h-40 overflow-y-auto scrollbar-thin">
+                                    {approvedRequests.map(req => (
+                                        <div key={req.id} className="bg-emerald-500/5 p-3 rounded-xl border border-emerald-500/10 flex items-center justify-between gap-2">
+                                            <div>
+                                                <div className="font-bold text-foreground text-sm">
+                                                    {new Date(req.start_date).toLocaleDateString('de-DE')} - {new Date(req.end_date).toLocaleDateString('de-DE')}
+                                                </div>
+                                                <div className="text-emerald-200/50 text-[10px] mt-0.5">
+                                                    {new Date(req.created_at).toLocaleDateString('de-DE')} • {req.approved_by_name || 'Admin'}
+                                                </div>
+                                            </div>
+                                            <button
+                                                onClick={() => generateVacationRequestPDF(req, true)}
+                                                className="px-3 py-1.5 bg-background border border-border rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground text-xs font-bold transition-colors flex items-center gap-2"
+                                                title="Kopie drucken"
+                                            >
+                                                <Printer size={12} /> Drucken
+                                            </button>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+                
+                        </div>
+                    </GlassCard>
+                </div>
+            )}
+
+            {/* DYNAMIC MODAL: showWorkModelModal */}
+            { showWorkModelModal && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm animate-in fade-in duration-200" onClick={(e) => { if (e.target === e.currentTarget) setShowWorkModelModal(false); }}>
+                    <GlassCard className="w-full max-w-4xl max-h-[90vh] overflow-y-auto relative shadow-2xl border-border !p-0 bg-background">
+                        <button onClick={() => setShowWorkModelModal(false)} className="absolute top-4 right-4 p-2 bg-background hover:bg-muted rounded-full text-muted-foreground hover:text-foreground transition-colors z-50"><X size={20} /></button>
+                        <div className="p-4 md:p-6">
+                            {/* ARBEITSZEIT-MODELL DETAILS */}
+                <div className="bg-card/50 border border-border rounded-3xl p-6 flex flex-col gap-4 shadow-lg relative overflow-hidden">
+                    <div className="flex items-center justify-between pb-3 border-b border-blue-500/20 mb-2 relative z-10">
+                        <h2 className="text-xl font-black flex items-center gap-2 text-blue-400">
+                            <Briefcase size={24} /> Arbeitszeit-Modell Details
+                        </h2>
+                        <div className="flex items-center gap-2">
+                            {isEditingWorkModel ? (
+                                <>
+                                    <button onClick={() => setIsEditingWorkModel(false)} className="p-2 bg-background hover:bg-muted border border-border rounded-xl text-muted-foreground transition-colors"><RotateCcw size={16} /></button>
+                                    <button onClick={handleSaveWorkModel} className="p-2 bg-blue-500/20 hover:bg-blue-500/40 text-blue-300 rounded-xl transition-colors"><Save size={16} /></button>
+                                </>
+                            ) : (
+                                <>
+                                    <button onClick={handleToggleLock} className="p-2 bg-background hover:bg-muted border border-border rounded-xl transition-colors" title={isWorkModelLocked ? "Entsperren" : "Sperren"}>
+                                        {isWorkModelLocked ? <Lock size={16} className="text-red-400" /> : <Unlock size={16} className="text-emerald-400" />}
+                                    </button>
+                                    <button 
+                                        onClick={() => !isWorkModelLocked && setIsEditingWorkModel(true)} 
+                                        className={`p-2 rounded-xl transition-colors border border-border ${isWorkModelLocked ? 'bg-background opacity-50 cursor-not-allowed text-muted-foreground' : 'bg-background hover:bg-blue-500/10 text-blue-400 hover:border-blue-500/30'}`} 
+                                        disabled={isWorkModelLocked}
+                                    >
+                                        <Edit2 size={16} />
+                                    </button>
+                                </>
+                            )}
+                        </div>
+                    </div>
+
+                    <div className="flex flex-col relative z-10">
+                        <div className="grid grid-cols-3 gap-4 mb-2 px-4">
+                            <span className="text-[10px] uppercase font-black tracking-widest text-muted-foreground">Wochentag</span>
+                            <span className="text-[10px] uppercase font-black tracking-widest text-muted-foreground text-center">Arbeitsbeginn</span>
+                            <span className="text-[10px] uppercase font-black tracking-widest text-muted-foreground text-right">Soll-Stunden</span>
+                        </div>
+                        <div className="bg-background/80 rounded-2xl border border-border/50 overflow-hidden mb-6">
+                            {dayIndices.map((d, i) => {
+                                const target = workModelTargets[d] || 0;
+                                const start = workModelConfig[d] || "07:00";
+                                return (
+                                    <div key={d} className={`grid grid-cols-3 gap-4 items-center px-4 py-3 border-b border-border/50 last:border-0 ${isEditingWorkModel ? 'bg-card/50' : ''}`}>
+                                        <span className={`text-sm font-black uppercase tracking-wider ${d === 0 || d === 6 ? 'text-red-400/80' : 'text-foreground'}`}>{dayNames[i]}</span>
+                                        {isEditingWorkModel ? (
+                                            <>
+                                                <input type="time" value={start} onChange={e => handleWorkModelConfigChange(d, e.target.value)} className="bg-background text-foreground text-sm font-mono rounded-lg px-3 py-1.5 text-center border border-blue-500/30 w-full focus:ring-1 focus:ring-blue-500 outline-none" />
+                                                <input type="number" value={target} onChange={e => handleWorkModelTargetChange(d, e.target.value)} className="bg-background text-foreground text-sm font-mono rounded-lg px-3 py-1.5 text-right border border-blue-500/30 w-full focus:ring-1 focus:ring-blue-500 outline-none" />
+                                            </>
+                                        ) : (
+                                            <>
+                                                <span className="text-sm font-mono text-muted-foreground text-center">{start}</span>
+                                                <span className={`text-sm font-mono text-right font-bold ${target > 0 ? 'text-foreground' : 'text-muted-foreground/50'}`}>{target > 0 ? `${target} h` : '-'}</span>
+                                            </>
+                                        )}
+                                    </div>
+                                )
+                            })}
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-muted/30 p-4 rounded-2xl border border-border/50">
+                            {/* Employment Start Date */}
+                            <div className="flex flex-col gap-2">
+                                <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Eintrittsdatum</span>
+                                {isEditingWorkModel ? (
+                                    <input
+                                        type="date"
+                                        value={employmentStartDateEdit}
+                                        onChange={(e) => setEmploymentStartDateEdit(e.target.value)}
+                                        className="bg-background border border-blue-500/30 rounded-lg px-3 py-2 text-sm text-foreground outline-none focus:ring-1 focus:ring-blue-500"
+                                    />
+                                ) : (
+                                    <div className="text-sm font-bold text-foreground bg-background px-3 py-2 rounded-lg border border-border">
+                                        {employmentStartDateEdit ? new Date(employmentStartDateEdit).toLocaleDateString('de-DE') : 'Nicht gesetzt'}
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Confirmation Toggle */}
+                            <div className="flex flex-col gap-2">
+                                <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Bestätigungspflicht</span>
+                                {isEditingWorkModel ? (
+                                    <button
+                                        onClick={() => setWorkModelConfirmation(!workModelConfirmation)}
+                                        className={`w-14 h-7 rounded-full p-1 transition-all ${workModelConfirmation ? 'bg-blue-500 justify-end' : 'bg-muted border border-border justify-start'} flex items-center`}
+                                    >
+                                        <div className="w-5 h-5 rounded-full bg-white shadow-sm" />
+                                    </button>
+                                ) : (
+                                    <div className={`text-sm font-bold px-3 py-2 rounded-lg border ${workModelConfirmation ? 'bg-blue-500/10 text-blue-400 border-blue-500/20' : 'bg-background text-muted-foreground border-border'}`}>
+                                        {workModelConfirmation ? 'Aktiv' : 'Inaktiv'}
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Visibility Toggle */}
+                            <div className="flex flex-col gap-2">
+                                <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Sichtbarkeit</span>
+                                {isEditingWorkModel ? (
+                                    <button
+                                        onClick={() => setVisibleToOthers(!visibleToOthers)}
+                                        className={`w-14 h-7 rounded-full p-1 transition-all ${visibleToOthers ? 'bg-emerald-500 justify-end' : 'bg-muted border border-border justify-start'} flex items-center`}
+                                    >
+                                        <div className="w-5 h-5 rounded-full bg-white shadow-sm" />
+                                    </button>
+                                ) : (
+                                    <div className={`text-sm font-bold px-3 py-2 rounded-lg border ${visibleToOthers ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-background text-muted-foreground border-border'}`}>
+                                        {visibleToOthers ? 'Sichtbar' : 'Versteckt'}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        {isEditingWorkModel && (
+                            <div className="mt-4 text-xs font-bold text-blue-400 bg-blue-500/10 px-4 py-3 rounded-xl border border-blue-500/20 flex items-center gap-2 animate-pulse">
+                                <Unlock size={16} /> Bearbeitungsmodus ist aktiv
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+                
+                        </div>
+                    </GlassCard>
+                </div>
+            )}
+
+            {/* DYNAMIC MODAL: showBalanceModal */}
+            { showBalanceModal && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm animate-in fade-in duration-200" onClick={(e) => { if (e.target === e.currentTarget) setShowBalanceModal(false); }}>
+                    <GlassCard className="w-full max-w-4xl max-h-[90vh] overflow-y-auto relative shadow-2xl border-border !p-0 bg-background">
+                        <button onClick={() => setShowBalanceModal(false)} className="absolute top-4 right-4 p-2 bg-background hover:bg-muted rounded-full text-muted-foreground hover:text-foreground transition-colors z-50"><X size={20} /></button>
+                        <div className="p-4 md:p-6">
+                            {/* STARTSALDO / ÜBERTRAG DETAILS */}
+                <div className="bg-card/50 border border-border rounded-3xl p-6 flex flex-col gap-4 shadow-lg relative overflow-hidden lg:col-span-2 xl:col-span-2">
+                    <div className="flex items-center justify-between pb-3 border-b border-cyan-500/20 mb-2 relative z-10">
+                        <h2 className="text-xl font-black flex items-center gap-2 text-cyan-400">
+                            <Calculator size={24} /> Startsaldo & Historie
+                        </h2>
+                        <div className="bg-cyan-500/10 text-cyan-400 text-sm font-black px-3 py-1 rounded-xl border border-cyan-500/20">
+                            {balanceEntries.reduce((sum, e) => sum + e.hours, 0).toFixed(2)} h Gesamt
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8 relative z-10">
+                        <div className="flex flex-col max-h-64 overflow-y-auto pr-2 custom-scrollbar">
+                            <label className="text-[10px] uppercase font-bold text-muted-foreground mb-3">Buchungs-Historie</label>
+                            {balanceEntries.length === 0 ? (
+                                <p className="text-sm text-muted-foreground italic bg-background/50 p-4 rounded-xl border border-border">Keine manuellen Überträge vorhanden.</p>
+                            ) : (
+                                <div className="space-y-2">
+                                    {balanceEntries.map(entry => (
+                                        <div key={entry.id} className="bg-cyan-500/5 p-4 rounded-xl border border-cyan-500/10 flex items-center justify-between">
+                                            <div>
+                                                <div className="text-sm text-foreground italic mb-1">"{entry.reason}"</div>
+                                                <div className="text-[10px] text-muted-foreground font-bold uppercase">
+                                                    {entry.created_at ? new Date(entry.created_at).toLocaleDateString('de-DE') : '-'}
+                                                </div>
+                                            </div>
+                                            <div className={`text-lg font-black tracking-wider ${entry.hours >= 0 ? 'text-cyan-400' : 'text-red-400'}`}>
+                                                {entry.hours > 0 ? '+' : ''}{entry.hours.toFixed(2)} h
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+
+                        {canManage && (currentUser?.role === 'admin' || viewerSettings?.role === 'admin') && (
+                            <div className="bg-background/80 p-5 rounded-2xl border border-border flex flex-col justify-center h-full">
+                                <div className="text-xs uppercase font-black tracking-wider text-cyan-400 mb-4 flex items-center gap-2"><PlusCircle size={16}/> Neuer Übertrag</div>
+                                <div className="flex flex-col gap-3">
+                                    <div className="flex gap-3">
+                                        <GlassInput
+                                            type="number"
+                                            placeholder="Std (z.B. -10 oder 5.5)"
+                                            value={balanceForm.hours}
+                                            onChange={e => setBalanceForm({ ...balanceForm, hours: e.target.value })}
+                                            className="w-1/3 !py-2 !px-4 !text-sm text-center font-bold"
+                                        />
+                                        <GlassInput
+                                            type="text"
+                                            placeholder="Begründung für die Buchung..."
+                                            value={balanceForm.reason}
+                                            onChange={e => setBalanceForm({ ...balanceForm, reason: e.target.value })}
+                                            className="w-2/3 !py-2 !px-4 !text-sm"
+                                        />
+                                    </div>
+                                    <button
+                                        disabled={!balanceForm.hours || !balanceForm.reason}
+                                        onClick={async () => {
+                                            const h = parseFloat(balanceForm.hours);
+                                            if (isNaN(h)) return;
+                                            await addBalanceEntry(h, balanceForm.reason);
+                                            setBalanceForm({ hours: '', reason: '' });
+                                        }}
+                                        className="w-full py-3 bg-cyan-500 hover:bg-cyan-600 text-background text-sm font-black tracking-wider uppercase rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-lg shadow-cyan-900/20 mt-2 flex justify-center items-center gap-2"
+                                    >
+                                        <Save size={16}/> Buchen
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </div>
+                        </div>
+                    </GlassCard>
+                </div>
+            )}
+{/* Date Pickers */}
             {showAnalysisStartPicker && <GlassDatePicker value={analysisStart} onChange={setAnalysisStart} onClose={() => setShowAnalysisStartPicker(false)} />}
             {showAnalysisEndPicker && <GlassDatePicker value={analysisEnd} onChange={setAnalysisEnd} onClose={() => setShowAnalysisEndPicker(false)} />}
 
             {/* ABSENCE DELETION REQUEST MODAL */}
 
             {deletionModal.isOpen && (
-                <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
-                    <GlassCard className="w-full max-w-md border-red-500/50 shadow-2xl relative bg-gray-900/90 p-6">
-                        <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
+                <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-input backdrop-blur-sm animate-in fade-in duration-200">
+                    <GlassCard className="w-full max-w-md border-red-500/50 shadow-2xl relative bg-card p-6">
+                        <h3 className="text-xl font-bold text-foreground mb-4 flex items-center gap-2">
                             <Trash2 className="text-red-400" /> Löschung beantragen
                         </h3>
 
@@ -2689,19 +2608,19 @@ const OfficeUserPage: React.FC = () => {
                             </div>
                         ) : (
                             <div className="space-y-4">
-                                <p className="text-white/70 text-sm">
+                                <p className="text-muted-foreground text-sm">
                                     Sie beantragen die Löschung einer Abwesenheit für diesen Mitarbeiter. <br />
                                     <strong>Schritt 1:</strong> Grund angeben.<br />
                                     <strong>Schritt 2:</strong> Löschantrag drucken & unterschreiben.<br />
                                     <strong>Schritt 3:</strong> Antrag absenden.
                                 </p>
 
-                                <label className="text-xs uppercase font-bold text-white/50 mb-2 block">Begründung (Pflichtfeld)</label>
+                                <label className="text-xs uppercase font-bold text-muted-foreground mb-2 block">Begründung (Pflichtfeld)</label>
                                 <textarea
                                     value={deletionModal.reason}
                                     onChange={(e) => setDeletionModal(prev => ({ ...prev, reason: e.target.value }))}
                                     placeholder="z.B. Urlaub storniert, Krankheitstag falsch..."
-                                    className="w-full bg-black/20 border border-white/10 rounded-xl p-3 text-white text-sm focus:border-red-500/50 outline-none resize-none h-24 mb-4"
+                                    className="w-full bg-input border border-border rounded-xl p-3 text-foreground text-sm focus:border-red-500/50 outline-none resize-none h-24 mb-4"
                                 />
 
                                 <div className="flex gap-2 pt-2">
@@ -2712,7 +2631,7 @@ const OfficeUserPage: React.FC = () => {
                                             if (absence) generateDeletionRequestPDF(absence, deletionModal.reason);
                                         }}
                                         disabled={!deletionModal.reason}
-                                        className={`flex-1 py-3 px-4 rounded-xl border font-bold flex items-center justify-center gap-2 transition-all ${deletionModal.reason ? 'bg-blue-500/20 border-blue-500/50 text-blue-300 hover:bg-blue-500/30' : 'opacity-50 cursor-not-allowed bg-white/5 text-white/30 border-white/10'}`}
+                                        className={`flex-1 py-3 px-4 rounded-xl border font-bold flex items-center justify-center gap-2 transition-all ${deletionModal.reason ? 'bg-blue-500/20 border-blue-500/50 text-blue-300 hover:bg-blue-500/30' : 'opacity-50 cursor-not-allowed bg-muted text-muted-foreground border-border'}`}
                                     >
                                         <Printer size={18} />
                                         {deletionPrintStatus ? 'Erneut Drucken' : 'Antrag Drucken'}
@@ -2721,7 +2640,7 @@ const OfficeUserPage: React.FC = () => {
                                     <button
                                         onClick={confirmDeletionRequest}
                                         disabled={!deletionPrintStatus || !deletionModal.reason}
-                                        className={`flex-1 py-3 px-4 rounded-xl border font-bold flex items-center justify-center gap-2 transition-all ${deletionPrintStatus && deletionModal.reason ? 'bg-red-500/20 border-red-500/50 text-red-300 hover:bg-red-500/30' : 'opacity-50 cursor-not-allowed bg-white/5 text-white/30 border-white/10'}`}
+                                        className={`flex-1 py-3 px-4 rounded-xl border font-bold flex items-center justify-center gap-2 transition-all ${deletionPrintStatus && deletionModal.reason ? 'bg-red-500/20 border-red-500/50 text-red-300 hover:bg-red-500/30' : 'opacity-50 cursor-not-allowed bg-muted text-muted-foreground border-border'}`}
                                     >
                                         <Send size={18} /> Beantragen
                                     </button>
@@ -2738,14 +2657,14 @@ const OfficeUserPage: React.FC = () => {
 
             {/* ALERT MODAL */}
             {alertModal.isOpen && (
-                <div className="fixed inset-0 z-[150] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+                <div className="fixed inset-0 z-[150] flex items-center justify-center bg-input backdrop-blur-sm p-4 animate-in fade-in duration-200">
                     <GlassCard className="max-w-md w-full !border-amber-500/30">
                         <div className="flex flex-col items-center gap-4 text-center">
                             <div className="p-3 rounded-full bg-amber-500/20 text-amber-400">
                                 <AlertTriangle size={32} />
                             </div>
-                            <h3 className="text-xl font-bold text-white">{alertModal.title}</h3>
-                            <p className="text-white/70 whitespace-pre-line">{alertModal.message}</p>
+                            <h3 className="text-xl font-bold text-foreground">{alertModal.title}</h3>
+                            <p className="text-muted-foreground whitespace-pre-line">{alertModal.message}</p>
                             <GlassButton onClick={() => setAlertModal({ ...alertModal, isOpen: false })} variant="primary" className="w-full mt-2">
                                 OK
                             </GlassButton>
@@ -2757,27 +2676,27 @@ const OfficeUserPage: React.FC = () => {
             {/* Rejection Modal */}
             {
                 rejectionModal.isOpen && (
-                    <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
-                        <GlassCard className="w-full max-w-md border-red-500/50 shadow-2xl relative bg-gray-900/90">
-                            <div className="p-4 border-b border-white/10 flex items-center gap-3">
+                    <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-input backdrop-blur-sm animate-in fade-in duration-200">
+                        <GlassCard className="w-full max-w-md border-red-500/50 shadow-2xl relative bg-card">
+                            <div className="p-4 border-b border-border flex items-center gap-3">
                                 <XCircle className="text-red-400" size={24} />
-                                <h2 className="text-lg font-bold text-white">Eintrag ablehnen</h2>
+                                <h2 className="text-lg font-bold text-foreground">Eintrag ablehnen</h2>
                             </div>
                             <div className="p-4 space-y-4">
-                                <p className="text-white/80">
+                                <p className="text-muted-foreground">
                                     Bitte gib einen Grund für die Ablehnung an. Der Mitarbeiter wird darüber informiert.
                                 </p>
                                 <textarea
                                     value={rejectionModal.reason}
                                     onChange={(e) => setRejectionModal(prev => ({ ...prev, reason: e.target.value }))}
                                     placeholder="Begründung..."
-                                    className="w-full bg-black/20 border border-white/10 rounded-lg p-3 text-white focus:border-red-500/50 outline-none resize-none h-24"
+                                    className="w-full bg-input border border-border rounded-lg p-3 text-foreground focus:border-red-500/50 outline-none resize-none h-24"
                                 />
                             </div>
-                            <div className="p-4 border-t border-white/10 flex gap-3">
+                            <div className="p-4 border-t border-border flex gap-3">
                                 <button
                                     onClick={() => setRejectionModal({ isOpen: false, entryId: null, reason: '' })}
-                                    className="flex-1 py-2 rounded-lg border border-white/10 text-white/60 hover:bg-white/5"
+                                    className="flex-1 py-2 rounded-lg border border-border text-muted-foreground hover:bg-muted"
                                 >
                                     Abbrechen
                                 </button>
@@ -2789,7 +2708,7 @@ const OfficeUserPage: React.FC = () => {
                                         }
                                     }}
                                     disabled={!rejectionModal.reason.trim()}
-                                    className="flex-1 py-2 rounded-lg bg-red-500 hover:bg-red-600 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold shadow-lg shadow-red-900/20"
+                                    className="flex-1 py-2 rounded-lg bg-red-500 hover:bg-red-600 disabled:opacity-50 disabled:cursor-not-allowed text-foreground font-bold shadow-lg shadow-red-900/20"
                                 >
                                     Ablehnen
                                 </button>
@@ -2886,30 +2805,30 @@ const OfficeUserPage: React.FC = () => {
                 };
 
                 return (
-                    <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
-                        <GlassCard className="w-full max-w-2xl max-h-[85vh] overflow-y-auto relative shadow-2xl border-white/20">
-                            <button onClick={() => setHistoryModal({ isOpen: false, entryId: null })} className="absolute top-4 right-4 p-2 bg-white/10 hover:bg-white/20 rounded-full text-white transition-colors"><X size={20} /></button>
-                            <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2"><HistoryIcon size={20} /> Änderungsverlauf & Workflow-Status</h3>
+                    <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-input backdrop-blur-md animate-in fade-in duration-200">
+                        <GlassCard className="w-full max-w-2xl max-h-[85vh] overflow-y-auto relative shadow-2xl border-border">
+                            <button onClick={() => setHistoryModal({ isOpen: false, entryId: null })} className="absolute top-4 right-4 p-2 bg-card hover:bg-accent rounded-full text-foreground transition-colors"><X size={20} /></button>
+                            <h3 className="text-xl font-bold text-foreground mb-4 flex items-center gap-2"><HistoryIcon size={20} /> Änderungsverlauf & Workflow-Status</h3>
 
                             {/* ENTRY INFO HEADER */}
                             {currentEntry && (
-                                <div className="mb-4 p-3 bg-white/5 rounded-lg border border-white/10">
+                                <div className="mb-4 p-3 bg-muted rounded-lg border border-border">
                                     <div className="flex items-center justify-between mb-2">
-                                        <span className="font-bold text-white">{currentEntry.client_name}</span>
-                                        <span className="text-white/40 text-sm">{new Date(currentEntry.date).toLocaleDateString('de-DE')}</span>
+                                        <span className="font-bold text-foreground">{currentEntry.client_name}</span>
+                                        <span className="text-muted-foreground text-sm">{new Date(currentEntry.date).toLocaleDateString('de-DE')}</span>
                                     </div>
-                                    <div className="flex items-center gap-2 text-sm text-white/60">
+                                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
                                         <Clock size={14} />
                                         <span>{currentEntry.start_time && currentEntry.end_time ? `${currentEntry.start_time} - ${currentEntry.end_time}` : 'Manuell'}</span>
-                                        <span className="text-white/30">•</span>
-                                        <span className="font-mono font-bold text-white">{currentEntry.hours?.toFixed(2)}h</span>
+                                        <span className="text-muted-foreground">•</span>
+                                        <span className="font-mono font-bold text-foreground">{currentEntry.hours?.toFixed(2)}h</span>
                                     </div>
                                 </div>
                             )}
 
                             {/* WORKFLOW TIMELINE */}
-                            <div className="mb-6 p-4 bg-gradient-to-br from-white/5 to-white/[0.02] rounded-xl border border-white/10">
-                                <h4 className="text-xs uppercase font-bold text-white/50 mb-4 flex items-center gap-2">
+                            <div className="mb-6 p-4 bg-gradient-to-br from-white/5 to-white/[0.02] rounded-xl border border-border">
+                                <h4 className="text-xs uppercase font-bold text-muted-foreground mb-4 flex items-center gap-2">
                                     <Layout size={14} /> Workflow-Status
                                 </h4>
                                 <div className="relative pl-6">
@@ -2917,21 +2836,21 @@ const OfficeUserPage: React.FC = () => {
                                         <div key={idx} className="relative pb-4 last:pb-0">
                                             {/* Connecting Line */}
                                             {idx < workflowSteps.length - 1 && (
-                                                <div className={`absolute left-[-18px] top-5 w-0.5 h-full ${step.status === 'done' ? 'bg-emerald-500/50' : 'bg-white/10'}`} />
+                                                <div className={`absolute left-[-18px] top-5 w-0.5 h-full ${step.status === 'done' ? 'bg-emerald-500/50' : 'bg-card'}`} />
                                             )}
                                             {/* Step Circle */}
                                             <div className={`absolute left-[-24px] top-0.5 w-4 h-4 rounded-full flex items-center justify-center border-2 ${step.status === 'done' ? 'bg-emerald-500 border-emerald-400' :
                                                 step.status === 'current' ? 'bg-yellow-500 border-yellow-400 animate-pulse' :
-                                                    'bg-white/10 border-white/20'
+                                                    'bg-card border-border'
                                                 }`}>
-                                                {step.status === 'done' && <Check size={10} className="text-white" />}
-                                                {step.status === 'current' && <Clock size={8} className="text-white" />}
+                                                {step.status === 'done' && <Check size={10} className="text-foreground" />}
+                                                {step.status === 'current' && <Clock size={8} className="text-foreground" />}
                                             </div>
                                             {/* Step Content */}
-                                            <div className={`${step.status === 'current' ? 'text-yellow-200' : step.status === 'done' ? 'text-white' : 'text-white/30'}`}>
+                                            <div className={`${step.status === 'current' ? 'text-yellow-200' : step.status === 'done' ? 'text-foreground' : 'text-muted-foreground'}`}>
                                                 <span className="font-medium text-sm">{step.label}</span>
                                                 {step.timestamp && (
-                                                    <div className="text-[10px] text-white/40 mt-0.5">
+                                                    <div className="text-[10px] text-muted-foreground mt-0.5">
                                                         {new Date(step.timestamp).toLocaleString('de-DE')}
                                                         {step.actor && <span className="ml-1">• {step.actor}</span>}
                                                     </div>
@@ -2954,20 +2873,20 @@ const OfficeUserPage: React.FC = () => {
                             </div>
 
                             {/* CHANGE HISTORY */}
-                            <h4 className="text-xs uppercase font-bold text-white/50 mb-3 flex items-center gap-2">
+                            <h4 className="text-xs uppercase font-bold text-muted-foreground mb-3 flex items-center gap-2">
                                 <Edit2 size={14} /> Änderungshistorie
                             </h4>
                             <div className="space-y-4">
                                 {entryHistory.length === 0 ? (
-                                    <p className="text-white/40 italic text-center py-4">Keine Änderungen protokolliert.</p>
+                                    <p className="text-muted-foreground italic text-center py-4">Keine Änderungen protokolliert.</p>
                                 ) : (
                                     entryHistory.map(h => (
-                                        <div key={h.id} className="bg-white/5 p-3 rounded-lg border border-white/10 text-sm">
+                                        <div key={h.id} className="bg-muted p-3 rounded-lg border border-border text-sm">
                                             <div className="flex justify-between items-start mb-2">
-                                                <span className="text-white font-bold">{h.changer_name || 'Unbekannt'}</span>
-                                                <span className="text-white/40 text-xs">{new Date(h.changed_at).toLocaleString('de-DE')}</span>
+                                                <span className="text-foreground font-bold">{h.changer_name || 'Unbekannt'}</span>
+                                                <span className="text-muted-foreground text-xs">{new Date(h.changed_at).toLocaleString('de-DE')}</span>
                                             </div>
-                                            <div className="bg-black/20 p-2 rounded mb-2 font-mono text-xs text-orange-200">
+                                            <div className="bg-input p-2 rounded mb-2 font-mono text-xs text-orange-200">
                                                 {h.reason ? `Grund: ${h.reason}` : 'Kein Grund angegeben'}
                                             </div>
                                             <div className="space-y-1 text-xs">
@@ -2989,11 +2908,11 @@ const OfficeUserPage: React.FC = () => {
                                                     const newVal = (h.new_values as any)?.[key];
 
                                                     return (
-                                                        <div key={key} className="grid grid-cols-[100px_1fr] gap-2 items-center bg-white/5 p-1.5 rounded">
-                                                            <span className="text-white/40 uppercase font-bold text-[10px]">{label}</span>
+                                                        <div key={key} className="grid grid-cols-[100px_1fr] gap-2 items-center bg-muted p-1.5 rounded">
+                                                            <span className="text-muted-foreground uppercase font-bold text-[10px]">{label}</span>
                                                             <div className="flex items-center gap-1.5 flex-wrap">
                                                                 <span className="text-red-300 line-through decoration-red-500/50">{oldVal !== undefined && oldVal !== null ? String(oldVal) : '(leer)'}</span>
-                                                                <span className="text-white/30">→</span>
+                                                                <span className="text-muted-foreground">→</span>
                                                                 <span className="text-emerald-300 font-bold">{newVal !== undefined && newVal !== null ? String(newVal) : '(gelöscht)'}</span>
                                                             </div>
                                                         </div>
@@ -3020,7 +2939,7 @@ const OfficeUserPage: React.FC = () => {
                                                             <X size={12} />
                                                             <span>Abgelehnt am {h.user_response_at ? new Date(h.user_response_at).toLocaleString('de-DE') : 'Unbekannt'}</span>
                                                         </div>
-                                                        {h.user_response_note && <span className="text-white/60 font-normal">"{h.user_response_note}"</span>}
+                                                        {h.user_response_note && <span className="text-muted-foreground font-normal">"{h.user_response_note}"</span>}
                                                     </div>
                                                 </div>
                                             )}
@@ -3036,39 +2955,39 @@ const OfficeUserPage: React.FC = () => {
             {/* Quota History Modal */}
             {
                 showQuotaHistory && (
-                    <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
-                        <GlassCard className="w-full max-w-lg border-white/10 shadow-2xl relative bg-gray-900/90 max-h-[80vh] flex flex-col">
-                            <div className="p-4 border-b border-white/10 flex items-center justify-between">
-                                <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                    <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-input backdrop-blur-sm animate-in fade-in duration-200">
+                        <GlassCard className="w-full max-w-lg border-border shadow-2xl relative bg-card max-h-[80vh] flex flex-col">
+                            <div className="p-4 border-b border-border flex items-center justify-between">
+                                <h2 className="text-lg font-bold text-foreground flex items-center gap-2">
                                     <HistoryIcon size={20} className="text-purple-400" />
                                     Änderungshistorie
                                 </h2>
-                                <button onClick={() => setShowQuotaHistory(false)} className="text-white/50 hover:text-white">
+                                <button onClick={() => setShowQuotaHistory(false)} className="text-muted-foreground hover:text-foreground">
                                     <X size={20} />
                                 </button>
                             </div>
                             <div className="p-4 flex-1 overflow-y-auto space-y-4">
                                 {quotaAuditLogs.length === 0 ? (
-                                    <p className="text-white/50 text-center py-4">Keine Änderungen gefunden.</p>
+                                    <p className="text-muted-foreground text-center py-4">Keine Änderungen gefunden.</p>
                                 ) : (
                                     quotaAuditLogs.map((log) => {
                                         // Resolve name from users list
                                         const changer = users.find(u => u.user_id === log.changed_by);
                                         const name = changer ? changer.display_name : 'Admin/System';
                                         return (
-                                            <div key={log.id} className="p-3 bg-white/5 rounded border border-white/5 text-sm">
-                                                <div className="flex justify-between text-white/40 text-xs mb-2">
+                                            <div key={log.id} className="p-3 bg-muted rounded border border-border text-sm">
+                                                <div className="flex justify-between text-muted-foreground text-xs mb-2">
                                                     <span>{new Date(log.created_at).toLocaleString('de-DE')}</span>
                                                     <span>{name}</span>
                                                 </div>
                                                 <div className="space-y-1">
-                                                    <div className="flex justify-between items-center text-white/80">
+                                                    <div className="flex justify-between items-center text-muted-foreground">
                                                         <span>Basis:</span>
                                                         <span className="font-mono">
                                                             {log.previous_value?.base} <ArrowLeft size={10} className="inline mx-1" /> {log.new_value?.base}
                                                         </span>
                                                     </div>
-                                                    <div className="flex justify-between items-center text-white/80">
+                                                    <div className="flex justify-between items-center text-muted-foreground">
                                                         <span>Rest (VJ):</span>
                                                         <span className="font-mono">
                                                             {log.previous_value?.carryover} <ArrowLeft size={10} className="inline mx-1" /> {log.new_value?.carryover}
@@ -3087,20 +3006,21 @@ const OfficeUserPage: React.FC = () => {
             }
 
             {/* Permission Denied Modal */}
+            {/* Permission Denied Modal */}
             {
                 showPermissionError && (
-                    <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
-                        <GlassCard className="w-full max-w-sm border-red-500/50 shadow-2xl shadow-red-900/20 relative bg-gray-900/90 text-center p-6">
+                    <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-input backdrop-blur-sm animate-in fade-in duration-200">
+                        <GlassCard className="w-full max-w-sm border-red-500/50 shadow-2xl shadow-red-900/20 relative bg-card text-center p-6">
                             <div className="mx-auto w-16 h-16 bg-red-500/20 rounded-full flex items-center justify-center mb-4 ring-1 ring-red-500/50">
                                 <ShieldAlert size={32} className="text-red-400" />
                             </div>
-                            <h2 className="text-xl font-bold text-white mb-2">Zugriff verweigert</h2>
-                            <p className="text-white/60 text-sm mb-6">
+                            <h2 className="text-xl font-bold text-foreground mb-2">Zugriff verweigert</h2>
+                            <p className="text-muted-foreground text-sm mb-6">
                                 Nur der <span className="text-red-300 font-bold">Chef</span> (oder Administrator) darf den Urlaubsanspruch ändern.
                             </p>
                             <button
                                 onClick={() => setShowPermissionError(false)}
-                                className="w-full py-2 bg-white/10 hover:bg-white/20 rounded-xl text-white font-bold transition-all"
+                                className="w-full py-2 bg-card hover:bg-accent rounded-xl text-foreground font-bold transition-all"
                             >
                                 Verstanden
                             </button>
@@ -3108,7 +3028,7 @@ const OfficeUserPage: React.FC = () => {
                     </div>
                 )
             }
-        </div >
+        </div>
     );
 };
 

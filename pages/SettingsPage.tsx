@@ -77,7 +77,7 @@ const SettingsPage: React.FC = () => {
   return (
     <div className="p-6 pb-24 h-full overflow-y-auto md:max-w-5xl md:mx-auto w-full">
       <div className="flex justify-between items-center mb-6">
-        <h2 className="text-2xl font-bold text-white">Einstellungen</h2>
+        <h2 className="text-2xl font-bold text-foreground">Einstellungen</h2>
         <GlassButton onClick={logout} variant="danger" className="md:hidden flex items-center justify-center gap-2 w-auto px-4 py-2">
           <LogOut size={18} />
         </GlassButton>
@@ -92,34 +92,34 @@ const SettingsPage: React.FC = () => {
               <User size={20} />
               <span className="font-bold text-sm uppercase tracking-wider">Profil</span>
             </div>
-            <label className="block text-xs text-white/50 mb-2">Anzeigename</label>
+            <label className="block text-xs text-muted-foreground mb-2">Anzeigename</label>
             <GlassInput
               value={name}
               onChange={(e) => setName(e.target.value)}
               className="mb-4"
             />
 
-            <label className="block text-xs text-white/50 mb-2">Eintrittsdatum</label>
+            <label className="block text-xs text-muted-foreground mb-2">Eintrittsdatum</label>
             <div
               onClick={() => !isLocked && setShowDatePicker(true)}
-              className={`flex items-center justify-between w-full border rounded-xl px-4 py-3 transition-colors ${isLocked ? 'bg-white/2 border-white/5 text-white/20 cursor-not-allowed' : 'bg-white/5 border-white/10 text-white cursor-pointer hover:bg-white/10'}`}
+              className={`flex items-center justify-between w-full border rounded-xl px-4 py-3 transition-colors ${isLocked ? 'bg-white/2 border-border text-muted-foreground cursor-not-allowed' : 'bg-muted border-border text-foreground cursor-pointer hover:bg-card'}`}
             >
               <span>{startDate ? new Date(startDate).toLocaleDateString('de-DE') : 'Ab erstem Eintrag'}</span>
-              <Calendar size={18} className={isLocked ? 'text-white/10' : 'text-white/50'} />
+              <Calendar size={18} className={isLocked ? 'text-muted-foreground' : 'text-muted-foreground'} />
             </div>
             {isLocked && <p className="text-[10px] text-orange-400/70 mt-1 italic">Dieses Feld wurde vom Büro gesperrt.</p>}
-            <p className="text-[10px] text-white/30 mt-2">Berechnungen (Soll-Stunden) beginnen erst ab diesem Datum.</p>
+            <p className="text-[10px] text-muted-foreground mt-2">Berechnungen (Soll-Stunden) beginnen erst ab diesem Datum.</p>
 
-            <div className="h-px bg-white/10 my-4" />
+            <div className="h-px bg-card my-4" />
 
-            <label className="block text-xs text-white/50 mb-2">PDF-Erkennungsschlüssel (z.B. Nachname)</label>
+            <label className="block text-xs text-muted-foreground mb-2">PDF-Erkennungsschlüssel (z.B. Nachname)</label>
             <GlassInput
               value={keyword}
               onChange={(e) => setKeyword(e.target.value)}
               placeholder="z.B. Göttfert"
               className="mb-2"
             />
-            <p className="text-[10px] text-white/30">Wird verwendet, um Arbeitsstunden im Montagebericht zu finden.</p>
+            <p className="text-[10px] text-muted-foreground">Wird verwendet, um Arbeitsstunden im Montagebericht zu finden.</p>
           </GlassCard>
 
           {/* Save Button Desktop */}
@@ -148,21 +148,21 @@ const SettingsPage: React.FC = () => {
 
           {/* Header Row */}
           <div className="grid grid-cols-3 gap-2 mb-2 px-2">
-            <span className="text-xs font-bold text-white/30 uppercase">Tag</span>
-            <span className="text-xs font-bold text-white/30 uppercase text-center">Start ab</span>
-            <span className="text-xs font-bold text-white/30 uppercase text-right">Soll (h)</span>
+            <span className="text-xs font-bold text-muted-foreground uppercase">Tag</span>
+            <span className="text-xs font-bold text-muted-foreground uppercase text-center">Start ab</span>
+            <span className="text-xs font-bold text-muted-foreground uppercase text-right">Soll (h)</span>
           </div>
 
           <div className={`space-y-3 ${isLocked ? 'opacity-50 pointer-events-none' : ''}`}>
             {dayOrder.map((dayIndex) => (
-              <div key={dayIndex} className="grid grid-cols-3 gap-2 items-center bg-white/5 rounded-lg p-2 border border-white/5">
-                <span className="text-white font-medium text-sm">{dayNames[dayIndex]}</span>
+              <div key={dayIndex} className="grid grid-cols-3 gap-2 items-center bg-muted rounded-lg p-2 border border-border">
+                <span className="text-foreground font-medium text-sm">{dayNames[dayIndex]}</span>
 
                 {/* Start Time Input */}
                 <div className="flex justify-center">
                   <input
                     type="time"
-                    className="bg-white/5 border border-white/20 rounded-lg px-2 py-1 text-center text-white text-sm focus:outline-none focus:border-teal-500/50 w-full max-w-[80px]"
+                    className="bg-muted border border-border rounded-lg px-2 py-1 text-center text-foreground text-sm focus:outline-none focus:border-teal-500/50 w-full max-w-[80px]"
                     value={workConfig[dayIndex as keyof typeof workConfig] || "07:00"}
                     onChange={(e) => handleWorkStartChange(dayIndex, e.target.value)}
                     disabled={isLocked}
@@ -175,12 +175,12 @@ const SettingsPage: React.FC = () => {
                     <input
                       type="number"
                       step="0.5"
-                      className="w-full bg-white/5 border border-white/20 rounded-lg px-2 py-1 text-right text-white text-sm focus:outline-none focus:border-teal-500/50 pr-6"
+                      className="w-full bg-muted border border-border rounded-lg px-2 py-1 text-right text-foreground text-sm focus:outline-none focus:border-teal-500/50 pr-6"
                       value={targets[dayIndex as keyof typeof targets]}
                       onChange={(e) => handleTargetChange(dayIndex, e.target.value)}
                       disabled={isLocked}
                     />
-                    <span className="absolute right-2 top-1/2 -translate-y-1/2 text-white/30 text-xs">h</span>
+                    <span className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground text-xs">h</span>
                   </div>
                 </div>
               </div>
@@ -196,7 +196,7 @@ const SettingsPage: React.FC = () => {
           </GlassButton>
         </div>
 
-        <div className="text-center text-xs text-white/30 mt-4">
+        <div className="text-center text-xs text-muted-foreground mt-4">
           Version 1.4 • TimeGlass
         </div>
       </div>

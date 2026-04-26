@@ -216,14 +216,14 @@ const EmergencyCalendar: React.FC<EmergencyCalendarProps> = ({ users, fetchUsers
         <GlassCard className="mt-8 flex flex-col items-center">
             <div className="w-full flex flex-col md:flex-row md:items-center justify-end gap-4 mb-6">
 
-                <div className="flex items-center justify-between md:justify-center gap-2 md:gap-4 bg-white/5 rounded-full px-2 md:px-4 py-2 border border-white/10 w-full md:w-auto">
-                    <button onClick={prevMonth} className="p-2 hover:bg-white/10 rounded-full text-white/50 hover:text-white transition-colors">
+                <div className="flex items-center justify-between md:justify-center gap-2 md:gap-4 bg-muted rounded-full px-2 md:px-4 py-2 border border-border w-full md:w-auto">
+                    <button onClick={prevMonth} className="p-2 hover:bg-card rounded-full text-muted-foreground hover:text-foreground transition-colors">
                         <ChevronLeft size={20} />
                     </button>
-                    <span className="font-bold text-white min-w-[120px] text-center text-sm md:text-base">
+                    <span className="font-bold text-foreground min-w-[120px] text-center text-sm md:text-base">
                         {monthNames[currentDate.getMonth()]} {currentDate.getFullYear()}
                     </span>
-                    <button onClick={nextMonth} className="p-2 hover:bg-white/10 rounded-full text-white/50 hover:text-white transition-colors">
+                    <button onClick={nextMonth} className="p-2 hover:bg-card rounded-full text-muted-foreground hover:text-foreground transition-colors">
                         <ChevronRight size={20} />
                     </button>
                 </div>
@@ -234,10 +234,10 @@ const EmergencyCalendar: React.FC<EmergencyCalendarProps> = ({ users, fetchUsers
                     <div className="w-8 h-8 border-2 border-rose-500 border-t-transparent rounded-full animate-spin"></div>
                 </div>
             ) : (
-                <div className="w-full h-full text-white">
+                <div className="w-full h-full text-foreground">
                     <div className="grid grid-cols-7 gap-1 md:gap-2 mb-2">
                         {['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'].map(d => (
-                            <div key={d} className="text-center text-xs font-bold text-white/50 pb-2">{d}</div>
+                            <div key={d} className="text-center text-xs font-bold text-muted-foreground pb-2">{d}</div>
                         ))}
                     </div>
 
@@ -260,10 +260,10 @@ const EmergencyCalendar: React.FC<EmergencyCalendarProps> = ({ users, fetchUsers
                                     key={day}
                                     onClick={() => handleDayClick(day)}
                                     className={`min-h-[80px] md:min-h-[100px] flex flex-col p-1 md:p-2 rounded-xl border cursor-pointer transition-all hover:scale-[1.02] ${isToday ? 'border-teal-500 bg-teal-500/10' :
-                                        isWeekend ? 'bg-white/5 border-white/10 hover:bg-white/10' : 'bg-white/[0.02] border-white/5 hover:bg-white/10'
+                                        isWeekend ? 'bg-muted border-border hover:bg-card' : 'bg-white/[0.02] border-border hover:bg-card'
                                         }`}
                                 >
-                                    <span className={`text-xs md:text-sm font-bold mb-1 ${isToday ? 'text-teal-300' : 'text-white/60'} ${isWeekend ? 'text-rose-300' : ''}`}>
+                                    <span className={`text-xs md:text-sm font-bold mb-1 ${isToday ? 'text-teal-300' : 'text-muted-foreground'} ${isWeekend ? 'text-rose-300' : ''}`}>
                                         {day}.
                                     </span>
 
@@ -285,17 +285,17 @@ const EmergencyCalendar: React.FC<EmergencyCalendarProps> = ({ users, fetchUsers
 
             {/* USER YEARLY SCHEDULE */}
             {currentUserId && (
-                <div className="w-full mt-8 pt-6 border-t border-white/10">
+                <div className="w-full mt-8 pt-6 border-t border-border">
                     <h3 className="text-sm font-bold text-rose-300 uppercase tracking-wider mb-4 flex items-center gap-2">
                         <List size={16} /> Meine Notdienste in {currentDate.getFullYear()}
                     </h3>
                     {groupedPeriods.length === 0 ? (
-                        <p className="text-white/40 text-sm italic">Keine Notdienste im Jahr {currentDate.getFullYear()} eingetragen.</p>
+                        <p className="text-muted-foreground text-sm italic">Keine Notdienste im Jahr {currentDate.getFullYear()} eingetragen.</p>
                     ) : (
                         <div className="space-y-2">
                             {groupedPeriods.map((p, i) => (
-                                <div key={i} className="bg-white/5 border border-white/10 rounded-lg p-3 flex justify-between items-center group hover:bg-rose-500/10 hover:border-rose-500/30 transition-colors">
-                                    <span className="font-bold text-white text-sm">
+                                <div key={i} className="bg-muted border border-border rounded-lg p-3 flex justify-between items-center group hover:bg-rose-500/10 hover:border-rose-500/30 transition-colors">
+                                    <span className="font-bold text-foreground text-sm">
                                         {p.start === p.end
                                             ? new Date(p.start).toLocaleDateString('de-DE')
                                             : `${new Date(p.start).toLocaleDateString('de-DE')} - ${new Date(p.end).toLocaleDateString('de-DE')}`}
@@ -317,22 +317,22 @@ const EmergencyCalendar: React.FC<EmergencyCalendarProps> = ({ users, fetchUsers
                 const canSwap = isAdmin || (currentUserId && existingForModal?.user_id === currentUserId);
 
                 return (
-                    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+                    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-input backdrop-blur-sm animate-in fade-in duration-200">
                         <GlassCard className="w-full max-w-sm !p-0 overflow-hidden ring-1 ring-white/20 shadow-2xl">
                             <div className="p-5 bg-gradient-to-b from-rose-900/20 to-transparent">
                                 <div className="flex justify-between items-start mb-4">
-                                    <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                                    <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
                                         <Siren size={20} className="text-rose-400" />
                                         Notdienst am {selectedDate.toLocaleDateString('de-DE')}
                                     </h3>
-                                    <button onClick={() => setIsModalOpen(false)} className="text-white/50 hover:text-white p-1">
+                                    <button onClick={() => setIsModalOpen(false)} className="text-muted-foreground hover:text-foreground p-1">
                                         <X size={20} />
                                     </button>
                                 </div>
 
                                 {existingForModal && (
-                                    <div className="mb-4 text-sm bg-black/20 p-3 rounded-lg border border-white/5">
-                                        <p className="text-white/70">Zuständig: <span className="font-bold text-white">{assignedUserDisplay?.display_name || 'Niemand'}</span></p>
+                                    <div className="mb-4 text-sm bg-input p-3 rounded-lg border border-border">
+                                        <p className="text-muted-foreground">Zuständig: <span className="font-bold text-foreground">{assignedUserDisplay?.display_name || 'Niemand'}</span></p>
                                         {isPendingSwap && (
                                             <div className="mt-2 text-orange-300">
                                                 <p>Tauschanfrage an: <span className="font-bold">{pendingTargetUser?.display_name || 'Unbekannt'}</span></p>
@@ -342,7 +342,7 @@ const EmergencyCalendar: React.FC<EmergencyCalendarProps> = ({ users, fetchUsers
                                     </div>
                                 )}
 
-                                <p className="text-sm text-white/50 mb-4">
+                                <p className="text-sm text-muted-foreground mb-4">
                                     {isAdmin ? 'Wähle einen Mitarbeiter aus, um ihn für den Notdienst einzuteilen.' : canSwap ? 'Intern tauschen: Wähle aus, wem du den Notdienst übergeben möchtest.' : 'Du kannst nur deine eigenen Dienste tauschen.'}
                                 </p>
 
@@ -350,7 +350,7 @@ const EmergencyCalendar: React.FC<EmergencyCalendarProps> = ({ users, fetchUsers
                                     value={selectedUserForDay}
                                     onChange={(e) => setSelectedUserForDay(e.target.value)}
                                     disabled={!isAdmin && !canSwap}
-                                    className="w-full bg-slate-900/50 border border-white/10 rounded-xl p-3 text-white focus:outline-none focus:border-rose-500 transition-colors appearance-none disabled:opacity-50"
+                                    className="w-full bg-slate-900/50 border border-border rounded-xl p-3 text-foreground focus:outline-none focus:border-rose-500 transition-colors appearance-none disabled:opacity-50"
                                 >
                                     <option value="">-- Niemand (Dienst freigeben) --</option>
                                     {users.filter(u => u.is_active && u.role !== 'azubi').map(user => (
@@ -362,7 +362,7 @@ const EmergencyCalendar: React.FC<EmergencyCalendarProps> = ({ users, fetchUsers
 
                                 {isAdmin && selectedUserForDay && (
                                     <div className="mt-4">
-                                        <label className="text-xs font-bold text-white/50 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                                        <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2 flex items-center gap-1.5">
                                             <Clock size={14} /> Pauschale (Stunden)
                                         </label>
                                         <div className="flex items-center gap-2 mt-1">
@@ -373,7 +373,7 @@ const EmergencyCalendar: React.FC<EmergencyCalendarProps> = ({ users, fetchUsers
                                                     onClick={() => setSelectedAllowanceHours(val)}
                                                     className={`flex-1 px-3 py-2.5 rounded-xl text-sm font-bold border transition-all ${selectedAllowanceHours === val
                                                         ? 'bg-rose-500/20 text-rose-300 border-rose-500/40'
-                                                        : 'bg-white/5 text-white/50 border-white/10 hover:bg-white/10 hover:text-white'
+                                                        : 'bg-muted text-muted-foreground border-border hover:bg-card hover:text-foreground'
                                                         }`}
                                                 >
                                                     {val === '0' ? '0h' : val === '0.5' ? '0,5h' : '1,0h'}
@@ -385,17 +385,17 @@ const EmergencyCalendar: React.FC<EmergencyCalendarProps> = ({ users, fetchUsers
                                                 value={selectedAllowanceHours}
                                                 onChange={(e) => setSelectedAllowanceHours(e.target.value)}
                                                 placeholder="...h"
-                                                className="w-20 bg-slate-900/50 border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white text-center focus:outline-none focus:border-rose-500 transition-colors"
+                                                className="w-20 bg-slate-900/50 border border-border rounded-xl px-3 py-2.5 text-sm text-foreground text-center focus:outline-none focus:border-rose-500 transition-colors"
                                             />
                                         </div>
                                     </div>
                                 )}
                             </div>
 
-                            <div className="p-4 bg-black/20 flex justify-end gap-3 border-t border-white/5">
+                            <div className="p-4 bg-input flex justify-end gap-3 border-t border-border">
                                 <button
                                     onClick={() => setIsModalOpen(false)}
-                                    className="px-4 py-2 rounded-xl text-sm font-bold text-white/50 hover:text-white hover:bg-white/5 transition-colors"
+                                    className="px-4 py-2 rounded-xl text-sm font-bold text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
                                 >
                                     Abbrechen
                                 </button>

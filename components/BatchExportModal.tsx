@@ -138,17 +138,17 @@ const BatchExportModal: React.FC<BatchExportModalProps> = ({ isOpen, onClose }) 
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-input backdrop-blur-sm animate-in fade-in duration-200">
             <GlassCard className="w-full max-w-2xl relative shadow-2xl flex flex-col max-h-[90vh]">
 
                 {/* Header */}
-                <div className="p-6 border-b border-white/10 flex justify-between items-center">
-                    <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                <div className="p-6 border-b border-border flex justify-between items-center">
+                    <h2 className="text-xl font-bold text-foreground flex items-center gap-2">
                         <FileDown className="text-teal-400" />
                         Stunden-Export (Batch)
                     </h2>
                     {!isGenerating && (
-                        <button onClick={onClose} className="text-white/50 hover:text-white transition-colors">
+                        <button onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors">
                             <X size={24} />
                         </button>
                     )}
@@ -159,14 +159,14 @@ const BatchExportModal: React.FC<BatchExportModalProps> = ({ isOpen, onClose }) 
                     {/* 1. Date Selection */}
                     <div className="space-y-2">
                         <label className="text-sm font-bold text-teal-200 uppercase tracking-wide">Zeitraum</label>
-                        <div className="flex items-center justify-between bg-white/5 p-2 rounded-xl border border-white/10">
-                            <button onClick={() => handleMonthChange(-1)} className="p-2 hover:bg-white/10 rounded-lg text-white">
+                        <div className="flex items-center justify-between bg-muted p-2 rounded-xl border border-border">
+                            <button onClick={() => handleMonthChange(-1)} className="p-2 hover:bg-card rounded-lg text-foreground">
                                 <ChevronLeft />
                             </button>
-                            <span className="text-lg font-bold text-white">
+                            <span className="text-lg font-bold text-foreground">
                                 {selectedMonth.toLocaleDateString('de-DE', { month: 'long', year: 'numeric' })}
                             </span>
-                            <button onClick={() => handleMonthChange(1)} className="p-2 hover:bg-white/10 rounded-lg text-white">
+                            <button onClick={() => handleMonthChange(1)} className="p-2 hover:bg-card rounded-lg text-foreground">
                                 <ChevronRight />
                             </button>
                         </div>
@@ -178,21 +178,21 @@ const BatchExportModal: React.FC<BatchExportModalProps> = ({ isOpen, onClose }) 
                         <div className="flex gap-4 overflow-x-auto pb-2">
                             <button
                                 onClick={() => setExportTypes(prev => ({ ...prev, projects: !prev.projects }))}
-                                className={`flex-1 min-w-[140px] p-3 rounded-xl border flex items-center gap-3 transition-all ${exportTypes.projects ? 'bg-teal-500/20 border-teal-500/50 text-white' : 'bg-white/5 border-white/10 text-white/50'}`}
+                                className={`flex-1 min-w-[140px] p-3 rounded-xl border flex items-center gap-3 transition-all ${exportTypes.projects ? 'bg-teal-500/20 border-teal-500/50 text-foreground' : 'bg-muted border-border text-muted-foreground'}`}
                             >
                                 {exportTypes.projects ? <CheckSquare /> : <Square />}
                                 <span className="font-bold">Projektbericht</span>
                             </button>
                             <button
                                 onClick={() => setExportTypes(prev => ({ ...prev, attendance: !prev.attendance }))}
-                                className={`flex-1 min-w-[140px] p-3 rounded-xl border flex items-center gap-3 transition-all ${exportTypes.attendance ? 'bg-blue-500/20 border-blue-500/50 text-white' : 'bg-white/5 border-white/10 text-white/50'}`}
+                                className={`flex-1 min-w-[140px] p-3 rounded-xl border flex items-center gap-3 transition-all ${exportTypes.attendance ? 'bg-blue-500/20 border-blue-500/50 text-foreground' : 'bg-muted border-border text-muted-foreground'}`}
                             >
                                 {exportTypes.attendance ? <CheckSquare /> : <Square />}
                                 <span className="font-bold">Anwesenheit</span>
                             </button>
                             <button
                                 onClick={() => setExportTypes(prev => ({ ...prev, monthly_report: !prev.monthly_report }))}
-                                className={`flex-1 min-w-[140px] p-3 rounded-xl border flex items-center gap-3 transition-all ${exportTypes.monthly_report ? 'bg-purple-500/20 border-purple-500/50 text-white' : 'bg-white/5 border-white/10 text-white/50'}`}
+                                className={`flex-1 min-w-[140px] p-3 rounded-xl border flex items-center gap-3 transition-all ${exportTypes.monthly_report ? 'bg-purple-500/20 border-purple-500/50 text-foreground' : 'bg-muted border-border text-muted-foreground'}`}
                             >
                                 {exportTypes.monthly_report ? <CheckSquare /> : <Square />}
                                 <span className="font-bold">Monatsbericht</span>
@@ -204,7 +204,7 @@ const BatchExportModal: React.FC<BatchExportModalProps> = ({ isOpen, onClose }) 
                     <div className="space-y-2 flex-1 min-h-0 flex flex-col">
                         <div className="flex justify-between items-center">
                             <label className="text-sm font-bold text-teal-200 uppercase tracking-wide">Mitarbeiter ({selectedUsers.length})</label>
-                            <button onClick={handleSelectAll} className="text-xs text-white/50 hover:text-white transition-colors">
+                            <button onClick={handleSelectAll} className="text-xs text-muted-foreground hover:text-foreground transition-colors">
                                 {selectedUsers.length === validUsers.length ? 'Alle abwählen' : 'Alle auswählen'}
                             </button>
                         </div>
@@ -216,7 +216,7 @@ const BatchExportModal: React.FC<BatchExportModalProps> = ({ isOpen, onClose }) 
                                     <button
                                         key={uid}
                                         onClick={() => handleToggleUser(uid)}
-                                        className={`p-3 rounded-lg border text-left flex items-center gap-3 transition-all ${selectedUsers.includes(uid) ? 'bg-white/10 border-white/30 text-white' : 'bg-transparent border-white/5 text-white/40 hover:bg-white/5'}`}
+                                        className={`p-3 rounded-lg border text-left flex items-center gap-3 transition-all ${selectedUsers.includes(uid) ? 'bg-card border-border text-foreground' : 'bg-transparent border-border text-muted-foreground hover:bg-muted'}`}
                                     >
                                         {selectedUsers.includes(uid) ? <CheckSquare size={18} className="text-teal-400" /> : <Square size={18} />}
                                         <span className="truncate">{user.display_name}</span>
@@ -229,9 +229,9 @@ const BatchExportModal: React.FC<BatchExportModalProps> = ({ isOpen, onClose }) 
                 </div>
 
                 {/* Footer */}
-                <div className="p-6 border-t border-white/10 bg-black/20">
+                <div className="p-6 border-t border-border bg-input">
                     {isGenerating ? (
-                        <div className="w-full flex flex-col items-center justify-center p-2 text-white/70">
+                        <div className="w-full flex flex-col items-center justify-center p-2 text-muted-foreground">
                             <Loader2 className="animate-spin mb-2" size={24} />
                             <span className="text-sm font-mono">{progress}</span>
                         </div>
@@ -239,7 +239,7 @@ const BatchExportModal: React.FC<BatchExportModalProps> = ({ isOpen, onClose }) 
                         <button
                             onClick={handleExport}
                             disabled={selectedUsers.length === 0 || (!exportTypes.projects && !exportTypes.attendance && !exportTypes.monthly_report)}
-                            className="w-full py-4 bg-gradient-to-r from-teal-500 to-emerald-600 rounded-xl text-white font-bold text-lg shadow-lg hover:shadow-teal-500/20 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50 disabled:grayscale flex items-center justify-center gap-2"
+                            className="w-full py-4 bg-gradient-to-r from-teal-500 to-emerald-600 rounded-xl text-foreground font-bold text-lg shadow-lg hover:shadow-teal-500/20 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50 disabled:grayscale flex items-center justify-center gap-2"
                         >
                             <Download /> Export {selectedUsers.length > 0 ? `für ${selectedUsers.length} Mitarbeiter` : ''} starten
                         </button>

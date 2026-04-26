@@ -86,13 +86,13 @@ const ToastItem: React.FC<{ toast: Toast; onRemove: (id: string) => void }> = ({
                 }`}
         >
             {icons[toast.variant]}
-            <p className="text-sm text-white font-medium flex-1">{toast.message}</p>
+            <p className="text-sm text-foreground font-medium flex-1">{toast.message}</p>
             <button
                 onClick={() => {
                     setIsExiting(true);
                     setTimeout(() => onRemove(toast.id), 300);
                 }}
-                className="text-white/30 hover:text-white transition-colors p-0.5"
+                className="text-muted-foreground hover:text-foreground transition-colors p-0.5"
             >
                 <X size={14} />
             </button>

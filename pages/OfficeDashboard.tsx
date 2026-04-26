@@ -2,6 +2,7 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { useOfficeService, useDepartments } from '../services/dataService';
 import { supabase } from '../services/supabaseClient';
 import { GlassCard } from '../components/GlassCard';
+import { SpotlightCard } from '../components/SpotlightCard';
 import { useNavigate } from 'react-router-dom';
 import {
     Activity, ArrowRight, CheckCircle, Clock, FileText,
@@ -562,7 +563,7 @@ const OfficeDashboard: React.FC = () => {
                     <h1 className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-teal-200 to-emerald-400">
                         Dashboard
                     </h1>
-                    <p className="text-white/50 text-sm mt-1">
+                    <p className="text-muted-foreground text-sm mt-1">
                         {isOfficeOrAdmin ? 'Kommandozentrale & Übersicht' : 'Meine Aufgaben'}
                     </p>
                 </div>
@@ -571,7 +572,7 @@ const OfficeDashboard: React.FC = () => {
                     {isOfficeOrAdmin && (
                         <button
                             onClick={() => navigate('/office/management')}
-                            className="p-3 bg-white/5 hover:bg-white/10 rounded-xl border border-white/10 text-white/70 hover:text-white transition-all group"
+                            className="p-3 bg-muted hover:bg-card rounded-xl border border-border text-muted-foreground hover:text-foreground transition-all group"
                             title="System-Verwaltung"
                         >
                             <Settings size={22} className="group-hover:rotate-90 transition-transform duration-500" />
@@ -579,7 +580,7 @@ const OfficeDashboard: React.FC = () => {
                     )}
                     <button
                         onClick={() => setSearchModalOpen(true)}
-                        className="p-3 bg-white/5 hover:bg-white/10 rounded-xl border border-white/10 text-white/70 hover:text-white transition-all group"
+                        className="p-3 bg-muted hover:bg-card rounded-xl border border-border text-muted-foreground hover:text-foreground transition-all group"
                         title="Suche öffnen"
                     >
                         <Search size={22} className="group-hover:scale-110 transition-transform" />
@@ -590,13 +591,17 @@ const OfficeDashboard: React.FC = () => {
             {/* SECTION 1: MY PENDING CONFIRMATIONS (Everyone) */}
             {myPendingChanges.length > 0 && (
                 <div className="animate-in slide-in-from-bottom-4">
-                    <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
-                        <UserCheck size={24} className="text-orange-400" />
-                        <span className="text-orange-100">Änderungen bestätigen</span>
-                    </h2>
+                    <div className="flex items-center justify-between pb-3 border-b-2 border-orange-500/20 mb-4">
+                        <h2 className="text-xl font-black flex items-center gap-2 text-foreground">
+                            <UserCheck size={24} className="text-orange-500" /> Änderungen bestätigen
+                        </h2>
+                        <div className="bg-orange-500/10 text-orange-500 text-sm font-black px-3 py-1 rounded-xl border border-orange-500/20">
+                            {myPendingChanges.length}
+                        </div>
+                    </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                         {myPendingChanges.map(entry => (
-                            <GlassCard key={entry.id} className="animate-in fade-in zoom-in-95 duration-500 border-orange-500/30 bg-orange-900/10 hover:border-orange-500/50 transition-colors">
+                            <SpotlightCard key={entry.id} className="animate-in fade-in zoom-in-95 duration-500 bg-card border border-border p-6 rounded-xl shadow-sm hover:shadow-md hover:border-orange-500/30 transition-colors">
                                 <div className="flex justify-between items-start mb-2">
                                     <span className="text-xs font-bold text-orange-300 uppercase tracking-wider">
                                         {new Date(entry.date).toLocaleDateString('de-DE')}
@@ -605,27 +610,27 @@ const OfficeDashboard: React.FC = () => {
                                         Geändert
                                     </span>
                                 </div>
-                                <div className="text-sm text-white/80 mb-4">
+                                <div className="text-sm text-muted-foreground mb-4">
                                     <p>Ihre Zeit wurde bearbeitet von <span className="text-orange-300 font-bold">{users.find(u => u.user_id === entry.last_changed_by)?.display_name || 'Büro'}</span>.</p>
                                     {entry.change_reason && (
-                                        <div className="mt-2 text-xs italic text-white/50 bg-black/20 p-2 rounded border border-white/5">
+                                        <div className="mt-2 text-xs italic text-muted-foreground bg-input p-2 rounded border border-border">
                                             "{entry.change_reason}"
                                         </div>
                                     )}
-                                    <div className="mt-2 pt-2 border-t border-white/5">
+                                    <div className="mt-2 pt-2 border-t border-border">
                                         <SubmissionTimer entryDate={entry.date} submitted={!!entry.submitted} />
                                     </div>
                                     </div>
 
-                                <div className="flex justify-end gap-2">
+                                <div className="flex justify-end gap-2 mt-4 pt-4 border-t border-border">
                                     <button
                                         onClick={() => handleConfirmChange(entry)}
-                                        className="bg-orange-500 hover:bg-orange-400 text-white text-xs font-bold px-3 py-2 rounded-lg flex items-center gap-2 transition-colors"
+                                        className="bg-orange-500 hover:bg-orange-400 text-foreground text-xs font-bold px-3 py-2 rounded-lg flex items-center gap-2 transition-colors"
                                     >
                                         <CheckCircle size={14} /> Akzeptieren
                                     </button>
                                 </div>
-                            </GlassCard>
+                            </SpotlightCard>
                         ))}
                     </div>
                 </div>
@@ -643,16 +648,17 @@ const OfficeDashboard: React.FC = () => {
                                 onClick={() => toggleSection('vacation')}
                                 className="w-full text-left mb-4 flex items-center gap-2 group focus:outline-none"
                             >
-                                <div className={`p-1 rounded transition-colors ${collapsedSections['vacation'] ? 'text-white/30 group-hover:bg-white/10' : 'text-purple-400'}`}>
+                                <div className={`p-1 rounded transition-colors ${collapsedSections['vacation'] ? 'text-muted-foreground group-hover:bg-card' : 'text-purple-400'}`}>
                                     {collapsedSections['vacation'] ? <ChevronRight size={24} /> : <ChevronDown size={24} />}
                                 </div>
-                                <h2 className="text-xl font-bold text-white flex items-center gap-2">
-                                    <Palmtree size={24} className="text-purple-400" />
-                                    <span className="text-purple-100">Offene Urlaubsanträge</span>
-                                    <span className="text-sm bg-purple-500/20 text-purple-300 px-2 py-0.5 rounded-full ml-2">
+                                <div className="flex-1 flex items-center justify-between pb-3 border-b-2 border-purple-500/20 group-hover:border-purple-400/40 transition-colors">
+                                    <h2 className="text-xl font-black flex items-center gap-2 text-foreground group-hover:text-purple-400 transition-colors">
+                                        <Palmtree size={24} className="text-purple-500" /> Offene Urlaubsanträge
+                                    </h2>
+                                    <div className="bg-purple-500/10 text-purple-500 text-sm font-black px-3 py-1 rounded-xl border border-purple-500/20">
                                         {pendingVacationRequests.length}
-                                    </span>
-                                </h2>
+                                    </div>
+                                </div>
                             </button>
 
                             {!collapsedSections['vacation'] && (
@@ -664,8 +670,8 @@ const OfficeDashboard: React.FC = () => {
 
                                         return (
                                             <div key={userId} className="contents">
-                                                <GlassCard
-                                                    className={`border-purple-500/30 bg-purple-900/10 cursor-pointer hover:bg-purple-900/20 transition-all group ${isExpanded ? 'lg:col-span-3 md:col-span-2' : ''}`}
+                                                <SpotlightCard
+                                                    className={`bg-card border border-border p-6 rounded-xl shadow-sm cursor-pointer hover:shadow-md hover:border-purple-500/30 transition-all group ${isExpanded ? 'lg:col-span-3 md:col-span-2' : ''}`}
                                                     onClick={() => toggleVacationUser(userId)}
                                                 >
                                                     <div className="flex justify-between items-start">
@@ -674,21 +680,21 @@ const OfficeDashboard: React.FC = () => {
                                                                 {requester?.display_name.charAt(0) || '?'}
                                                             </div>
                                                             <div>
-                                                                <h3 className="font-bold text-white leading-tight">{requester?.display_name || 'Unbekannt'}</h3>
+                                                                <h3 className="font-bold text-foreground leading-tight">{requester?.display_name || 'Unbekannt'}</h3>
                                                                 <p className="text-xs text-purple-300 font-medium">{userRequests.length} offene Anträge</p>
                                                             </div>
                                                         </div>
-                                                        <div className={`text-white/30 transition-transform duration-200 ${isExpanded ? 'rotate-90' : ''}`}>
+                                                        <div className={`text-muted-foreground transition-transform duration-200 ${isExpanded ? 'rotate-90' : ''}`}>
                                                             <ChevronRight size={20} />
                                                         </div>
                                                     </div>
 
                                                     {isExpanded && (
-                                                        <div className="mt-4 pt-4 border-t border-white/5 space-y-3 animate-in slide-in-from-top-2">
+                                                        <div className="mt-4 pt-4 border-t border-border space-y-3 animate-in slide-in-from-top-2">
                                                             {userRequests.map(req => (
-                                                                <div key={req.id} className="bg-black/20 rounded-lg p-3 hover:bg-black/30 transition-colors cursor-default" onClick={(e) => e.stopPropagation()}>
+                                                                <div key={req.id} className="bg-input rounded-lg p-3 hover:bg-input transition-colors cursor-default" onClick={(e) => e.stopPropagation()}>
                                                                     <div className="flex justify-between items-center mb-2">
-                                                                        <span className="text-xs text-white/50">Antrag vom {new Date(req.created_at).toLocaleDateString('de-DE')}</span>
+                                                                        <span className="text-xs text-muted-foreground">Antrag vom {new Date(req.created_at).toLocaleDateString('de-DE')}</span>
                                                                         <button
                                                                             onClick={() => navigate(`/office/user/${req.user_id}`)}
                                                                             className="text-xs text-purple-400 font-bold hover:underline flex items-center gap-1"
@@ -698,17 +704,17 @@ const OfficeDashboard: React.FC = () => {
                                                                     </div>
                                                                     <div className="flex justify-between items-center">
                                                                         <div>
-                                                                            <span className="block text-[10px] text-white/40 uppercase font-bold">Start</span>
-                                                                            <span className="text-sm font-bold text-white">{new Date(req.start_date).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' })}</span>
+                                                                            <span className="block text-[10px] text-muted-foreground uppercase font-bold">Start</span>
+                                                                            <span className="text-sm font-bold text-foreground">{new Date(req.start_date).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' })}</span>
                                                                         </div>
-                                                                        <ArrowRight size={14} className="text-white/20" />
+                                                                        <ArrowRight size={14} className="text-muted-foreground" />
                                                                         <div className="text-right">
-                                                                            <span className="block text-[10px] text-white/40 uppercase font-bold">Ende</span>
-                                                                            <span className="text-sm font-bold text-white">{new Date(req.end_date).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' })}</span>
+                                                                            <span className="block text-[10px] text-muted-foreground uppercase font-bold">Ende</span>
+                                                                            <span className="text-sm font-bold text-foreground">{new Date(req.end_date).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' })}</span>
                                                                         </div>
                                                                     </div>
                                                                     {req.note && (
-                                                                        <div className="mt-2 text-xs text-white/50 italic border-l-2 border-white/10 pl-2">
+                                                                        <div className="mt-2 text-xs text-muted-foreground italic border-l-2 border-border pl-2">
                                                                             "{req.note}"
                                                                         </div>
                                                                     )}
@@ -716,7 +722,7 @@ const OfficeDashboard: React.FC = () => {
                                                             ))}
                                                         </div>
                                                     )}
-                                                </GlassCard>
+                                                </SpotlightCard>
                                             </div>
                                         );
                                     })}
@@ -732,18 +738,19 @@ const OfficeDashboard: React.FC = () => {
                                 onClick={() => toggleSection('emergency')}
                                 className="w-full text-left mb-4 flex items-center gap-2 group focus:outline-none"
                             >
-                                <div className={`p-1 rounded transition-colors ${collapsedSections['emergency'] ? 'text-white/30 group-hover:bg-white/10' : 'text-rose-400'}`}>
+                                <div className={`p-1 rounded transition-colors ${collapsedSections['emergency'] ? 'text-muted-foreground group-hover:bg-card' : 'text-rose-400'}`}>
                                     {collapsedSections['emergency'] ? <ChevronRight size={24} /> : <ChevronDown size={24} />}
                                 </div>
-                                <h2 className="text-xl font-bold text-white flex items-center gap-2">
-                                    <Shield size={24} className="text-rose-400" />
-                                    <span className="text-rose-100">Notdienst Plan</span>
-                                </h2>
-                                {pendingSwapRequests.length > 0 && (
-                                    <span className="bg-orange-500/20 text-orange-400 text-xs font-bold px-2 py-1 rounded-full border border-orange-500/30">
-                                        {pendingSwapRequests.length} offene Anfragen
-                                    </span>
-                                )}
+                                <div className="flex-1 flex items-center justify-between pb-3 border-b-2 border-rose-500/20 group-hover:border-rose-400/40 transition-colors">
+                                    <h2 className="text-xl font-black flex items-center gap-2 text-foreground group-hover:text-rose-400 transition-colors">
+                                        <Shield size={24} className="text-rose-500" /> Notdienst Plan
+                                    </h2>
+                                    {pendingSwapRequests.length > 0 && (
+                                        <div className="bg-orange-500/10 text-orange-500 text-sm font-black px-3 py-1 rounded-xl border border-orange-500/20">
+                                            {pendingSwapRequests.length} Anfragen
+                                        </div>
+                                    )}
+                                </div>
                             </button>
 
                             {!collapsedSections['emergency'] && (
@@ -756,16 +763,17 @@ const OfficeDashboard: React.FC = () => {
                     {isOfficeOrAdmin && pendingPeerReviews.length > 0 && (
                         <div className="animate-in slide-in-from-bottom-6">
                             <div
-                                className="flex items-center justify-between cursor-pointer mb-4"
+                                className="flex items-center justify-between cursor-pointer mb-4 pb-3 border-b-2 border-teal-500/20 group"
                                 onClick={() => toggleSection('peerReviews')}
                             >
-                                <h2 className="text-xl font-bold text-white flex items-center gap-2">
-                                    <UserCheck size={24} className="text-teal-400" />
-                                    <span className="text-teal-100">Ausstehende Mitarbeiter-Bestätigungen</span>
-                                    <span className="bg-teal-500/20 text-teal-300 text-xs px-2 py-0.5 rounded-full border border-teal-500/30">
+                                <div className="flex items-center gap-4">
+                                    <h2 className="text-xl font-black flex items-center gap-2 text-foreground group-hover:text-teal-400 transition-colors">
+                                        <UserCheck size={24} className="text-teal-500" /> Ausstehende Mitarbeiter-Bestätigungen
+                                    </h2>
+                                    <div className="bg-teal-500/10 text-teal-500 text-sm font-black px-3 py-1 rounded-xl border border-teal-500/20">
                                         {pendingPeerReviews.length}
-                                    </span>
-                                </h2>
+                                    </div>
+                                </div>
                                 <div className="flex items-center gap-2">
                                     <button
                                         onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleConfirmAllPeerReviews(); }}
@@ -774,8 +782,8 @@ const OfficeDashboard: React.FC = () => {
                                     >
                                         <CheckCircle size={14} /> Alle bestätigen
                                     </button>
-                                    <div className={`p-2 rounded-lg transition-colors ${collapsedSections['peerReviews'] ? 'bg-white/5' : 'bg-white/10'}`}>
-                                        <ChevronRight size={20} className={`text-white/50 transition-transform ${!collapsedSections['peerReviews'] ? 'rotate-90' : ''}`} />
+                                    <div className={`p-2 rounded-lg transition-colors ${collapsedSections['peerReviews'] ? 'bg-muted' : 'bg-card'}`}>
+                                        <ChevronRight size={20} className={`text-muted-foreground transition-transform ${!collapsedSections['peerReviews'] ? 'rotate-90' : ''}`} />
                                     </div>
                                 </div>
                             </div>
@@ -788,28 +796,28 @@ const OfficeDashboard: React.FC = () => {
                                         const isRejectingThis = peerRejectionState.entryId === entry.id;
 
                                         return (
-                                            <GlassCard key={entry.id} className="animate-in fade-in zoom-in-95 duration-500 !p-4 bg-teal-900/5 border-teal-500/20 hover:border-teal-500/40 relative overflow-hidden group/card">
+                                            <SpotlightCard key={entry.id} className="animate-in fade-in zoom-in-95 duration-500 bg-card border border-border p-4 rounded-xl shadow-sm hover:shadow-md hover:border-teal-500/30 transition-colors relative group/card">
                                                 <div className="absolute top-0 right-0 p-2 opacity-50">
                                                     <Clock size={40} className="text-teal-500/10" />
                                                 </div>
 
                                                 <div className="relative z-10">
                                                     {/* Header: Date, Client, Hours & Note */}
-                                                    <div className="mb-3 border-b border-white/5 pb-2">
+                                                    <div className="mb-3 border-b border-border pb-2">
                                                         <div className="flex justify-between items-center mb-1">
                                                             <div className="text-xs font-bold text-teal-400 uppercase tracking-wider">
                                                                 {new Date(entry.date).toLocaleDateString('de-DE')}
                                                             </div>
-                                                            <div className="text-xs font-bold text-white bg-white/10 px-1.5 py-0.5 rounded">
+                                                            <div className="text-xs font-bold text-foreground bg-card px-1.5 py-0.5 rounded">
                                                                 {entry.hours.toFixed(2)} Std.
                                                             </div>
                                                         </div>
-                                                        <div className="font-bold text-white text-sm truncate mb-1 flex items-center gap-2" title={entry.client_name}>
+                                                        <div className="font-bold text-foreground text-sm truncate mb-1 flex items-center gap-2" title={entry.client_name}>
                                                             {entry.client_name}
                                                             {entry.order_number && (
                                                                 <span
                                                                     onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(entry.order_number || ''); }}
-                                                                    className="inline-flex items-center gap-0.5 bg-white/10 px-1.5 py-0.5 rounded text-[10px] text-white/50 font-mono tracking-wide border border-white/5 shrink-0 cursor-pointer hover:bg-white/20 active:scale-95 transition-all"
+                                                                    className="inline-flex items-center gap-0.5 bg-card px-1.5 py-0.5 rounded text-[10px] text-muted-foreground font-mono tracking-wide border border-border shrink-0 cursor-pointer hover:bg-accent active:scale-95 transition-all"
                                                                     title="Klicken zum Kopieren"
                                                                 >
                                                                     {entry.order_number}
@@ -817,11 +825,11 @@ const OfficeDashboard: React.FC = () => {
                                                             )}
                                                         </div>
                                                         {entry.note && (
-                                                            <div className="text-xs text-white/50 italic truncate" title={entry.note}>
+                                                            <div className="text-xs text-muted-foreground italic truncate" title={entry.note}>
                                                                 "{entry.note}"
                                                             </div>
                                                         )}
-                                                        <div className="mt-2 pt-2 border-t border-white/5">
+                                                        <div className="mt-2 pt-2 border-t border-border">
                                                             <SubmissionTimer entryDate={entry.date} submitted={!!entry.submitted} />
                                                         </div>
                                                     </div>
@@ -838,7 +846,7 @@ const OfficeDashboard: React.FC = () => {
                                                     <div className="flex items-center gap-3 mb-3">
                                                         {/* Creator */}
                                                         <div className="flex-1 min-w-0">
-                                                            <div className="text-[10px] uppercase text-white/40 font-bold mb-1">Ersteller</div>
+                                                            <div className="text-[10px] uppercase text-muted-foreground font-bold mb-1">Ersteller</div>
                                                             <div className="flex items-center gap-2">
                                                                 <div className="w-6 h-6 rounded-full bg-teal-500/20 flex items-center justify-center text-[10px] font-bold text-teal-300 shrink-0">
                                                                     {creator?.display_name.charAt(0) || '?'}
@@ -849,13 +857,13 @@ const OfficeDashboard: React.FC = () => {
                                                             </div>
                                                         </div>
 
-                                                        <div className="text-white/20">
+                                                        <div className="text-muted-foreground">
                                                             <ArrowRight size={16} />
                                                         </div>
 
                                                         {/* Reviewer */}
                                                         <div className="flex-1 min-w-0 text-right">
-                                                            <div className="text-[10px] uppercase text-white/40 font-bold mb-1">Prüfer</div>
+                                                            <div className="text-[10px] uppercase text-muted-foreground font-bold mb-1">Prüfer</div>
                                                             <div className="flex items-center justify-end gap-2">
                                                                 {reviewer ? (
                                                                     <>
@@ -877,10 +885,10 @@ const OfficeDashboard: React.FC = () => {
                                                                     </>
                                                                 ) : (
                                                                     <>
-                                                                        <div className="truncate text-sm text-white/30 font-medium">
+                                                                        <div className="truncate text-sm text-muted-foreground font-medium">
                                                                             Unbekannt
                                                                         </div>
-                                                                        <div className="w-6 h-6 rounded-full bg-white/10 flex items-center justify-center text-[10px] font-bold text-white/30 shrink-0">
+                                                                        <div className="w-6 h-6 rounded-full bg-card flex items-center justify-center text-[10px] font-bold text-muted-foreground shrink-0">
                                                                             ?
                                                                         </div>
                                                                     </>
@@ -891,17 +899,17 @@ const OfficeDashboard: React.FC = () => {
 
                                                     {/* Action Buttons */}
                                                     {!isRejectingThis && (
-                                                        <div className="flex justify-end gap-2 pt-2 border-t border-white/5">
+                                                        <div className="flex justify-end gap-2 pt-2 border-t border-border">
                                                             <button
                                                                 onClick={() => handleConfirmPeerReview(entry.id)}
-                                                                className="p-1.5 bg-emerald-500/20 hover:bg-emerald-500 text-emerald-400 hover:text-white rounded transition-colors flex items-center gap-1.5 text-xs font-bold px-3"
+                                                                className="p-1.5 bg-emerald-500/20 hover:bg-emerald-500 text-emerald-400 hover:text-foreground rounded transition-colors flex items-center gap-1.5 text-xs font-bold px-3"
                                                                 title="Eintrag bestätigen"
                                                             >
                                                                 <CheckCircle size={14} /> Bestätigen
                                                             </button>
                                                             <button
                                                                 onClick={() => setPeerRejectionState({ entryId: entry.id, reason: '' })}
-                                                                className="p-1.5 bg-red-500/20 hover:bg-red-500 text-red-400 hover:text-white rounded transition-colors flex items-center gap-1.5 text-xs font-bold px-3"
+                                                                className="p-1.5 bg-red-500/20 hover:bg-red-500 text-red-400 hover:text-foreground rounded transition-colors flex items-center gap-1.5 text-xs font-bold px-3"
                                                                 title="Eintrag ablehnen"
                                                             >
                                                                 <X size={14} /> Ablehnen
@@ -918,7 +926,7 @@ const OfficeDashboard: React.FC = () => {
                                                                     type="text"
                                                                     value={peerRejectionState.reason}
                                                                     onChange={e => setPeerRejectionState({ ...peerRejectionState, reason: e.target.value })}
-                                                                    className="flex-1 bg-black/30 border border-red-500/30 rounded px-2 py-1 text-xs text-white placeholder-red-300/30 focus:outline-none focus:border-red-400"
+                                                                    className="flex-1 bg-input border border-red-500/30 rounded px-2 py-1 text-xs text-foreground placeholder-red-300/30 focus:outline-none focus:border-red-400"
                                                                     placeholder="Warum wird abgelehnt?"
                                                                     autoFocus
                                                                     onKeyDown={(e) => { if (e.key === 'Enter' && peerRejectionState.reason.trim()) handleRejectPeerReview(); }}
@@ -926,7 +934,7 @@ const OfficeDashboard: React.FC = () => {
                                                                 <button
                                                                     onClick={handleRejectPeerReview}
                                                                     disabled={!peerRejectionState.reason.trim()}
-                                                                    className="bg-red-500 hover:bg-red-600 disabled:opacity-50 text-white text-xs font-bold px-3 rounded transition-colors"
+                                                                    className="bg-red-500 hover:bg-red-600 disabled:opacity-50 text-foreground text-xs font-bold px-3 rounded transition-colors"
                                                                 >
                                                                     Ablehnen
                                                                 </button>
@@ -935,7 +943,7 @@ const OfficeDashboard: React.FC = () => {
                                                         </div>
                                                     )}
                                                 </div>
-                                            </GlassCard>
+                                            </SpotlightCard>
                                         );
                                     })}
                                 </div>
@@ -949,15 +957,15 @@ const OfficeDashboard: React.FC = () => {
                                 className="flex items-center justify-between cursor-pointer mb-4"
                                 onClick={() => toggleSection('changeRequests')}
                             >
-                                <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                                <h2 className="text-xl font-bold text-foreground flex items-center gap-2">
                                     <FileText size={24} className="text-blue-400" />
                                     <span className="text-blue-100">Änderungsanträge</span>
                                     <span className="bg-blue-500/20 text-blue-300 text-xs px-2 py-0.5 rounded-full border border-blue-500/30">
                                         {pendingChangeRequests.length}
                                     </span>
                                 </h2>
-                                <div className={`p-2 rounded-lg transition-colors ${collapsedSections['changeRequests'] ? 'bg-white/5' : 'bg-white/10'}`}>
-                                    <ChevronRight size={20} className={`text-white/50 transition-transform ${!collapsedSections['changeRequests'] ? 'rotate-90' : ''}`} />
+                                <div className={`p-2 rounded-lg transition-colors ${collapsedSections['changeRequests'] ? 'bg-muted' : 'bg-card'}`}>
+                                    <ChevronRight size={20} className={`text-muted-foreground transition-transform ${!collapsedSections['changeRequests'] ? 'rotate-90' : ''}`} />
                                 </div>
                             </div>
 
@@ -970,14 +978,14 @@ const OfficeDashboard: React.FC = () => {
                                         const isRejectingThis = changeRequestRejection.historyId === req.id;
 
                                         return (
-                                            <GlassCard key={req.id} className="animate-in fade-in zoom-in-95 duration-500 !p-4 bg-blue-900/5 border-blue-500/20 hover:border-blue-500/40 relative overflow-hidden">
+                                            <SpotlightCard key={req.id} className="animate-in fade-in zoom-in-95 duration-500 bg-card border border-border p-4 rounded-xl shadow-sm hover:shadow-md hover:border-blue-500/30 transition-colors relative group/card">
                                                 <div className="absolute top-0 right-0 p-2 opacity-30">
                                                     <FileText size={40} className="text-blue-500/10" />
                                                 </div>
 
                                                 <div className="relative z-10">
                                                     {/* Header */}
-                                                    <div className="mb-3 border-b border-white/5 pb-2">
+                                                    <div className="mb-3 border-b border-border pb-2">
                                                         <div className="flex justify-between items-center mb-1">
                                                             <div className="flex items-center gap-2">
                                                                 <div className="w-6 h-6 rounded-full bg-blue-500/20 flex items-center justify-center text-[10px] font-bold text-blue-300 shrink-0">
@@ -985,7 +993,7 @@ const OfficeDashboard: React.FC = () => {
                                                                 </div>
                                                                 <span className="text-sm font-bold text-blue-100">{creator?.display_name || 'Unbekannt'}</span>
                                                             </div>
-                                                            <span className="text-[10px] text-white/40">
+                                                            <span className="text-[10px] text-muted-foreground">
                                                                 {new Date(req.changed_at).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
                                                             </span>
                                                         </div>
@@ -1005,26 +1013,26 @@ const OfficeDashboard: React.FC = () => {
                                                     <div className="grid grid-cols-2 gap-2 mb-3 text-xs">
                                                         <div className="bg-red-900/10 p-2 rounded border border-red-500/10">
                                                             <div className="text-[10px] uppercase font-bold text-red-300/60 mb-1">Aktuell</div>
-                                                            <div className="font-bold text-white/70 truncate">{entry?.client_name}</div>
-                                                            <div className="text-white/40 font-mono">{entry?.hours?.toFixed?.(2) || entry?.hours} h</div>
-                                                            {entry?.start_time && <div className="text-white/30">{entry.start_time} - {entry.end_time}</div>}
-                                                            {entry?.note && <div className="text-white/30 italic truncate">"{entry.note}"</div>}
+                                                            <div className="font-bold text-muted-foreground truncate">{entry?.client_name}</div>
+                                                            <div className="text-muted-foreground font-mono">{entry?.hours?.toFixed?.(2) || entry?.hours} h</div>
+                                                            {entry?.start_time && <div className="text-muted-foreground">{entry.start_time} - {entry.end_time}</div>}
+                                                            {entry?.note && <div className="text-muted-foreground italic truncate">"{entry.note}"</div>}
                                                         </div>
                                                         <div className="bg-emerald-900/10 p-2 rounded border border-emerald-500/10">
                                                             <div className="text-[10px] uppercase font-bold text-emerald-300/60 mb-1">Neu</div>
-                                                            <div className={`font-bold truncate ${newVals.client_name !== entry?.client_name ? 'text-emerald-300' : 'text-white/70'}`}>
+                                                            <div className={`font-bold truncate ${newVals.client_name !== entry?.client_name ? 'text-emerald-300' : 'text-muted-foreground'}`}>
                                                                 {newVals.client_name || entry?.client_name}
                                                             </div>
-                                                            <div className={`font-mono ${parseFloat(newVals.hours) !== entry?.hours ? 'text-emerald-300' : 'text-white/40'}`}>
+                                                            <div className={`font-mono ${parseFloat(newVals.hours) !== entry?.hours ? 'text-emerald-300' : 'text-muted-foreground'}`}>
                                                                 {parseFloat(newVals.hours)?.toFixed?.(2) || newVals.hours} h
                                                             </div>
                                                             {(newVals.start_time || entry?.start_time) && (
-                                                                <div className={newVals.start_time !== entry?.start_time || newVals.end_time !== entry?.end_time ? 'text-emerald-300' : 'text-white/30'}>
+                                                                <div className={newVals.start_time !== entry?.start_time || newVals.end_time !== entry?.end_time ? 'text-emerald-300' : 'text-muted-foreground'}>
                                                                     {newVals.start_time || entry?.start_time} - {newVals.end_time || entry?.end_time}
                                                                 </div>
                                                             )}
                                                             {(newVals.note || entry?.note) && (
-                                                                <div className={`italic truncate ${newVals.note !== entry?.note ? 'text-emerald-300' : 'text-white/30'}`}>
+                                                                <div className={`italic truncate ${newVals.note !== entry?.note ? 'text-emerald-300' : 'text-muted-foreground'}`}>
                                                                     "{newVals.note || entry?.note}"
                                                                 </div>
                                                             )}
@@ -1033,16 +1041,16 @@ const OfficeDashboard: React.FC = () => {
 
                                                     {/* Action Buttons */}
                                                     {!isRejectingThis && (
-                                                        <div className="flex justify-end gap-2 pt-2 border-t border-white/5">
+                                                        <div className="flex justify-end gap-2 pt-2 border-t border-border">
                                                             <button
                                                                 onClick={() => handleApproveChangeRequest(req.id)}
-                                                                className="p-1.5 bg-emerald-500/20 hover:bg-emerald-500 text-emerald-400 hover:text-white rounded transition-colors flex items-center gap-1.5 text-xs font-bold px-3"
+                                                                className="p-1.5 bg-emerald-500/20 hover:bg-emerald-500 text-emerald-400 hover:text-foreground rounded transition-colors flex items-center gap-1.5 text-xs font-bold px-3"
                                                             >
                                                                 <CheckCircle size={14} /> Genehmigen
                                                             </button>
                                                             <button
                                                                 onClick={() => setChangeRequestRejection({ historyId: req.id, reason: '' })}
-                                                                className="p-1.5 bg-red-500/20 hover:bg-red-500 text-red-400 hover:text-white rounded transition-colors flex items-center gap-1.5 text-xs font-bold px-3"
+                                                                className="p-1.5 bg-red-500/20 hover:bg-red-500 text-red-400 hover:text-foreground rounded transition-colors flex items-center gap-1.5 text-xs font-bold px-3"
                                                             >
                                                                 <X size={14} /> Ablehnen
                                                             </button>
@@ -1058,7 +1066,7 @@ const OfficeDashboard: React.FC = () => {
                                                                     type="text"
                                                                     value={changeRequestRejection.reason}
                                                                     onChange={e => setChangeRequestRejection({ ...changeRequestRejection, reason: e.target.value })}
-                                                                    className="flex-1 bg-black/30 border border-red-500/30 rounded px-2 py-1 text-xs text-white placeholder-red-300/30 focus:outline-none focus:border-red-400"
+                                                                    className="flex-1 bg-input border border-red-500/30 rounded px-2 py-1 text-xs text-foreground placeholder-red-300/30 focus:outline-none focus:border-red-400"
                                                                     placeholder="Warum wird der Antrag abgelehnt?"
                                                                     autoFocus
                                                                     onKeyDown={(e) => { if (e.key === 'Enter' && changeRequestRejection.reason.trim()) handleRejectChangeRequest(); }}
@@ -1066,7 +1074,7 @@ const OfficeDashboard: React.FC = () => {
                                                                 <button
                                                                     onClick={handleRejectChangeRequest}
                                                                     disabled={!changeRequestRejection.reason.trim()}
-                                                                    className="bg-red-500 hover:bg-red-600 disabled:opacity-50 text-white text-xs font-bold px-3 rounded transition-colors"
+                                                                    className="bg-red-500 hover:bg-red-600 disabled:opacity-50 text-foreground text-xs font-bold px-3 rounded transition-colors"
                                                                 >
                                                                     Ablehnen
                                                                 </button>
@@ -1075,7 +1083,7 @@ const OfficeDashboard: React.FC = () => {
                                                         </div>
                                                     )}
                                                 </div>
-                                            </GlassCard>
+                                                </SpotlightCard>
                                         );
                                     })}
                                 </div>
@@ -1086,25 +1094,26 @@ const OfficeDashboard: React.FC = () => {
                     {/* Pending Confirmations (Grouped by User) */}
                     <div className="animate-in slide-in-from-bottom-6">
                         <div
-                            className="flex items-center justify-between cursor-pointer mb-4"
+                            className="flex items-center justify-between cursor-pointer mb-4 pb-3 border-b-2 border-teal-500/20 group"
                             onClick={() => toggleSection('confirmations')}
                         >
-                            <h2 className="text-xl font-bold text-white flex items-center gap-2">
-                                <Shield size={24} className="text-teal-400" />
-                                <span className="text-teal-100">Zur Freigabe (Mitarbeiter)</span>
-                            </h2>
-                            <div className={`p-2 rounded-lg transition-colors ${collapsedSections['confirmations'] ? 'bg-white/5' : 'bg-white/10'}`}>
-                                <ChevronRight size={20} className={`text-white/50 transition-transform ${!collapsedSections['confirmations'] ? 'rotate-90' : ''}`} />
+                            <div className="flex items-center gap-4">
+                                <h2 className="text-xl font-black flex items-center gap-2 text-foreground group-hover:text-teal-400 transition-colors">
+                                    <Shield size={24} className="text-teal-500" /> Zur Freigabe (Mitarbeiter)
+                                </h2>
+                            </div>
+                            <div className={`p-2 rounded-lg transition-colors ${collapsedSections['confirmations'] ? 'bg-muted' : 'bg-card'}`}>
+                                <ChevronRight size={20} className={`text-muted-foreground transition-transform ${!collapsedSections['confirmations'] ? 'rotate-90' : ''}`} />
                             </div>
                         </div>
 
                         {!collapsedSections['confirmations'] && (
                             <>
                                 {Object.keys(approvalsByUser).length === 0 ? (
-                                    <GlassCard className="flex flex-col items-center justify-center p-8 text-white/30 gap-2 border-dashed">
+                                    <SpotlightCard className="bg-card flex flex-col items-center justify-center p-8 text-muted-foreground gap-2 border border-dashed border-border rounded-xl">
                                         <CheckCircle size={40} className="mb-2" />
                                         <p>Keine offenen Freigaben</p>
-                                    </GlassCard>
+                                    </SpotlightCard>
                                 ) : (
                                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                                         {Object.keys(approvalsByUser).map(userId => {
@@ -1113,24 +1122,24 @@ const OfficeDashboard: React.FC = () => {
                                             if (!user) return null;
 
                                             return (
-                                                <GlassCard
+                                                <SpotlightCard
                                                     key={userId}
-                                                    className="group cursor-pointer hover:border-teal-500/50 transition-all border-teal-500/20 bg-teal-900/5"
+                                                    className="bg-card border border-border p-6 rounded-xl shadow-sm cursor-pointer hover:shadow-md hover:border-teal-500/50 transition-all group"
                                                     onClick={() => setReviewModal({ isOpen: true, userId })}
                                                 >
                                                     <div className="flex justify-between items-start mb-4">
                                                         <div className="flex items-center gap-3">
-                                                            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-gray-700 to-gray-900 border border-white/10 flex items-center justify-center font-bold text-white">
+                                                            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-gray-700 to-gray-900 border border-border flex items-center justify-center font-bold text-foreground">
                                                                 {user.display_name.charAt(0)}
                                                             </div>
                                                             <div>
-                                                                <h3 className="font-bold text-white">{user.display_name}</h3>
+                                                                <h3 className="font-bold text-foreground">{user.display_name}</h3>
                                                                 <span className="text-[10px] bg-teal-500/10 text-teal-300 px-1.5 py-0.5 rounded border border-teal-500/20 uppercase font-bold tracking-wider">
                                                                     {userEntries.length} Einträge
                                                                 </span>
                                                             </div>
                                                         </div>
-                                                        <button className="p-2 bg-white/5 rounded-full hover:bg-teal-500/20 text-white/50 hover:text-teal-300 transition-colors">
+                                                        <button className="p-2 bg-muted rounded-full hover:bg-teal-500/20 text-muted-foreground hover:text-teal-300 transition-colors">
                                                             <ChevronRight size={20} />
                                                         </button>
                                                     </div>
@@ -1138,22 +1147,22 @@ const OfficeDashboard: React.FC = () => {
                                                     {/* Preview of Types */}
                                                     <div className="flex gap-2 flex-wrap mb-2">
                                                         {userEntries.some(e => e.type === 'company') && (
-                                                            <span className="text-[10px] flex items-center gap-1 text-white/50 bg-white/5 px-2 py-1 rounded">
+                                                            <span className="text-[10px] flex items-center gap-1 text-muted-foreground bg-muted px-2 py-1 rounded">
                                                                 <Briefcase size={10} /> Firma
                                                             </span>
                                                         )}
                                                         {userEntries.some(e => e.type === 'office') && (
-                                                            <span className="text-[10px] flex items-center gap-1 text-white/50 bg-white/5 px-2 py-1 rounded">
+                                                            <span className="text-[10px] flex items-center gap-1 text-muted-foreground bg-muted px-2 py-1 rounded">
                                                                 <Home size={10} /> Büro
                                                             </span>
                                                         )}
                                                         {userEntries.some(e => e.type === 'car') && (
-                                                            <span className="text-[10px] flex items-center gap-1 text-white/50 bg-white/5 px-2 py-1 rounded">
+                                                            <span className="text-[10px] flex items-center gap-1 text-muted-foreground bg-muted px-2 py-1 rounded">
                                                                 <Truck size={10} /> Auto
                                                             </span>
                                                         )}
                                                         {userEntries.some(e => e.type === 'overtime_reduction') && (
-                                                            <span className="text-[10px] flex items-center gap-1 text-white/50 bg-white/5 px-2 py-1 rounded">
+                                                            <span className="text-[10px] flex items-center gap-1 text-muted-foreground bg-muted px-2 py-1 rounded">
                                                                 <Calculator size={10} /> Abbau
                                                             </span>
                                                         )}
@@ -1163,7 +1172,7 @@ const OfficeDashboard: React.FC = () => {
                                                             </span>
                                                         )}
                                                     </div>
-                                                </GlassCard>
+                                                </SpotlightCard>
                                             );
                                         })}
                                     </div>
@@ -1177,10 +1186,10 @@ const OfficeDashboard: React.FC = () => {
 
             {
                 !isOfficeOrAdmin && myPendingChanges.length === 0 && (
-                    <GlassCard className="flex flex-col items-center justify-center p-12 text-white/30 gap-4 mt-8">
+                    <GlassCard className="flex flex-col items-center justify-center p-12 text-muted-foreground gap-4 mt-8">
                         <CheckCircle size={60} className="text-emerald-500/20" />
                         <div className="text-center">
-                            <h3 className="text-lg font-bold text-white/50">Alles erledigt</h3>
+                            <h3 className="text-lg font-bold text-muted-foreground">Alles erledigt</h3>
                             <p className="text-sm">Aktuell gibt es keine offenen Aufgaben für dich.</p>
                         </div>
                     </GlassCard>
@@ -1190,22 +1199,22 @@ const OfficeDashboard: React.FC = () => {
             {/* QUICK REVIEW MODAL */}
             {
                 reviewModal.isOpen && reviewModal.userId && (
-                    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
-                        <GlassCard className="w-full max-w-2xl max-h-[90vh] flex flex-col !p-0 overflow-hidden shadow-2xl border-white/20">
+                    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-input backdrop-blur-md animate-in fade-in duration-200">
+                        <GlassCard className="w-full max-w-2xl max-h-[90vh] flex flex-col !p-0 overflow-hidden shadow-2xl border-border">
                             {/* Modal Header */}
-                            <div className="p-4 bg-gradient-to-r from-gray-900 to-gray-800 border-b border-white/10 flex justify-between items-center">
+                            <div className="p-4 bg-gradient-to-r from-gray-900 to-gray-800 border-b border-border flex justify-between items-center">
                                 <div className="flex items-center gap-3">
-                                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-teal-500 to-emerald-600 flex items-center justify-center font-bold text-white shadow-lg">
+                                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-teal-500 to-emerald-600 flex items-center justify-center font-bold text-foreground shadow-lg">
                                         {users.find(u => u.user_id === reviewModal.userId)?.display_name.charAt(0)}
                                     </div>
                                     <div>
-                                        <h3 className="font-bold text-white text-lg">{users.find(u => u.user_id === reviewModal.userId)?.display_name}</h3>
+                                        <h3 className="font-bold text-foreground text-lg">{users.find(u => u.user_id === reviewModal.userId)?.display_name}</h3>
                                         <p className="text-teal-300 text-xs font-bold uppercase tracking-wider">
                                             Freigabe erforderlich
                                         </p>
                                     </div>
                                 </div>
-                                <button onClick={() => setReviewModal({ isOpen: false, userId: null })} className="p-2 hover:bg-white/10 rounded-full text-white/50 hover:text-white transition-colors">
+                                <button onClick={() => setReviewModal({ isOpen: false, userId: null })} className="p-2 hover:bg-card rounded-full text-muted-foreground hover:text-foreground transition-colors">
                                     <X size={24} />
                                 </button>
                             </div>
@@ -1213,31 +1222,31 @@ const OfficeDashboard: React.FC = () => {
                             {/* Modal Body */}
                             <div className="flex-1 overflow-y-auto p-4 space-y-3">
                                 {pendingConfirmations.filter(e => e.user_id === reviewModal.userId).length === 0 && (
-                                    <p className="text-white/30 text-center italic py-4">Keine offenen Einträge.</p>
+                                    <p className="text-muted-foreground text-center italic py-4">Keine offenen Einträge.</p>
                                 )}
                                 {pendingConfirmations.filter(e => e.user_id === reviewModal.userId).map(entry => (
-                                    <div key={entry.id} className={`bg-white/5 border border-white/10 rounded-xl p-3 hover:bg-white/10 transition-colors ${entry.late_reason ? 'border-amber-500/30 bg-amber-900/10' : ''}`}>
+                                    <div key={entry.id} className={`bg-muted border border-border rounded-xl p-3 hover:bg-card transition-colors ${entry.late_reason ? 'border-amber-500/30 bg-amber-900/10' : ''}`}>
                                         {/* Header Line */}
                                         <div className="flex justify-between items-start mb-2">
                                             <div className="flex items-center gap-2">
-                                                <span className="text-sm font-bold text-white/80 font-mono">{new Date(entry.date).toLocaleDateString('de-DE')}</span>
-                                                <span className="text-white/20">|</span>
+                                                <span className="text-sm font-bold text-muted-foreground font-mono">{new Date(entry.date).toLocaleDateString('de-DE')}</span>
+                                                <span className="text-muted-foreground">|</span>
                                                 {entry.late_reason ? (
                                                     <span className="text-[10px] font-bold uppercase text-amber-400">Rückwirkend</span>
                                                 ) : (
                                                     <span className="text-[10px] font-bold uppercase text-teal-300">{entry.type}</span>
                                                 )}
-                                                <span className="text-white/20">|</span>
-                                                <span className="text-sm font-bold font-mono text-white">{entry.hours}h</span>
+                                                <span className="text-muted-foreground">|</span>
+                                                <span className="text-sm font-bold font-mono text-foreground">{entry.hours}h</span>
                                             </div>
                                             {/* Quick Actions (Confirm / Reject) */}
                                             <div className="flex gap-2">
                                                 {rejectionState.entryId !== entry.id && (
                                                     <>
-                                                        <button onClick={() => handleConfirmEntry(entry.id)} className="p-1.5 bg-emerald-500/20 hover:bg-emerald-500 text-emerald-400 hover:text-white rounded transition-colors" title="Bestätigen">
+                                                        <button onClick={() => handleConfirmEntry(entry.id)} className="p-1.5 bg-emerald-500/20 hover:bg-emerald-500 text-emerald-400 hover:text-foreground rounded transition-colors" title="Bestätigen">
                                                             <CheckCircle size={16} />
                                                         </button>
-                                                        <button onClick={() => setRejectionState({ entryId: entry.id, reason: '' })} className="p-1.5 bg-red-500/20 hover:bg-red-500 text-red-400 hover:text-white rounded transition-colors" title="Ablehnen">
+                                                        <button onClick={() => setRejectionState({ entryId: entry.id, reason: '' })} className="p-1.5 bg-red-500/20 hover:bg-red-500 text-red-400 hover:text-foreground rounded transition-colors" title="Ablehnen">
                                                             <X size={16} />
                                                         </button>
                                                     </>
@@ -1255,11 +1264,11 @@ const OfficeDashboard: React.FC = () => {
                                                     </div>
                                                 )}
                                                 {entry.note && (
-                                                    <div className="text-xs text-white/50 italic bg-black/20 p-1.5 rounded border border-white/5">
+                                                    <div className="text-xs text-muted-foreground italic bg-input p-1.5 rounded border border-border">
                                                         "{entry.note}"
                                                     </div>
                                                 )}
-                                                <div className="mt-2 pt-2 border-t border-white/5">
+                                                <div className="mt-2 pt-2 border-t border-border">
                                                     <SubmissionTimer entryDate={entry.date} submitted={!!entry.submitted} />
                                                 </div>
                                             </div>
@@ -1274,14 +1283,14 @@ const OfficeDashboard: React.FC = () => {
                                                         type="text"
                                                         value={rejectionState.reason}
                                                         onChange={e => setRejectionState({ ...rejectionState, reason: e.target.value })}
-                                                        className="flex-1 bg-black/30 border border-red-500/30 rounded px-2 py-1 text-xs text-white placeholder-red-300/30 focus:outline-none focus:border-red-400"
+                                                        className="flex-1 bg-input border border-red-500/30 rounded px-2 py-1 text-xs text-foreground placeholder-red-300/30 focus:outline-none focus:border-red-400"
                                                         placeholder="Warum wird abgelehnt?"
                                                         autoFocus
                                                     />
                                                     <button
                                                         onClick={handleRejectEntry}
                                                         disabled={!rejectionState.reason.trim()}
-                                                        className="bg-red-500 hover:bg-red-600 disabled:opacity-50 text-white text-xs font-bold px-3 rounded transition-colors"
+                                                        className="bg-red-500 hover:bg-red-600 disabled:opacity-50 text-foreground text-xs font-bold px-3 rounded transition-colors"
                                                     >
                                                         Ablehnen
                                                     </button>
@@ -1300,15 +1309,15 @@ const OfficeDashboard: React.FC = () => {
             {/* SEARCH MODAL */}
             {
                 searchModalOpen && (
-                    <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/90 backdrop-blur-md animate-in fade-in duration-200">
-                        <GlassCard className="w-full max-w-4xl max-h-[90vh] flex flex-col !p-0 overflow-hidden shadow-2xl border-white/20">
-                            <div className="p-4 bg-gray-900 border-b border-white/10 flex gap-4 items-center">
+                    <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-input backdrop-blur-md animate-in fade-in duration-200">
+                        <GlassCard className="w-full max-w-4xl max-h-[90vh] flex flex-col !p-0 overflow-hidden shadow-2xl border-border">
+                            <div className="p-4 bg-background border-b border-border flex gap-4 items-center">
                                 <Search size={24} className="text-teal-400 shrink-0" />
                                 <form onSubmit={handleSearch} className="flex-1 relative">
                                     <input
                                         autoFocus
                                         type="text"
-                                        className="w-full bg-transparent border-none outline-none text-xl text-white placeholder-white/30"
+                                        className="w-full bg-transparent border-none outline-none text-xl text-foreground placeholder:text-muted-foreground"
                                         placeholder="Suche nach Kunde, Auftrag..."
                                         value={searchQuery}
                                         onChange={(e) => setSearchQuery(e.target.value)}
@@ -1316,87 +1325,87 @@ const OfficeDashboard: React.FC = () => {
                                 </form>
                                 <button
                                     onClick={handleSearch}
-                                    className="bg-teal-600 hover:bg-teal-500 text-white px-4 py-2 rounded-lg font-bold text-sm disabled:opacity-50"
+                                    className="bg-teal-600 hover:bg-teal-500 text-foreground px-4 py-2 rounded-lg font-bold text-sm disabled:opacity-50"
                                     disabled={isSearching}
                                 >
                                     {isSearching ? '...' : 'Suchen'}
                                 </button>
-                                <div className="w-px h-8 bg-white/10 mx-2"></div>
-                                <button onClick={() => setSearchModalOpen(false)} className="text-white/50 hover:text-white"><X size={24} /></button>
+                                <div className="w-px h-8 bg-card mx-2"></div>
+                                <button onClick={() => setSearchModalOpen(false)} className="text-muted-foreground hover:text-foreground"><X size={24} /></button>
                             </div>
                             
                             {/* FILTER OPTIONS */}
-                            <div className="bg-gray-900 border-b border-white/10 p-4 grid grid-cols-1 md:grid-cols-4 gap-4">
+                            <div className="bg-background border-b border-border p-4 grid grid-cols-1 md:grid-cols-4 gap-4">
                                 <div>
-                                    <label className="block text-[10px] text-white/50 uppercase font-bold mb-1">Mitarbeiter</label>
+                                    <label className="block text-[10px] text-muted-foreground uppercase font-bold mb-1">Mitarbeiter</label>
                                     <select
                                         value={searchUsers[0] || ''}
                                         onChange={e => setSearchUsers(e.target.value ? [e.target.value] : [])}
-                                        className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-teal-500/50"
+                                        className="w-full bg-muted border border-border rounded-lg px-3 py-2 text-foreground text-sm focus:outline-none focus:border-teal-500/50"
                                     >
-                                        <option value="" className="bg-gray-900">Alle Mitarbeiter</option>
+                                        <option value="" className="bg-background">Alle Mitarbeiter</option>
                                         {users.map(u => (
-                                            <option key={u.user_id} value={u.user_id} className="bg-gray-900">{u.display_name}</option>
+                                            <option key={u.user_id} value={u.user_id} className="bg-background">{u.display_name}</option>
                                         ))}
                                     </select>
                                 </div>
                                 <div>
-                                    <label className="block text-[10px] text-white/50 uppercase font-bold mb-1">Eintrags-Typ</label>
+                                    <label className="block text-[10px] text-muted-foreground uppercase font-bold mb-1">Eintrags-Typ</label>
                                     <select
                                         value={searchTypes[0] || ''}
                                         onChange={e => setSearchTypes(e.target.value ? [e.target.value] : [])}
-                                        className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-teal-500/50"
+                                        className="w-full bg-muted border border-border rounded-lg px-3 py-2 text-foreground text-sm focus:outline-none focus:border-teal-500/50"
                                     >
-                                        <option value="" className="bg-gray-900">Alle Typen</option>
-                                        <option value="work" className="bg-gray-900">Arbeit / Projekt</option>
-                                        <option value="break" className="bg-gray-900">Pause</option>
-                                        <option value="company" className="bg-gray-900">Firma</option>
-                                        <option value="office" className="bg-gray-900">Büro</option>
-                                        <option value="warehouse" className="bg-gray-900">Lager</option>
-                                        <option value="car" className="bg-gray-900">Auto / Fahrt</option>
-                                        <option value="vacation" className="bg-gray-900">Urlaub</option>
-                                        <option value="sick" className="bg-gray-900">Krank</option>
-                                        <option value="holiday" className="bg-gray-900">Feiertag</option>
-                                        <option value="unpaid" className="bg-gray-900">Unbezahlt</option>
-                                        <option value="sick_child" className="bg-gray-900">Kind krank</option>
-                                        <option value="sick_pay" className="bg-gray-900">Krankengeld</option>
-                                        <option value="overtime_reduction" className="bg-gray-900">Gutstunden</option>
-                                        <option value="emergency_service" className="bg-gray-900">Notdienst</option>
-                                        <option value="special_holiday" className="bg-gray-900">Sonderurlaub</option>
+                                        <option value="" className="bg-background">Alle Typen</option>
+                                        <option value="work" className="bg-background">Arbeit / Projekt</option>
+                                        <option value="break" className="bg-background">Pause</option>
+                                        <option value="company" className="bg-background">Firma</option>
+                                        <option value="office" className="bg-background">Büro</option>
+                                        <option value="warehouse" className="bg-background">Lager</option>
+                                        <option value="car" className="bg-background">Auto / Fahrt</option>
+                                        <option value="vacation" className="bg-background">Urlaub</option>
+                                        <option value="sick" className="bg-background">Krank</option>
+                                        <option value="holiday" className="bg-background">Feiertag</option>
+                                        <option value="unpaid" className="bg-background">Unbezahlt</option>
+                                        <option value="sick_child" className="bg-background">Kind krank</option>
+                                        <option value="sick_pay" className="bg-background">Krankengeld</option>
+                                        <option value="overtime_reduction" className="bg-background">Gutstunden</option>
+                                        <option value="emergency_service" className="bg-background">Notdienst</option>
+                                        <option value="special_holiday" className="bg-background">Sonderurlaub</option>
                                     </select>
                                 </div>
                                 <div>
-                                    <label className="block text-[10px] text-white/50 uppercase font-bold mb-1">Von Datum</label>
+                                    <label className="block text-[10px] text-muted-foreground uppercase font-bold mb-1">Von Datum</label>
                                     <input
                                         type="date"
                                         value={searchStartDate}
                                         onChange={e => setSearchStartDate(e.target.value)}
-                                        className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-teal-500/50"
+                                        className="w-full bg-muted border border-border rounded-lg px-3 py-2 text-foreground text-sm focus:outline-none focus:border-teal-500/50"
                                         style={{ colorScheme: 'dark' }}
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-[10px] text-white/50 uppercase font-bold mb-1">Bis Datum</label>
+                                    <label className="block text-[10px] text-muted-foreground uppercase font-bold mb-1">Bis Datum</label>
                                     <input
                                         type="date"
                                         value={searchEndDate}
                                         onChange={e => setSearchEndDate(e.target.value)}
-                                        className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-teal-500/50"
+                                        className="w-full bg-muted border border-border rounded-lg px-3 py-2 text-foreground text-sm focus:outline-none focus:border-teal-500/50"
                                         style={{ colorScheme: 'dark' }}
                                     />
                                 </div>
                             </div>
 
-                            <div className="flex-1 overflow-y-auto p-4 bg-gray-900/50">
+                            <div className="flex-1 overflow-y-auto p-4 bg-card">
                                 {/* Results Header / Actions */}
                                 {searchResults.length > 0 && (
                                     <div className="flex justify-between items-center mb-6">
-                                        <div className="text-white/60 text-sm">
-                                            <span className="text-white font-bold">{searchResults.length}</span> Treffer gefunden
+                                        <div className="text-muted-foreground text-sm">
+                                            <span className="text-foreground font-bold">{searchResults.length}</span> Treffer gefunden
                                         </div>
                                         <button
                                             onClick={() => generateSearchReport(searchResults, users, searchQuery, searchStartDate, searchEndDate)}
-                                            className="flex items-center gap-2 bg-white/5 hover:bg-white/10 border border-white/10 text-teal-300 px-3 py-2 rounded-lg text-sm font-bold transition-colors"
+                                            className="flex items-center gap-2 bg-muted hover:bg-card border border-border text-teal-300 px-3 py-2 rounded-lg text-sm font-bold transition-colors"
                                         >
                                             <Download size={16} /> Suchbericht (PDF)
                                         </button>
@@ -1406,7 +1415,7 @@ const OfficeDashboard: React.FC = () => {
                                 {/* Results List Grouped */}
                                 <div className="space-y-8">
                                     {Object.keys(groupedSearchResults).length === 0 && !isSearching && hasSearched && (
-                                        <div className="text-center text-white/30 py-10">Keine Ergebnisse gefunden</div>
+                                        <div className="text-center text-muted-foreground py-10">Keine Ergebnisse gefunden</div>
                                     )}
 
                                     {Object.keys(groupedSearchResults).map(userId => {
@@ -1455,12 +1464,12 @@ const OfficeDashboard: React.FC = () => {
 
                                         return (
                                             <div key={userId} className="animate-in slide-in-from-bottom-2">
-                                                <div className="flex items-center gap-3 mb-2 border-b border-white/5 pb-2">
+                                                <div className="flex items-center gap-3 mb-2 border-b border-border pb-2">
                                                     <div className="w-8 h-8 rounded-full bg-teal-500/20 flex items-center justify-center font-bold text-teal-300 text-sm border border-teal-500/30">
                                                         {user?.display_name.charAt(0) || '?'}
                                                     </div>
-                                                    <h3 className="font-bold text-white text-lg">{user?.display_name || 'Unbekannt'}</h3>
-                                                    <span className="text-xs text-white/40 ml-auto">{entries.length} Einträge</span>
+                                                    <h3 className="font-bold text-foreground text-lg">{user?.display_name || 'Unbekannt'}</h3>
+                                                    <span className="text-xs text-muted-foreground ml-auto">{entries.length} Einträge</span>
                                                 </div>
 
                                                 {Object.keys(summary).length > 0 && (
@@ -1468,9 +1477,9 @@ const OfficeDashboard: React.FC = () => {
                                                         {Object.keys(summary).map(type => {
                                                             const data = summary[type];
                                                             return (
-                                                                <div key={type} className="bg-white/5 border border-white/10 px-2 py-1.5 rounded-lg text-xs flex items-center gap-1.5">
+                                                                <div key={type} className="bg-muted border border-border px-2 py-1.5 rounded-lg text-xs flex items-center gap-1.5">
                                                                     <span className="text-teal-200/70 font-bold uppercase tracking-wider">{data.label}:</span> 
-                                                                    <span className="text-white font-mono font-bold bg-black/20 px-1.5 rounded">
+                                                                    <span className="text-foreground font-mono font-bold bg-input px-1.5 rounded">
                                                                         {data.isAbsence ? `${data.days} Tage` : `${data.days}x (${data.hours.toFixed(2)}h)`}
                                                                     </span>
                                                                 </div>
@@ -1481,21 +1490,21 @@ const OfficeDashboard: React.FC = () => {
 
                                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                                                     {entries.map(entry => (
-                                                        <div key={entry.id} className="bg-white/5 hover:bg-white/10 border border-white/5 p-3 rounded-xl transition-colors">
+                                                        <div key={entry.id} className="bg-muted hover:bg-card border border-border p-3 rounded-xl transition-colors">
                                                             <div className="flex justify-between items-start mb-2">
                                                                 <span className="text-xs font-mono text-teal-200/70">{new Date(entry.date).toLocaleDateString()}</span>
-                                                                <span className="text-sm font-bold text-white font-mono">{entry.hours.toLocaleString('de-DE')}h</span>
+                                                                <span className="text-sm font-bold text-foreground font-mono">{entry.hours.toLocaleString('de-DE')}h</span>
                                                             </div>
-                                                            <div className="font-bold text-white text-sm mb-1 truncate">{entry.client_name}</div>
+                                                            <div className="font-bold text-foreground text-sm mb-1 truncate">{entry.client_name}</div>
                                                             {entry.order_number && (
-                                                                <div className="inline-block bg-white/5 px-1.5 py-0.5 rounded text-[10px] text-white/50 font-mono mb-2">
+                                                                <div className="inline-block bg-muted px-1.5 py-0.5 rounded text-[10px] text-muted-foreground font-mono mb-2">
                                                                     #{entry.order_number}
                                                                 </div>
                                                             )}
                                                             {entry.note && (
-                                                                <div className="text-xs text-white/50 italic line-clamp-2">"{entry.note}"</div>
+                                                                <div className="text-xs text-muted-foreground italic line-clamp-2">"{entry.note}"</div>
                                                             )}
-                                                            <div className="mt-2 pt-2 border-t border-white/10">
+                                                            <div className="mt-2 pt-2 border-t border-border">
                                                                 <SubmissionTimer entryDate={entry.date} submitted={!!entry.submitted} />
                                                             </div>
                                                         </div>

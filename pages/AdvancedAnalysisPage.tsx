@@ -606,9 +606,9 @@ const AdvancedAnalysisPage: React.FC = () => {
 
     // --- RENDER ---
     return (
-        <div className="hidden md:flex flex-row h-full w-full bg-gray-900 text-white overflow-hidden">
+        <div className="hidden md:flex flex-row h-full w-full bg-background text-foreground overflow-hidden">
             {/* SIDEBAR: FILTER & PRESETS */}
-            <div className="w-80 flex-shrink-0 border-r border-white/10 bg-gray-900/50 p-6 overflow-y-auto flex flex-col gap-8 custom-scrollbar">
+            <div className="w-80 flex-shrink-0 border-r border-border bg-card p-6 overflow-y-auto flex flex-col gap-8 custom-scrollbar">
                 <div>
                     <h2 className="text-xl font-bold flex items-center gap-2 mb-6 text-purple-300">
                         <Filter size={24} /> Filter
@@ -616,7 +616,7 @@ const AdvancedAnalysisPage: React.FC = () => {
 
                     <div className="space-y-4 mb-6">
                         <div>
-                            <label className="text-xs uppercase font-bold text-white/50 mb-1 block">Zeitraum Start</label>
+                            <label className="text-xs uppercase font-bold text-muted-foreground mb-1 block">Zeitraum Start</label>
                             <GlassInput 
                                 value={new Date(startDate).toLocaleDateString('de-DE')} 
                                 readOnly 
@@ -625,7 +625,7 @@ const AdvancedAnalysisPage: React.FC = () => {
                             />
                         </div>
                         <div>
-                            <label className="text-xs uppercase font-bold text-white/50 mb-1 block">Zeitraum Ende</label>
+                            <label className="text-xs uppercase font-bold text-muted-foreground mb-1 block">Zeitraum Ende</label>
                             <GlassInput 
                                 value={new Date(endDate).toLocaleDateString('de-DE')} 
                                 readOnly 
@@ -640,7 +640,7 @@ const AdvancedAnalysisPage: React.FC = () => {
                                     setStartDate(`${year}-01-01`);
                                     setEndDate(`${year}-12-31`);
                                 }}
-                                className="flex-1 bg-white/5 hover:bg-white/10 text-white/70 text-[10px] font-bold py-1.5 rounded transition-colors"
+                                className="flex-1 bg-muted hover:bg-card text-muted-foreground text-[10px] font-bold py-1.5 rounded transition-colors"
                             >
                                 Aktuelles Jahr
                             </button>
@@ -650,7 +650,7 @@ const AdvancedAnalysisPage: React.FC = () => {
                                     setStartDate(`${year}-01-01`);
                                     setEndDate(`${year}-12-31`);
                                 }}
-                                className="flex-1 bg-white/5 hover:bg-white/10 text-white/70 text-[10px] font-bold py-1.5 rounded transition-colors"
+                                className="flex-1 bg-muted hover:bg-card text-muted-foreground text-[10px] font-bold py-1.5 rounded transition-colors"
                             >
                                 Letztes Jahr
                             </button>
@@ -660,13 +660,13 @@ const AdvancedAnalysisPage: React.FC = () => {
                     {/* Departments Filter */}
                     {departments.length > 0 && (
                         <div className="mb-6">
-                            <label className="text-xs uppercase font-bold text-white/50 mb-2 block">Abteilungen</label>
+                            <label className="text-xs uppercase font-bold text-muted-foreground mb-2 block">Abteilungen</label>
                             <div className="flex flex-wrap gap-2">
                                 {departments.map(d => (
                                     <button
                                         key={d.id}
                                         onClick={() => toggleDepartment(d.id)}
-                                        className={`px-3 py-1 rounded-full text-[10px] font-bold transition-all ${selectedDepartments.includes(d.id) ? 'bg-blue-500/20 text-blue-200 border border-blue-500/50' : 'bg-white/5 text-white/40 border border-transparent hover:bg-white/10'}`}
+                                        className={`px-3 py-1 rounded-full text-[10px] font-bold transition-all ${selectedDepartments.includes(d.id) ? 'bg-blue-500/20 text-blue-200 border border-blue-500/50' : 'bg-muted text-muted-foreground border border-transparent hover:bg-card'}`}
                                     >
                                         {d.label}
                                     </button>
@@ -677,13 +677,13 @@ const AdvancedAnalysisPage: React.FC = () => {
 
                     {/* Entry Types */}
                     <div className="mb-6">
-                        <label className="text-xs uppercase font-bold text-white/50 mb-2 block">Kategorien</label>
+                        <label className="text-xs uppercase font-bold text-muted-foreground mb-2 block">Kategorien</label>
                         <div className="space-y-4">
                             {(Object.keys(TYPE_GROUPS) as Array<keyof typeof TYPE_GROUPS>).map(group => (
                                 <div key={group}>
                                     <button 
                                         onClick={() => toggleTypeGroup(group)}
-                                        className="text-[10px] uppercase font-bold text-white/40 mb-1 flex items-center gap-2 hover:text-white transition-colors w-full text-left"
+                                        className="text-[10px] uppercase font-bold text-muted-foreground mb-1 flex items-center gap-2 hover:text-foreground transition-colors w-full text-left"
                                     >
                                         {TYPE_GROUPS[group].every(t => selectedTypes.includes(t)) ? <CheckSquare size={12}/> : <Square size={12}/>}
                                         {group}
@@ -693,7 +693,7 @@ const AdvancedAnalysisPage: React.FC = () => {
                                             <button
                                                 key={type}
                                                 onClick={() => toggleType(type)}
-                                                className={`flex items-center gap-2 px-2 py-1.5 rounded-md text-[10px] font-bold transition-all ${selectedTypes.includes(type) ? 'bg-teal-500/20 text-teal-200 border border-teal-500/30' : 'bg-white/5 text-white/40 border border-transparent hover:bg-white/10'}`}
+                                                className={`flex items-center gap-2 px-2 py-1.5 rounded-md text-[10px] font-bold transition-all ${selectedTypes.includes(type) ? 'bg-teal-500/20 text-teal-200 border border-teal-500/30' : 'bg-muted text-muted-foreground border border-transparent hover:bg-card'}`}
                                             >
                                                 <div className="truncate">{TYPE_LABELS[type] || type}</div>
                                             </button>
@@ -706,7 +706,7 @@ const AdvancedAnalysisPage: React.FC = () => {
 
                     {/* Cost Config */}
                     <div className="mb-6">
-                        <label className="text-xs uppercase font-bold text-white/50 mb-1 flex items-center gap-1"><Coins size={12} /> Kostensatz (EUR/h)</label>
+                        <label className="text-xs uppercase font-bold text-muted-foreground mb-1 flex items-center gap-1"><Coins size={12} /> Kostensatz (EUR/h)</label>
                         <GlassInput
                             type="number"
                             value={hourlyRate}
@@ -719,7 +719,7 @@ const AdvancedAnalysisPage: React.FC = () => {
                 {/* Users List */}
                 <div className="flex-1">
                     <div className="flex justify-between items-center mb-2">
-                        <label className="text-xs uppercase font-bold text-white/50">Mitarbeiter ({filteredUsersForList.length})</label>
+                        <label className="text-xs uppercase font-bold text-muted-foreground">Mitarbeiter ({filteredUsersForList.length})</label>
                         <button onClick={() => setSelectedUserIds(selectedUserIds.length === filteredUsersForList.length ? [] : filteredUsersForList.map(u => u.user_id!))} className="text-[10px] text-teal-400 hover:underline">
                             {selectedUserIds.length === filteredUsersForList.length ? 'Keine' : 'Alle'}
                         </button>
@@ -728,7 +728,7 @@ const AdvancedAnalysisPage: React.FC = () => {
                         {filteredUsersForList.map(u => (
                             <div
                                 key={u.user_id}
-                                className={`w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${selectedUserIds.includes(u.user_id!) ? 'bg-purple-500/20 text-purple-200 border border-purple-500/30' : 'bg-white/5 text-white/40 border border-transparent hover:bg-white/10'}`}
+                                className={`w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${selectedUserIds.includes(u.user_id!) ? 'bg-purple-500/20 text-purple-200 border border-purple-500/30' : 'bg-muted text-muted-foreground border border-transparent hover:bg-card'}`}
                             >
                                 <button
                                     onClick={() => toggleUser(u.user_id!)}
@@ -745,10 +745,10 @@ const AdvancedAnalysisPage: React.FC = () => {
                                             value={userRates[u.user_id!] || ''}
                                             placeholder={hourlyRate.toFixed(2)}
                                             onChange={(e) => setUserRates(prev => ({ ...prev, [u.user_id!]: parseFloat(e.target.value) || 0 }))}
-                                            className="w-14 bg-black/40 border border-white/10 rounded px-1 py-0.5 text-right text-[10px] text-white focus:border-teal-500 outline-none"
+                                            className="w-14 bg-input border border-border rounded px-1 py-0.5 text-right text-[10px] text-foreground focus:border-teal-500 outline-none"
                                             title="Individueller Kostensatz (€/h)"
                                         />
-                                        <span className="text-[10px] text-white/40">€</span>
+                                        <span className="text-[10px] text-muted-foreground">€</span>
                                     </div>
                                 )}
                             </div>
@@ -757,8 +757,8 @@ const AdvancedAnalysisPage: React.FC = () => {
                 </div>
 
                 {/* Presets */}
-                <div className="border-t border-white/10 pt-4 pb-6">
-                    <label className="text-xs uppercase font-bold text-white/50 mb-2 block">Vorlagen (Geteilt)</label>
+                <div className="border-t border-border pt-4 pb-6">
+                    <label className="text-xs uppercase font-bold text-muted-foreground mb-2 block">Vorlagen (Geteilt)</label>
                     <div className="flex gap-2 mb-2">
                         <GlassInput
                             placeholder="Name..."
@@ -766,14 +766,14 @@ const AdvancedAnalysisPage: React.FC = () => {
                             onChange={e => setPresetName(e.target.value)}
                             className="!py-1 !px-2 !text-xs h-8"
                         />
-                        <button onClick={savePreset} className="p-2 bg-teal-500 rounded text-white hover:bg-teal-400"><Save size={14} /></button>
+                        <button onClick={savePreset} className="p-2 bg-teal-500 rounded text-foreground hover:bg-teal-400"><Save size={14} /></button>
                     </div>
                     <div className="space-y-1">
-                        {presets.length === 0 && <p className="text-[10px] text-white/30 italic">Keine Vorlagen gespeichert.</p>}
+                        {presets.length === 0 && <p className="text-[10px] text-muted-foreground italic">Keine Vorlagen gespeichert.</p>}
                         {presets.map(p => (
-                            <div key={p.id} className="flex justify-between items-center bg-white/5 px-2 py-1 rounded text-xs group hover:bg-white/10 transition-colors">
-                                <button onClick={() => loadPreset(p)} className="flex-1 text-left text-white/70 hover:text-white truncate">{p.name}</button>
-                                <button onClick={() => deletePreset(p.id)} className="text-white/20 hover:text-red-400 opacity-0 group-hover:opacity-100 p-1"><Trash2 size={12} /></button>
+                            <div key={p.id} className="flex justify-between items-center bg-muted px-2 py-1 rounded text-xs group hover:bg-card transition-colors">
+                                <button onClick={() => loadPreset(p)} className="flex-1 text-left text-muted-foreground hover:text-foreground truncate">{p.name}</button>
+                                <button onClick={() => deletePreset(p.id)} className="text-muted-foreground hover:text-red-400 opacity-0 group-hover:opacity-100 p-1"><Trash2 size={12} /></button>
                             </div>
                         ))}
                     </div>
@@ -785,10 +785,10 @@ const AdvancedAnalysisPage: React.FC = () => {
                 <div className="p-6 pb-0 flex flex-col gap-4">
                     <div className="flex justify-between items-start">
                         <div>
-                            <h1 className="text-3xl font-bold text-white flex items-center gap-3">
+                            <h1 className="text-3xl font-bold text-foreground flex items-center gap-3">
                                 <PieChart className="text-purple-400" /> Profi-Auswertung
                             </h1>
-                            <p className="text-white/50 text-sm mt-1">
+                            <p className="text-muted-foreground text-sm mt-1">
                                 {new Date(startDate).toLocaleDateString()} - {new Date(endDate).toLocaleDateString()}
                             </p>
                         </div>
@@ -804,16 +804,16 @@ const AdvancedAnalysisPage: React.FC = () => {
 
                     {/* View Toggles & Search */}
                     <div className="flex items-center gap-4">
-                        <div className="flex p-1 bg-black/20 rounded-lg w-max border border-white/5">
+                        <div className="flex p-1 bg-input rounded-lg w-max border border-border">
                             <button 
                                 onClick={() => setViewMode('user')}
-                                className={`flex items-center gap-2 px-6 py-2 rounded-md text-sm font-bold transition-all ${viewMode === 'user' ? 'bg-white/10 text-white shadow-lg' : 'text-white/50 hover:text-white'}`}
+                                className={`flex items-center gap-2 px-6 py-2 rounded-md text-sm font-bold transition-all ${viewMode === 'user' ? 'bg-card text-foreground shadow-lg' : 'text-muted-foreground hover:text-foreground'}`}
                             >
                                 <Users size={16} /> Mitarbeiter-Sicht
                             </button>
                             <button 
                                 onClick={() => setViewMode('order')}
-                                className={`flex items-center gap-2 px-6 py-2 rounded-md text-sm font-bold transition-all ${viewMode === 'order' ? 'bg-white/10 text-white shadow-lg' : 'text-white/50 hover:text-white'}`}
+                                className={`flex items-center gap-2 px-6 py-2 rounded-md text-sm font-bold transition-all ${viewMode === 'order' ? 'bg-card text-foreground shadow-lg' : 'text-muted-foreground hover:text-foreground'}`}
                             >
                                 <Briefcase size={16} /> Auftrags-Sicht
                             </button>
@@ -826,7 +826,7 @@ const AdvancedAnalysisPage: React.FC = () => {
                                     placeholder="Suche Auftrag oder Notiz..."
                                     value={orderSearchQuery}
                                     onChange={(e) => setOrderSearchQuery(e.target.value)}
-                                    className="w-full bg-black/20 border border-white/10 rounded-lg px-4 py-2 text-sm text-white focus:border-blue-500 outline-none transition-colors placeholder:text-white/30"
+                                    className="w-full bg-input border border-border rounded-lg px-4 py-2 text-sm text-foreground focus:border-blue-500 outline-none transition-colors placeholder:text-muted-foreground"
                                 />
                             </div>
                         )}
@@ -843,48 +843,48 @@ const AdvancedAnalysisPage: React.FC = () => {
                         <div className="grid grid-cols-4 xl:grid-cols-8 gap-4 mb-6">
                             <GlassCard className="col-span-2 bg-emerald-900/10 border-emerald-500/20">
                                 <div className="text-xs font-bold text-emerald-400 uppercase tracking-wider mb-2">Stunden Gesamt</div>
-                                <div className="text-3xl font-mono font-bold text-white">{totals.total.toFixed(2)} <span className="text-sm text-white/40">h</span></div>
-                                <div className="text-[10px] text-white/40 mt-1">Alle Kategorien</div>
+                                <div className="text-3xl font-mono font-bold text-foreground">{totals.total.toFixed(2)} <span className="text-sm text-muted-foreground">h</span></div>
+                                <div className="text-[10px] text-muted-foreground mt-1">Alle Kategorien</div>
                             </GlassCard>
 
                             <GlassCard className="col-span-2 bg-blue-900/10 border-blue-500/20">
                                 <div className="text-xs font-bold text-blue-400 uppercase tracking-wider mb-2">Projekt</div>
-                                <div className="text-3xl font-mono font-bold text-white">{totals.billable.toFixed(2)} <span className="text-sm text-white/40">h</span></div>
-                                <div className="text-[10px] text-white/40 mt-1">Verrechenbar</div>
+                                <div className="text-3xl font-mono font-bold text-foreground">{totals.billable.toFixed(2)} <span className="text-sm text-muted-foreground">h</span></div>
+                                <div className="text-[10px] text-muted-foreground mt-1">Verrechenbar</div>
                             </GlassCard>
 
                             <GlassCard className="col-span-2 bg-orange-900/10 border-orange-500/20">
                                 <div className="text-xs font-bold text-orange-400 uppercase tracking-wider mb-2">Zuschläge</div>
-                                <div className="text-3xl font-mono font-bold text-white">{totals.surcharge.toFixed(2)} <span className="text-sm text-white/40">h</span></div>
-                                <div className="text-[10px] text-white/40 mt-1">Generiert</div>
+                                <div className="text-3xl font-mono font-bold text-foreground">{totals.surcharge.toFixed(2)} <span className="text-sm text-muted-foreground">h</span></div>
+                                <div className="text-[10px] text-muted-foreground mt-1">Generiert</div>
                             </GlassCard>
 
-                            <GlassCard className="col-span-2 bg-gray-800/20 border-gray-500/20 relative overflow-hidden">
-                                <div className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Kosten</div>
-                                <div className="text-3xl font-mono font-bold text-white">{totals.cost.toLocaleString('de-DE', { style: 'currency', currency: 'EUR' })}</div>
-                                <div className="text-[10px] text-white/40 mt-1">Schätzung inkl. Zuschlag</div>
-                                <Calculator className="absolute -bottom-2 -right-2 text-white/5 w-16 h-16" />
+                            <GlassCard className="col-span-2 bg-card border-border relative overflow-hidden">
+                                <div className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2">Kosten</div>
+                                <div className="text-3xl font-mono font-bold text-foreground">{totals.cost.toLocaleString('de-DE', { style: 'currency', currency: 'EUR' })}</div>
+                                <div className="text-[10px] text-muted-foreground mt-1">Schätzung inkl. Zuschlag</div>
+                                <Calculator className="absolute -bottom-2 -right-2 text-foreground/5 w-16 h-16" />
                             </GlassCard>
 
                             {/* Secondary Row of KPIs for generic times */}
                             <GlassCard className="col-span-2 xl:col-span-2 bg-indigo-900/10 border-indigo-500/20 !p-3">
                                 <div className="text-[10px] font-bold text-indigo-400 uppercase tracking-wider mb-1">Firma</div>
-                                <div className="text-xl font-mono font-bold text-white">{totals.company.toFixed(2)} <span className="text-xs text-white/40">h</span></div>
+                                <div className="text-xl font-mono font-bold text-foreground">{totals.company.toFixed(2)} <span className="text-xs text-muted-foreground">h</span></div>
                             </GlassCard>
 
                             <GlassCard className="col-span-2 xl:col-span-2 bg-purple-900/10 border-purple-500/20 !p-3">
                                 <div className="text-[10px] font-bold text-purple-400 uppercase tracking-wider mb-1">Büro</div>
-                                <div className="text-xl font-mono font-bold text-white">{totals.office.toFixed(2)} <span className="text-xs text-white/40">h</span></div>
+                                <div className="text-xl font-mono font-bold text-foreground">{totals.office.toFixed(2)} <span className="text-xs text-muted-foreground">h</span></div>
                             </GlassCard>
 
                             <GlassCard className="col-span-2 xl:col-span-2 bg-amber-900/10 border-amber-500/20 !p-3">
                                 <div className="text-[10px] font-bold text-amber-400 uppercase tracking-wider mb-1">Lager</div>
-                                <div className="text-xl font-mono font-bold text-white">{totals.warehouse.toFixed(2)} <span className="text-xs text-white/40">h</span></div>
+                                <div className="text-xl font-mono font-bold text-foreground">{totals.warehouse.toFixed(2)} <span className="text-xs text-muted-foreground">h</span></div>
                             </GlassCard>
 
                             <GlassCard className="col-span-2 xl:col-span-2 bg-rose-900/10 border-rose-500/20 !p-3">
                                 <div className="text-[10px] font-bold text-rose-400 uppercase tracking-wider mb-1">Auto / Fahrt</div>
-                                <div className="text-xl font-mono font-bold text-white">{totals.car.toFixed(2)} <span className="text-xs text-white/40">h</span></div>
+                                <div className="text-xl font-mono font-bold text-foreground">{totals.car.toFixed(2)} <span className="text-xs text-muted-foreground">h</span></div>
                             </GlassCard>
                         </div>
 
@@ -892,28 +892,28 @@ const AdvancedAnalysisPage: React.FC = () => {
                         <GlassCard className="overflow-hidden !p-0">
                             {viewMode === 'user' ? (
                                 <div className="max-h-[500px] overflow-y-auto overflow-x-auto custom-scrollbar">
-                                    <table className="w-full text-left text-sm text-white/70 relative">
-                                        <thead className="bg-gray-800 text-white font-bold uppercase text-xs sticky top-0 z-10 shadow-md">
+                                    <table className="w-full text-left text-sm text-muted-foreground relative">
+                                        <thead className="bg-card text-foreground font-bold uppercase text-xs sticky top-0 z-10 shadow-md">
                                             <tr>
-                                                <th className="p-4 border-b border-white/10 whitespace-nowrap">Mitarbeiter</th>
-                                                <th className="p-4 text-right opacity-50 border-b border-white/10 whitespace-nowrap">Soll (h)</th>
-                                                <th className="p-4 text-right border-b border-white/10 whitespace-nowrap text-emerald-300">Gesamt (h)</th>
-                                                <th className="p-4 text-right border-b border-white/10 whitespace-nowrap text-blue-300">Saldo (h)</th>
-                                                <th className="p-4 text-right border-b border-white/10 whitespace-nowrap text-yellow-300" title="Konto-Stand inkl. Übertrag und gesamter Historie">Überstundenkonto</th>
+                                                <th className="p-4 border-b border-border whitespace-nowrap">Mitarbeiter</th>
+                                                <th className="p-4 text-right opacity-50 border-b border-border whitespace-nowrap">Soll (h)</th>
+                                                <th className="p-4 text-right border-b border-border whitespace-nowrap text-emerald-300">Gesamt (h)</th>
+                                                <th className="p-4 text-right border-b border-border whitespace-nowrap text-blue-300">Saldo (h)</th>
+                                                <th className="p-4 text-right border-b border-border whitespace-nowrap text-yellow-300" title="Konto-Stand inkl. Übertrag und gesamter Historie">Überstundenkonto</th>
                                                 {selectedTypes.map(t => (
-                                                    <th key={t} className="p-4 text-right text-gray-300 border-b border-white/10 whitespace-nowrap">
+                                                    <th key={t} className="p-4 text-right text-muted-foreground border-b border-border whitespace-nowrap">
                                                         {TYPE_LABELS[t] || t}
                                                     </th>
                                                 ))}
-                                                <th className="p-4 text-right text-orange-300 border-b border-white/10 whitespace-nowrap">Zuschlag (h)</th>
-                                                <th className="p-4 text-right border-b border-white/10 whitespace-nowrap">Quote</th>
-                                                <th className="p-4 text-right border-b border-white/10 whitespace-nowrap">Kosten</th>
+                                                <th className="p-4 text-right text-orange-300 border-b border-border whitespace-nowrap">Zuschlag (h)</th>
+                                                <th className="p-4 text-right border-b border-border whitespace-nowrap">Quote</th>
+                                                <th className="p-4 text-right border-b border-border whitespace-nowrap">Kosten</th>
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-white/5">
                                             {stats.map(s => (
-                                                <tr key={s.userId} className="hover:bg-white/5 transition-colors">
-                                                    <td className="p-4 font-bold text-white whitespace-nowrap">{s.displayName}</td>
+                                                <tr key={s.userId} className="hover:bg-muted transition-colors">
+                                                    <td className="p-4 font-bold text-foreground whitespace-nowrap">{s.displayName}</td>
                                                     <td className="p-4 text-right font-mono opacity-50">{s.targetHours.toFixed(2)}</td>
                                                     <td className="p-4 text-right font-mono font-bold text-emerald-100">{s.totalHours.toFixed(2)}</td>
                                                     <td className={`p-4 text-right font-mono font-bold ${(s.totalHours - s.targetHours) >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
@@ -938,7 +938,7 @@ const AdvancedAnalysisPage: React.FC = () => {
                                                             {s.efficiency.toFixed(1)}%
                                                         </span>
                                                     </td>
-                                                    <td className="p-4 text-right font-mono font-bold text-white">{s.costEstimate.toFixed(0)} €</td>
+                                                    <td className="p-4 text-right font-mono font-bold text-foreground">{s.costEstimate.toFixed(0)} €</td>
                                                 </tr>
                                             ))}
                                         </tbody>
@@ -946,34 +946,34 @@ const AdvancedAnalysisPage: React.FC = () => {
                                 </div>
                             ) : (
                                 <div className="max-h-[500px] overflow-y-auto custom-scrollbar">
-                                    <table className="w-full text-left text-sm text-white/70 relative">
-                                        <thead className="bg-gray-800 text-white font-bold uppercase text-xs sticky top-0 z-10 shadow-md">
+                                    <table className="w-full text-left text-sm text-muted-foreground relative">
+                                        <thead className="bg-card text-foreground font-bold uppercase text-xs sticky top-0 z-10 shadow-md">
                                             <tr>
-                                                <th className="p-4 border-b border-white/10">Auftrag / Projekt</th>
-                                                <th className="p-4 text-right text-white border-b border-white/10">Gesamt (h)</th>
-                                                <th className="p-4 text-right text-emerald-300 border-b border-white/10">Verrechenbar (h)</th>
-                                                <th className="p-4 text-right text-orange-300 border-b border-white/10">Zuschlag (h)</th>
-                                                <th className="p-4 text-center text-blue-300 border-b border-white/10">Mitarbeiter</th>
-                                                <th className="p-4 text-right border-b border-white/10">Kosten</th>
+                                                <th className="p-4 border-b border-border">Auftrag / Projekt</th>
+                                                <th className="p-4 text-right text-foreground border-b border-border">Gesamt (h)</th>
+                                                <th className="p-4 text-right text-emerald-300 border-b border-border">Verrechenbar (h)</th>
+                                                <th className="p-4 text-right text-orange-300 border-b border-border">Zuschlag (h)</th>
+                                                <th className="p-4 text-center text-blue-300 border-b border-border">Mitarbeiter</th>
+                                                <th className="p-4 text-right border-b border-border">Kosten</th>
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-white/5">
                                             {filteredOrderStats.length === 0 ? (
                                                 <tr>
-                                                    <td colSpan={6} className="p-8 text-center text-white/40 italic">Keine Daten für die gewählten Filter.</td>
+                                                    <td colSpan={6} className="p-8 text-center text-muted-foreground italic">Keine Daten für die gewählten Filter.</td>
                                                 </tr>
                                             ) : (
                                                 filteredOrderStats.map(s => (
                                                     <React.Fragment key={s.orderNumber}>
                                                         <tr 
-                                                            className="hover:bg-white/5 transition-colors cursor-pointer"
+                                                            className="hover:bg-muted transition-colors cursor-pointer"
                                                             onClick={() => setExpandedOrder(expandedOrder === s.orderNumber ? null : s.orderNumber)}
                                                         >
-                                                            <td className="p-4 font-bold text-white flex items-center gap-2">
-                                                                {expandedOrder === s.orderNumber ? <ChevronDown size={16} className="text-white/30" /> : <ChevronRight size={16} className="text-white/30" />}
+                                                            <td className="p-4 font-bold text-foreground flex items-center gap-2">
+                                                                {expandedOrder === s.orderNumber ? <ChevronDown size={16} className="text-muted-foreground" /> : <ChevronRight size={16} className="text-muted-foreground" />}
                                                                 <FileText size={16} className="text-blue-400" /> {s.orderNumber}
                                                             </td>
-                                                            <td className="p-4 text-right font-mono text-white font-bold">{s.totalHours.toFixed(2)}</td>
+                                                            <td className="p-4 text-right font-mono text-foreground font-bold">{s.totalHours.toFixed(2)}</td>
                                                             <td className="p-4 text-right font-mono text-emerald-100">{s.billableHours.toFixed(2)}</td>
                                                             <td className="p-4 text-right font-mono text-orange-200">
                                                                 {s.surchargeHours > 0 ? `+${s.surchargeHours.toFixed(2)}` : '-'}
@@ -983,32 +983,32 @@ const AdvancedAnalysisPage: React.FC = () => {
                                                                     <Users size={12}/> {s.usersCount}
                                                                 </div>
                                                             </td>
-                                                            <td className="p-4 text-right font-mono font-bold text-white">{s.costEstimate.toFixed(0)} €</td>
+                                                            <td className="p-4 text-right font-mono font-bold text-foreground">{s.costEstimate.toFixed(0)} €</td>
                                                         </tr>
                                                         {expandedOrder === s.orderNumber && (
                                                             <tr>
-                                                                <td colSpan={6} className="p-0 bg-black/40 border-b border-white/5">
+                                                                <td colSpan={6} className="p-0 bg-input border-b border-border">
                                                                     <div className="p-4 pl-12 space-y-2 max-h-64 overflow-y-auto custom-scrollbar">
                                                                         {s.entries.map((entry, idx) => {
                                                                             const user = users.find(u => u.user_id === entry.user_id);
                                                                             return (
-                                                                                <div key={idx} className="flex items-start justify-between text-xs text-white/70 bg-white/5 p-2 rounded border border-white/5">
+                                                                                <div key={idx} className="flex items-start justify-between text-xs text-muted-foreground bg-muted p-2 rounded border border-border">
                                                                                     <div className="flex flex-col gap-1 w-2/3">
-                                                                                        <div className="flex items-center gap-2 font-bold text-white">
+                                                                                        <div className="flex items-center gap-2 font-bold text-foreground">
                                                                                             <span className="text-blue-300">{user?.display_name || 'Unbekannt'}</span>
-                                                                                            <span className="text-white/30">•</span>
+                                                                                            <span className="text-muted-foreground">•</span>
                                                                                             <span>{new Date(entry.date).toLocaleDateString('de-DE')}</span>
-                                                                                            <span className="text-white/30">•</span>
+                                                                                            <span className="text-muted-foreground">•</span>
                                                                                             <span className="text-[10px] uppercase text-emerald-300">{TYPE_LABELS[entry.type || 'work']}</span>
                                                                                         </div>
                                                                                         {entry.note ? (
-                                                                                            <p className="text-white/50 italic">{entry.note}</p>
+                                                                                            <p className="text-muted-foreground italic">{entry.note}</p>
                                                                                         ) : (
-                                                                                            <p className="text-white/20 italic">Keine Notiz</p>
+                                                                                            <p className="text-muted-foreground italic">Keine Notiz</p>
                                                                                         )}
                                                                                     </div>
                                                                                     <div className="text-right flex flex-col items-end">
-                                                                                        <span className="font-mono font-bold text-white">{entry.hours.toFixed(2)} h</span>
+                                                                                        <span className="font-mono font-bold text-foreground">{entry.hours.toFixed(2)} h</span>
                                                                                         {entry.surcharge ? (
                                                                                             <span className="text-[10px] font-mono text-orange-300">+{entry.surcharge}% Zuschlag</span>
                                                                                         ) : null}
@@ -1035,13 +1035,13 @@ const AdvancedAnalysisPage: React.FC = () => {
                 {showEndPicker && <GlassDatePicker value={endDate} onChange={setEndDate} onClose={() => setShowEndPicker(false)} />}
             </div>
 
-            <div className="md:hidden fixed inset-0 bg-gray-900 z-[9999] flex items-center justify-center p-8 text-center">
+            <div className="md:hidden fixed inset-0 bg-background z-[9999] flex items-center justify-center p-8 text-center">
                 <div>
                     <div className="mx-auto w-16 h-16 bg-red-500/20 rounded-full flex items-center justify-center text-red-400 mb-4">
                         <BarChart3 size={32} />
                     </div>
-                    <h2 className="text-xl font-bold text-white mb-2">Desktop-Funktion</h2>
-                    <p className="text-white/50">Die erweiterte Analyse ist für große Bildschirme optimiert. Bitte öffne diese Seite auf einem PC oder Mac.</p>
+                    <h2 className="text-xl font-bold text-foreground mb-2">Desktop-Funktion</h2>
+                    <p className="text-muted-foreground">Die erweiterte Analyse ist für große Bildschirme optimiert. Bitte öffne diese Seite auf einem PC oder Mac.</p>
                 </div>
             </div>
 

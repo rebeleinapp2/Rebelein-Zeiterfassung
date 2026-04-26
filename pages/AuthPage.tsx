@@ -63,15 +63,15 @@ const AuthPage: React.FC = () => {
         <h1 className="text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-emerald-300 to-teal-200">
           Zeiterfassung
         </h1>
-        <p className="text-white/60 mt-2">Deine Zeit. Deine Kontrolle.</p>
+        <p className="text-muted-foreground mt-2">Deine Zeit. Deine Kontrolle.</p>
       </div>
 
       <GlassCard>
-        <div className="flex justify-center mb-6 border-b border-white/10 pb-4">
+        <div className="flex justify-center mb-6 border-b border-border pb-4">
           <button
             onClick={() => { setIsLogin(true); setError(null); setMsg(null); }}
             className={`mx-4 pb-1 text-sm font-medium transition-colors ${
-              isLogin ? 'text-teal-400 border-b-2 border-teal-400' : 'text-white/50'
+              isLogin ? 'text-teal-400 border-b-2 border-teal-400' : 'text-muted-foreground'
             }`}
           >
             Anmelden
@@ -79,7 +79,7 @@ const AuthPage: React.FC = () => {
           <button
             onClick={() => { setIsLogin(false); setError(null); setMsg(null); }}
             className={`mx-4 pb-1 text-sm font-medium transition-colors ${
-              !isLogin ? 'text-teal-400 border-b-2 border-teal-400' : 'text-white/50'
+              !isLogin ? 'text-teal-400 border-b-2 border-teal-400' : 'text-muted-foreground'
             }`}
           >
             Registrieren

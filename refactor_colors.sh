@@ -1,0 +1,20 @@
+#!/bin/bash
+find pages components -type f -name "*.tsx" -print0 | while IFS= read -r -d '' file; do
+    sed -i 's/text-white\/[0-9]\{2\}/text-muted-foreground/g' "$file"
+    sed -i 's/text-gray-[345]00/text-muted-foreground/g' "$file"
+    sed -i 's/text-white/text-foreground/g' "$file"
+    sed -i 's/text-slate-100/text-foreground/g' "$file"
+    sed -i 's/bg-white\/5/bg-muted/g' "$file"
+    sed -i 's/bg-white\/10/bg-card/g' "$file"
+    sed -i 's/bg-white\/20/bg-accent/g' "$file"
+    sed -i 's/bg-black\/[0-9]\{2\}/bg-input/g' "$file"
+    sed -i 's/bg-gray-800\/[0-9]\{2\}/bg-card/g' "$file"
+    sed -i 's/bg-gray-900\/[0-9]\{2\}/bg-card/g' "$file"
+    sed -i 's/bg-gray-800/bg-card/g' "$file"
+    sed -i 's/bg-gray-900/bg-background/g' "$file"
+    sed -i 's/border-white\/[0-9]\{1,2\}/border-border/g' "$file"
+    sed -i 's/border-gray-[5678]00\/[0-9]\{2\}/border-border/g' "$file"
+    sed -i 's/border-gray-[5678]00/border-border/g' "$file"
+    sed -i 's/hover:bg-white\/[0-9]\{1,2\}/hover:bg-accent/g' "$file"
+    sed -i 's/placeholder-white\/[0-9]\{2\}/placeholder:text-muted-foreground/g' "$file"
+done

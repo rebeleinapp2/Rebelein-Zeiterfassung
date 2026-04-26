@@ -1,0 +1,693 @@
+{/* LEFT SIDE: INFO CARDS */}
+                <div className="w-full xl:w-2/3 2xl:w-3/4">
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8 w-full items-start">
+                {/* OVERTIME ACCOUNT / LIFETIME BALANCE */}
+                <SpotlightCard className={`md:col-span-2 md:row-span-2 order-1 relative overflow-hidden group bg-card border border-border p-5 rounded-2xl flex flex-col justify-between transition-all duration-500 shadow-lg hover:shadow-xl hover:border-emerald-500/50 ${collapsedTiles['overtime'] ? 'self-start' : ''}`}>
+                    {/* Background Watermark Icon */}
+                    <div className="absolute top-0 right-0 p-5 opacity-5 group-hover:opacity-10 transition-opacity">
+                        <Scale size={120} className="text-emerald-500 rotate-12 group-hover:rotate-0 transition-transform duration-700" />
+                    </div>
+
+                    <div className="flex justify-between items-start z-10">
+                        {/* Beautiful Badge Label */}
+                        <div className="flex items-center gap-2">
+                            <div className="w-8 h-8 rounded-xl bg-emerald-500/10 flex items-center justify-center text-emerald-500 shadow-inner">
+                                <Clock size={16} />
+                            </div>
+                            <span className="text-emerald-500 font-black uppercase tracking-widest text-xs">Überstunden</span>
+                        </div>
+                        <button onClick={() => toggleTile('overtime')} className="p-1.5 hover:bg-emerald-500/10 rounded-lg text-emerald-400 transition-colors">
+                            {collapsedTiles['overtime'] ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
+                        </button>
+                    </div>
+
+                    {!collapsedTiles['overtime'] ? (
+                        <div className="relative z-10 mt-4 flex flex-col h-full justify-between">
+                            {/* Massive Number */}
+                            <div className="mb-4">
+                                <div className="flex items-end gap-2 mb-1">
+                                    <span className={`text-5xl md:text-6xl font-black tracking-tighter leading-none ${totalBalanceStats.diff >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                                        {totalBalanceStats.diff > 0 ? '+' : ''}{totalBalanceStats.diff.toFixed(2)}
+                                    </span>
+                                    <span className="text-xl text-muted-foreground font-bold mb-1">Std</span>
+                                </div>
+                                <div className={`text-xs font-bold flex items-center gap-1.5 ${totalBalanceStats.diff >= 0 ? 'text-emerald-500/80' : 'text-red-500/80'}`}>
+                                    {totalBalanceStats.diff >= 0 ? <TrendingUp size={14} /> : <TrendingDown size={14} />}
+                                    {totalBalanceStats.diff >= 0 ? 'Guthaben aufgebaut' : 'Minusstunden aufgebaut'}
+                                </div>
+                            </div>
+
+                            {/* Details Footer */}
+                            <div className="grid grid-cols-2 gap-4 border-t border-border/50 pt-4">
+                                <div>
+                                    <div className="text-[10px] text-muted-foreground uppercase tracking-wider font-bold mb-1">Gesamt Ist</div>
+                                    <div className="text-foreground font-mono text-base">{totalBalanceStats.actual.toFixed(2)} h</div>
+                                    <div className="text-[10px] text-muted-foreground italic mt-0.5">Seit: {totalBalanceStats.startStr ? new Date(totalBalanceStats.startStr).toLocaleDateString('de-DE') : '-'}</div>
+                                </div>
+                                <div>
+                                    <div className="text-[10px] text-muted-foreground uppercase tracking-wider font-bold mb-1">Gesamt Soll</div>
+                                    <div className="text-foreground font-mono text-base">{totalBalanceStats.target.toFixed(2)} h</div>
+                                    <div className="text-[10px] text-muted-foreground italic mt-0.5">Stand: {totalBalanceStats.cutoffStr ? new Date(totalBalanceStats.cutoffStr).toLocaleDateString('de-DE') : '-'}</div>
+                                </div>
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="flex items-baseline gap-2 pb-1 relative z-10 mt-4">
+                            <span className={`text-3xl font-black tracking-tighter ${totalBalanceStats.diff >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                                {totalBalanceStats.diff > 0 ? '+' : ''}{totalBalanceStats.diff.toFixed(2)}
+                            </span>
+                            <span className="text-sm text-muted-foreground font-bold">Std</span>
+                        </div>
+                    )}
+                </SpotlightCard>
+
+                {/* INITIAL BALANCE / TRANSFER (MULTI-ENTRY) */}
+                <SpotlightCard className={`md:col-span-1 order-5 bg-card border border-border p-5 rounded-2xl relative flex flex-col justify-between overflow-hidden transition-all duration-500 shadow-lg hover:shadow-xl hover:border-cyan-500/50 ${collapsedTiles['balance'] ? 'self-start' : ''}`}>
+                    {/* Background Watermark Icon */}
+                    <div className="absolute -top-2 -right-2 p-5 opacity-5 group-hover:opacity-10 transition-opacity">
+                        <Calculator size={80} className="text-cyan-500 rotate-12 group-hover:rotate-0 transition-transform duration-700" />
+                    </div>
+
+                    <div className="flex justify-between items-start mb-4 z-10">
+                        <div className="flex items-center gap-2">
+                            <div className="w-8 h-8 rounded-xl bg-cyan-500/10 flex items-center justify-center text-cyan-500 shadow-inner">
+                                <Calculator size={14} />
+                            </div>
+                            <span className="text-cyan-500 font-black uppercase text-[10px] tracking-widest leading-tight">Startsaldo /<br/>Übertrag</span>
+                        </div>
+                        <div className="flex gap-1 z-10">
+                            {!collapsedTiles['balance'] && (
+                                <button
+                                    onClick={() => setShowBalanceList(!showBalanceList)}
+                                    className="p-1.5 hover:bg-cyan-500/10 rounded-lg text-cyan-400 transition-colors"
+                                    title={showBalanceList ? "Liste verbergen" : "Liste anzeigen"}
+                                >
+                                    <List size={12} />
+                                </button>
+                            )}
+                            <button onClick={() => toggleTile('balance')} className="p-1.5 hover:bg-cyan-500/10 rounded-lg text-cyan-400 transition-colors">
+                                {collapsedTiles['balance'] ? <ChevronDown size={12} /> : <ChevronUp size={12} />}
+                            </button>
+                        </div>
+                    </div>
+
+                    {!collapsedTiles['balance'] ? (
+                        <>
+                            <div className="mb-2 relative z-10">
+                                <div className="flex items-baseline gap-2">
+                                    <span className="text-4xl font-black tracking-tighter text-cyan-400">
+                                        {balanceEntries.reduce((sum, e) => sum + e.hours, 0).toFixed(2)}
+                                    </span>
+                                    <span className="text-sm text-muted-foreground font-bold">h</span>
+                                </div>
+                                <p className="text-[9px] text-cyan-300/50 font-bold uppercase tracking-widest mt-1">
+                                    Summe manueller Überträge
+                                </p>
+                            </div>
+
+                            {showBalanceList && (
+                                <div className="mt-4 pt-4 border-t border-border/50 animate-in slide-in-from-top-2 relative z-10">
+                                    <div className="max-h-40 overflow-y-auto space-y-2 pr-1 mb-2 custom-scrollbar">
+                                        {balanceEntries.length === 0 ? (
+                                            <p className="text-xs text-muted-foreground italic text-center py-2">Keine Einträge vorhanden.</p>
+                                        ) : (
+                                            balanceEntries.map(entry => (
+                                                <div key={entry.id} className="bg-cyan-500/5 p-3 rounded-xl border border-cyan-500/10 text-xs">
+                                                    <div className="flex justify-between items-center mb-1.5">
+                                                        <span className={`font-black tracking-wider ${entry.hours >= 0 ? 'text-cyan-400' : 'text-red-400'}`}>
+                                                            {entry.hours > 0 ? '+' : ''}{entry.hours.toFixed(2)} h
+                                                        </span>
+                                                        <span className="text-[10px] text-muted-foreground font-bold uppercase">
+                                                            {entry.created_at ? new Date(entry.created_at).toLocaleDateString('de-DE') : '-'}
+                                                        </span>
+                                                    </div>
+                                                    <div className="text-muted-foreground italic break-words">{entry.reason}</div>
+                                                </div>
+                                            ))
+                                        )}
+                                    </div>
+
+                                    {/* ADD FORM - ADMIN ONLY */}
+                                    {canManage && (currentUser?.role === 'admin' || viewerSettings?.role === 'admin') ? (
+                                        <div className="bg-background/50 p-3 rounded-xl border border-border mt-3">
+                                            <div className="text-[10px] uppercase font-black tracking-wider text-cyan-400 mb-2">Neuer Eintrag</div>
+                                            <div className="flex gap-2 mb-3">
+                                                <GlassInput
+                                                    type="number"
+                                                    placeholder="Std"
+                                                    value={balanceForm.hours}
+                                                    onChange={e => setBalanceForm({ ...balanceForm, hours: e.target.value })}
+                                                    className="w-20 !py-1.5 !px-3 !text-sm text-center font-bold"
+                                                />
+                                                <GlassInput
+                                                    type="text"
+                                                    placeholder="Grund (Pflicht)"
+                                                    value={balanceForm.reason}
+                                                    onChange={e => setBalanceForm({ ...balanceForm, reason: e.target.value })}
+                                                    className="flex-1 !py-1.5 !px-3 !text-sm"
+                                                />
+                                            </div>
+                                            <button
+                                                disabled={!balanceForm.hours || !balanceForm.reason}
+                                                onClick={async () => {
+                                                    const h = parseFloat(balanceForm.hours);
+                                                    if (isNaN(h)) return;
+                                                    await addBalanceEntry(h, balanceForm.reason);
+                                                    setBalanceForm({ hours: '', reason: '' });
+                                                }}
+                                                className="w-full py-2 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 text-xs font-black tracking-wider uppercase rounded-lg border border-cyan-500/30 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                                            >
+                                                Hinzufügen
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        <div className="text-[10px] text-muted-foreground italic text-center mt-2">
+                                            Nur Administratoren können Einträge erstellen.
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                        </>
+                    ) : (
+                        <div className="flex items-baseline gap-2 pb-1 relative z-10 mt-4">
+                            <span className="text-3xl font-black tracking-tighter text-cyan-400">
+                                {balanceEntries.reduce((sum, e) => sum + e.hours, 0).toFixed(2)}
+                            </span>
+                            <span className="text-sm text-muted-foreground font-bold">h</span>
+                        </div>
+                    )}
+                </SpotlightCard>
+
+                {/* WORK MODEL CONFIG (SIMPLE) */}
+                <SpotlightCard className={`md:col-span-2 order-3 bg-card border border-border p-5 rounded-2xl relative flex flex-col transition-all duration-500 shadow-lg hover:shadow-xl hover:border-blue-500/50`}>
+                    {/* Background Watermark Icon */}
+                    <div className="absolute top-0 right-0 p-5 opacity-5 group-hover:opacity-10 transition-opacity">
+                        <Briefcase size={120} className="text-blue-500 rotate-12 group-hover:rotate-0 transition-transform duration-700" />
+                    </div>
+
+                    <div className="flex justify-between items-start mb-4 z-10">
+                        <div className="flex items-center gap-2">
+                            <div className="w-8 h-8 rounded-xl bg-blue-500/10 flex items-center justify-center text-blue-500 shadow-inner">
+                                <Briefcase size={16} />
+                            </div>
+                            <span className="text-blue-500 font-black uppercase tracking-widest text-xs">Arbeitszeit-Modell</span>
+                        </div>
+                        <div className="flex gap-2 z-10 items-center">
+                            {!collapsedTiles['work_model'] && (
+                                <div className="flex items-center gap-2 bg-muted/50 rounded-xl p-1 border border-border/50 shadow-inner">
+                                    {isEditingWorkModel ? (
+                                        <>
+                                            <button onClick={() => setIsEditingWorkModel(false)} className="p-1.5 hover:bg-background rounded-lg text-muted-foreground transition-colors"><RotateCcw size={14} /></button>
+                                            <button onClick={handleSaveWorkModel} className="p-1.5 bg-blue-500/20 hover:bg-blue-500/40 text-blue-300 rounded-lg transition-colors"><Save size={14} /></button>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <button onClick={handleToggleLock} className="p-1.5 hover:bg-background rounded-lg transition-colors" title={isWorkModelLocked ? "Entsperren" : "Sperren"}>
+                                                {isWorkModelLocked ? <Lock size={14} className="text-red-400" /> : <Unlock size={14} className="text-emerald-400" />}
+                                            </button>
+                                            <button 
+                                               onClick={() => !isWorkModelLocked && setIsEditingWorkModel(true)} 
+                                               className={`p-1.5 rounded-lg transition-colors ${isWorkModelLocked ? 'text-muted-foreground opacity-50 cursor-not-allowed' : 'text-blue-400 hover:bg-blue-500/10'}`} 
+                                               title={isWorkModelLocked ? "Gesperrt" : "Bearbeiten"}
+                                               disabled={isWorkModelLocked}
+                                            >
+                                                <Edit2 size={14} />
+                                            </button>
+                                        </>
+                                    )}
+                                </div>
+                            )}
+                            <button onClick={() => toggleTile('work_model')} className="p-1.5 hover:bg-blue-500/10 rounded-lg text-blue-400 transition-colors">
+                                {collapsedTiles['work_model'] ? <ChevronDown size={13} /> : <ChevronUp size={13} />}
+                            </button>
+                        </div>
+                    </div>
+
+                    {!collapsedTiles['work_model'] ? (
+                        <div className="flex flex-col flex-1 z-10 relative">
+                            <div className="flex-1 mt-2">
+                                <div className="grid grid-cols-3 gap-4 mb-2 px-2">
+                                    <span className="text-[10px] uppercase font-black tracking-widest text-muted-foreground">Tag</span>
+                                    <span className="text-[10px] uppercase font-black tracking-widest text-muted-foreground text-center">Start</span>
+                                    <span className="text-[10px] uppercase font-black tracking-widest text-muted-foreground text-right">Dauer</span>
+                                </div>
+                                <div className="bg-background/50 rounded-2xl border border-border/50 overflow-hidden">
+                                    {dayIndices.map((d, i) => {
+                                        const target = workModelTargets[d] || 0;
+                                        const start = workModelConfig[d] || "07:00";
+                                        return (
+                                            <div key={d} className={`grid grid-cols-3 gap-4 items-center px-4 py-3 border-b border-border/50 last:border-0 ${isEditingWorkModel ? 'bg-card/50' : ''}`}>
+                                                <span className={`text-sm font-black uppercase tracking-wider ${d === 0 || d === 6 ? 'text-red-400/80' : 'text-foreground/80'}`}>{dayNames[i]}</span>
+                                                {isEditingWorkModel ? (
+                                                    <>
+                                                        <input type="time" value={start} onChange={e => handleWorkModelConfigChange(d, e.target.value)} className="bg-background text-foreground text-sm font-mono rounded-lg px-2 py-1 text-center border border-blue-500/30 w-full focus:ring-1 focus:ring-blue-500 outline-none" />
+                                                        <input type="number" value={target} onChange={e => handleWorkModelTargetChange(d, e.target.value)} className="bg-background text-foreground text-sm font-mono rounded-lg px-2 py-1 text-right border border-blue-500/30 w-full focus:ring-1 focus:ring-blue-500 outline-none" />
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <span className="text-sm font-mono text-muted-foreground text-center">{start}</span>
+                                                        <span className={`text-sm font-mono text-right font-bold ${target > 0 ? 'text-foreground' : 'text-muted-foreground/50'}`}>{target > 0 ? `${target} h` : '-'}</span>
+                                                    </>
+                                                )}
+                                            </div>
+                                        )
+                                    })}
+                                </div>
+                            </div>
+
+                            <div className="mt-6 pt-4 border-t border-border/50 grid grid-cols-1 md:grid-cols-3 gap-4">
+                                {/* Employment Start Date */}
+                                <div className={`flex flex-col gap-1 p-3 rounded-xl bg-background/30 border border-border/50 ${isEditingWorkModel ? 'opacity-100' : 'opacity-70'}`}>
+                                    <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Eintrittsdatum</span>
+                                    {isEditingWorkModel ? (
+                                        <input
+                                            type="date"
+                                            value={employmentStartDateEdit}
+                                            onChange={(e) => setEmploymentStartDateEdit(e.target.value)}
+                                            className="bg-background border border-blue-500/30 rounded-lg px-2 py-1 text-xs text-foreground outline-none focus:ring-1 focus:ring-blue-500"
+                                        />
+                                    ) : (
+                                        <div className="text-sm font-bold text-foreground">
+                                            {employmentStartDateEdit ? new Date(employmentStartDateEdit).toLocaleDateString('de-DE') : 'Nicht gesetzt'}
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Confirmation Toggle */}
+                                <div className={`flex flex-col gap-1 p-3 rounded-xl bg-background/30 border border-border/50 ${isEditingWorkModel ? 'opacity-100' : 'opacity-70'}`}>
+                                    <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Bestätigungspflicht</span>
+                                    {isEditingWorkModel ? (
+                                        <button
+                                            onClick={() => setWorkModelConfirmation(!workModelConfirmation)}
+                                            className={`w-12 h-6 rounded-full p-1 transition-all mt-1 ${workModelConfirmation ? 'bg-blue-500 justify-end' : 'bg-muted border border-border justify-start'} flex items-center`}
+                                        >
+                                            <div className={`w-4 h-4 rounded-full bg-white shadow-sm`} />
+                                        </button>
+                                    ) : (
+                                        <div className={`text-xs font-bold px-2 py-1 rounded-md self-start mt-0.5 ${workModelConfirmation ? 'bg-blue-500/20 text-blue-300' : 'bg-muted text-muted-foreground'}`}>
+                                            {workModelConfirmation ? 'Aktiv' : 'Inaktiv'}
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Visibility Toggle */}
+                                <div className={`flex flex-col gap-1 p-3 rounded-xl bg-background/30 border border-border/50 ${isEditingWorkModel ? 'opacity-100' : 'opacity-70'}`}>
+                                    <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Sichtbarkeit</span>
+                                    {isEditingWorkModel ? (
+                                        <button
+                                            onClick={() => setVisibleToOthers(!visibleToOthers)}
+                                            className={`w-12 h-6 rounded-full p-1 transition-all mt-1 ${visibleToOthers ? 'bg-emerald-500 justify-end' : 'bg-muted border border-border justify-start'} flex items-center`}
+                                        >
+                                            <div className={`w-4 h-4 rounded-full bg-white shadow-sm`} />
+                                        </button>
+                                    ) : (
+                                        <div className={`text-xs font-bold px-2 py-1 rounded-md self-start mt-0.5 ${visibleToOthers ? 'bg-emerald-500/20 text-emerald-300' : 'bg-muted text-muted-foreground'}`}>
+                                            {visibleToOthers ? 'Sichtbar' : 'Versteckt'}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+
+                            {isEditingWorkModel && (
+                                <div className="mt-3 text-xs font-bold text-blue-400 bg-blue-500/10 px-3 py-2 rounded-xl border border-blue-500/20 flex items-center gap-2">
+                                    <Unlock size={14} /> Bearbeitungsmodus ist aktiv
+                                </div>
+                            )}
+                        </div>
+                    ) : (
+                        <div className="flex items-center gap-2 pb-1 text-muted-foreground text-sm mt-4">
+                            <span className="font-black text-2xl text-blue-400 tracking-tighter">
+                                {dayIndices.reduce((sum, d) => sum + (Number(workModelTargets[d]) || 0), 0).toLocaleString('de-DE', { maximumFractionDigits: 2 })}h
+                            </span> / Woche
+                        </div>
+                    )}
+                </SpotlightCard>
+
+                {/* Vacation Mgmt */}
+                <SpotlightCard className={`md:col-span-2 order-2 bg-card border border-border p-5 rounded-2xl relative flex flex-col transition-all duration-500 shadow-lg hover:shadow-xl hover:border-purple-500/50`}>
+                    {/* Background Watermark Icon */}
+                    <div className="absolute top-0 right-0 p-5 opacity-5 group-hover:opacity-10 transition-opacity">
+                        <Palmtree size={120} className="text-purple-500 rotate-12 group-hover:rotate-0 transition-transform duration-700" />
+                    </div>
+
+                    <div className="flex justify-between items-start mb-4 z-10">
+                        {/* Beautiful Badge Label */}
+                        <div className="flex items-center gap-2">
+                            <div className="w-8 h-8 rounded-xl bg-purple-500/10 flex items-center justify-center text-purple-500 shadow-inner">
+                                <Palmtree size={16} />
+                            </div>
+                            <span className="text-purple-500 font-black uppercase tracking-widest text-xs">Urlaubsverwaltung</span>
+                        </div>
+                        <div className="flex gap-2 items-center z-10">
+                            {!collapsedTiles['vacation'] && (
+                                <div className="flex items-center bg-muted/50 rounded-xl px-2 py-1 gap-2 border border-border/50 shadow-inner">
+                                    <button onClick={() => setVacationViewYear(y => y - 1)} className="text-purple-300 hover:text-foreground p-1 transition-colors"><ChevronLeft size={16} /></button>
+                                    <span className="text-sm font-black text-foreground w-10 text-center">{vacationViewYear}</span>
+                                    <button onClick={() => setVacationViewYear(y => y + 1)} className="text-purple-300 hover:text-foreground p-1 transition-colors"><ChevronRight size={16} /></button>
+                                </div>
+                            )}
+                            <button onClick={() => toggleTile('vacation')} className="p-1.5 hover:bg-purple-500/10 rounded-lg text-purple-400 transition-colors">
+                                {collapsedTiles['vacation'] ? <ChevronDown size={13} /> : <ChevronUp size={13} />}
+                            </button>
+                        </div>
+                    </div>
+
+                    {!collapsedTiles['vacation'] ? (
+                        <>
+                            <div className="flex flex-col flex-1 z-10 relative mb-4">
+                                {/* Massive Hero Metric for REMAINING DAYS */}
+                                <div className="mb-4">
+                                    <div className="text-xs text-purple-300/70 font-bold uppercase tracking-widest mb-1">Resturlaub</div>
+                                    <div className="flex items-baseline gap-2">
+                                        <span className="text-5xl md:text-6xl font-black tracking-tighter text-purple-400">
+                                            {Math.max(0, effectiveVacationClaim - takenVacationDays).toFixed(1)}
+                                        </span>
+                                        <span className="text-lg text-muted-foreground font-bold">Tage</span>
+                                    </div>
+                                </div>
+                                
+                                {/* Breakdown */}
+                                <div className="grid grid-cols-2 gap-3 mb-4">
+                                    <div className="bg-purple-500/5 rounded-xl p-3 border border-purple-500/10">
+                                        <div className="text-[10px] text-purple-300/70 uppercase font-black tracking-wider mb-0.5">Genommen</div>
+                                        <div className="text-xl font-black text-foreground">{takenVacationDays.toFixed(1)} <span className="text-xs text-muted-foreground font-bold">Tage</span></div>
+                                    </div>
+                                    <div className="bg-purple-500/5 rounded-xl p-3 border border-purple-500/10">
+                                        <div className="text-[10px] text-purple-300/70 uppercase font-black tracking-wider mb-0.5">Gesamtanspruch</div>
+                                        <div className="text-xl font-black text-foreground">{effectiveVacationClaim.toFixed(1)} <span className="text-xs text-muted-foreground font-bold">Tage</span></div>
+                                    </div>
+                                </div>
+
+                                {unpaidDaysInYear > 0 && (
+                                    <div className="mb-4 px-3 py-2 bg-red-900/20 border border-red-500/20 rounded-xl text-xs text-red-200 flex items-start gap-3 shadow-inner">
+                                        <Info size={16} className="mt-0.5 shrink-0 text-red-400" />
+                                        <div>
+                                            <span className="font-bold">{unpaidDaysInYear} Tage Unbezahlt.</span>
+                                            <p className="opacity-70 mt-0.5">Anspruch reduziert um {(vacationDaysEdit! - effectiveVacationClaim).toFixed(1)} Tage.</p>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+
+                            <div className="pt-6 border-t border-border/50 flex flex-col gap-4 mb-4 relative z-10">
+                                {/* BASIS + CARRYOVER INPUTS */}
+                                <div className="flex items-center justify-between bg-muted/30 p-3 rounded-2xl border border-border/50">
+                                    <div className="flex flex-col gap-1">
+                                        <label className="text-[10px] text-muted-foreground uppercase font-black tracking-wider">Basis</label>
+                                        <input
+                                            type="number"
+                                            disabled={isQuotaLocked}
+                                            value={vacationDaysEdit ?? ''}
+                                            onChange={e => {
+                                                const val = parseFloat(e.target.value);
+                                                setVacationDaysEdit(isNaN(val) ? 0 : val);
+                                            }}
+                                            className={`w-16 bg-background border border-border rounded-lg px-2 py-1.5 text-center text-sm font-bold text-foreground focus:outline-none ${isQuotaLocked ? 'opacity-50 cursor-not-allowed' : 'focus:border-purple-500/50'}`}
+                                        />
+                                    </div>
+                                    <div className="text-muted-foreground font-black text-lg">+</div>
+                                    <div className="flex flex-col gap-1">
+                                        <label className="text-[10px] text-muted-foreground uppercase font-black tracking-wider">Rest (VJ)</label>
+                                        <input
+                                            type="number"
+                                            disabled={isQuotaLocked}
+                                            value={vacationCarryoverEdit ?? ''}
+                                            onChange={e => {
+                                                const val = parseFloat(e.target.value);
+                                                setVacationCarryoverEdit(isNaN(val) ? 0 : val);
+                                            }}
+                                            className={`w-16 bg-background border border-border rounded-lg px-2 py-1.5 text-center text-sm font-bold text-foreground focus:outline-none ${isQuotaLocked ? 'opacity-50 cursor-not-allowed' : 'focus:border-purple-500/50'}`}
+                                        />
+                                    </div>
+                                    <div className="text-muted-foreground font-black text-lg">=</div>
+                                    <div className="flex flex-col items-end gap-1 mr-2">
+                                        <label className="text-[10px] text-muted-foreground uppercase font-black tracking-wider">Gesamt</label>
+                                        <span className="text-xl font-black text-purple-400">
+                                            {((vacationDaysEdit || 0) + (vacationCarryoverEdit || 0)).toFixed(1)}
+                                        </span>
+                                    </div>
+                                </div>
+
+                                {/* ACTIONS: SAVE, LOCK, HISTORY */}
+                                <div className="flex items-center justify-between mt-2">
+                                    <div className="flex gap-2">
+                                        <button
+                                            onClick={() => {
+                                                if (userId) {
+                                                    // Fetch Quota ID first, then logs
+                                                    supabase.from('yearly_vacation_quotas')
+                                                        .select('id')
+                                                        .eq('user_id', userId)
+                                                        .eq('year', vacationViewYear)
+                                                        .single()
+                                                        .then(({ data }) => {
+                                                            if (data) {
+                                                                fetchVacationAuditLog(data.id).then(setQuotaAuditLogs);
+                                                                setShowQuotaHistory(true);
+                                                            } else {
+                                                                showToast("Keine Historie vorhanden.", "warning");
+                                                            }
+                                                        });
+                                                }
+                                            }}
+                                            className="p-1.5 bg-muted hover:bg-card rounded text-muted-foreground hover:text-foreground transition-colors"
+                                            title="Historie anzeigen"
+                                        >
+                                            <HistoryIcon size={14} />
+                                        </button>
+                                        <button
+                                            onClick={() => setIsQuotaLocked(!isQuotaLocked)}
+                                            className={`p-1.5 rounded transition-colors ${isQuotaLocked ? 'bg-muted text-muted-foreground hover:text-foreground' : 'bg-orange-500/20 text-orange-200 hover:bg-orange-500/30'}`}
+                                            title={isQuotaLocked ? "Entsperren zum Bearbeiten" : "Bearbeitung sperren"}
+                                        >
+                                            {isQuotaLocked ? <Lock size={14} /> : <Unlock size={14} />}
+                                        </button>
+                                    </div>
+
+                                    {!isQuotaLocked && (
+                                        <button
+                                            onClick={() => {
+                                                // Permission Check: Only Admin/Office allowed
+                                                const role = viewerSettings?.role;
+                                                if (role !== 'super_admin' && role !== 'admin' && role !== 'office' && (role as string) !== 'chef') {
+                                                    setShowPermissionError(true);
+                                                    return;
+                                                }
+
+                                                if (userId && vacationDaysEdit !== null) {
+                                                    updateYearlyQuota(userId, vacationViewYear, {
+                                                        total_days: vacationDaysEdit,
+                                                        manual_carryover: vacationCarryoverEdit,
+                                                        is_locked: true // Auto-lock on save
+                                                    });
+                                                    // Optimistic Update: Set "Locked" immediately
+                                                    setIsQuotaLocked(true);
+                                                    // Refresh notifications to show "Pending" state immediately
+                                                    setTimeout(async () => {
+                                                        const notifs = await fetchQuotaNotifications(userId);
+                                                        if (notifs) setQuotaNotifications(notifs);
+                                                    }, 500);
+                                                }
+                                            }}
+                                            className="px-3 py-1 bg-purple-500 hover:bg-purple-600 rounded text-foreground text-xs font-bold transition-colors flex items-center gap-2 shadow-lg shadow-purple-900/20"
+                                        >
+                                            <Save size={14} /> {quotaNotifications.some(n => n.status === 'pending') ? 'Vorschlag aktualisieren' : 'Speichern'}
+                                        </button>
+                                    )}
+                                </div>
+
+                                {/* PENDING / REJECTED WARNING */}
+                                {quotaNotifications.length > 0 && (
+                                    <div className="mt-3 space-y-2">
+                                        {quotaNotifications.filter(n => n.status === 'pending').map(n => (
+                                            <div key={n.id} className="bg-yellow-500/10 border border-yellow-500/30 p-2 rounded text-xs text-yellow-200 flex items-center gap-2 animate-pulse">
+                                                <Clock size={12} />
+                                                <span>Änderung auf <strong>{n.new_value.total} Tage</strong> wartet auf Bestätigung durch den Mitarbeiter.</span>
+                                            </div>
+                                        ))}
+                                        {quotaNotifications.filter(n => n.status === 'rejected').map(n => (
+                                            <div key={n.id} className="bg-red-500/10 border border-red-500/30 p-2 rounded text-xs text-red-200">
+                                                <div className="flex items-center gap-2 font-bold mb-1">
+                                                    <XCircle size={12} />
+                                                    <span>Änderung abgelehnt!</span>
+                                                </div>
+                                                <div className="opacity-80">Grund: "{n.rejection_reason}"</div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* APPROVED REQUESTS SUB-SECTION */}
+                            {canManage && approvedRequests.length > 0 && (
+                                <div className="mt-4 pt-3 border-t border-border">
+                                    <label className="text-[10px] uppercase font-bold text-emerald-400/70 block mb-2 flex items-center gap-2">
+                                        <CheckCircle size={12} /> Genehmigte Urlaubsanträge (Letzte 5)
+                                    </label>
+                                    <div className="space-y-2">
+                                        {approvedRequests.map(req => (
+                                            <div key={req.id} className="bg-emerald-500/5 p-2 rounded border border-emerald-500/10 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                                                <div>
+                                                    <div className="font-bold text-foreground text-xs">
+                                                        {new Date(req.start_date).toLocaleDateString('de-DE')} - {new Date(req.end_date).toLocaleDateString('de-DE')}
+                                                    </div>
+                                                    <div className="text-emerald-200/50 text-[10px]">
+                                                        {new Date(req.created_at).toLocaleDateString('de-DE')} • {req.approved_by_name || 'Admin'}
+                                                    </div>
+                                                </div>
+                                                <button
+                                                    onClick={() => generateVacationRequestPDF(req, true)}
+                                                    className="px-2 py-1 bg-muted text-muted-foreground border border-border rounded hover:bg-card hover:text-foreground text-[10px] transition-colors flex items-center gap-1 self-start sm:self-center"
+                                                    title="Kopie drucken"
+                                                >
+                                                    <Printer size={10} /> Kopie
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                            <div className="flex-1 overflow-y-auto max-h-32 space-y-1 pr-1 border-t border-border pt-2 mt-auto">
+                                <label className="text-[10px] uppercase font-bold text-muted-foreground block mb-1">Abwesenheiten ({vacationViewYear})</label>
+                                {groupedAbsences.length === 0 ? (
+                                    <p className="text-xs text-muted-foreground italic">Keine Einträge für {vacationViewYear}.</p>
+                                ) : (
+                                    groupedAbsences.map((group, idx) => {
+                                        const start = new Date(group.start).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+                                        const end = new Date(group.end).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+                                        const isRange = group.start !== group.end;
+                                        let typeColor = 'text-foreground';
+                                        let typeLabel = '';
+
+                                        if (group.type === 'vacation') { typeColor = 'text-purple-300'; typeLabel = 'Urlaub'; }
+                                        else if (group.type === 'sick') { typeColor = 'text-red-300'; typeLabel = 'Krank'; }
+                                        else if (group.type === 'holiday') { typeColor = 'text-blue-300'; typeLabel = 'Feiertag'; }
+                                        else if (group.type === 'sick_child') { typeColor = 'text-orange-300'; typeLabel = 'Kind krank'; }
+                                        else if (group.type === 'sick_pay') { typeColor = 'text-rose-300'; typeLabel = 'Krankengeld'; }
+                                        else if (group.type === 'unpaid') { typeColor = 'text-muted-foreground'; typeLabel = 'Unbezahlt'; }
+                                        return (
+                                            <div key={idx} className="flex justify-between items-center text-xs bg-muted px-2 py-1 rounded">
+                                                <div className="flex flex-col">
+                                                    <span className={`font-mono ${typeColor}`}>{isRange ? `${start} - ${end}` : start}</span>
+                                                    {group.note && group.type === 'unpaid' && <span className="text-[9px] text-muted-foreground italic">{group.note}</span>}
+                                                </div>
+                                                <span className={`opacity-50 text-[10px] uppercase ${typeColor}`}>{typeLabel}</span>
+                                            </div>
+                                        );
+                                    })
+                                )}
+                            </div>
+                        </>
+                    ) : (
+                        <div className="flex items-baseline gap-2 pb-1">
+                            <span className="text-xl font-bold font-mono text-purple-100">{takenVacationDays}</span>
+                            <span className="text-purple-300/50 text-xs font-bold"> / {effectiveVacationClaim.toFixed(1)} Tage</span>
+                        </div>
+                    )}
+                </SpotlightCard>
+
+                {/* Monthly Attendance Tile */}
+                <SpotlightCard className={`md:col-span-1 order-4 bg-card border border-border p-5 rounded-2xl relative flex flex-col justify-between transition-all duration-500 shadow-lg hover:shadow-xl hover:border-blue-500/50`}>
+                    <div className="absolute -top-2 -right-2 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
+                        <UserCheck size={80} className="text-blue-500 rotate-12 group-hover:rotate-0 transition-transform duration-700" />
+                    </div>
+
+                    <div className="flex justify-between items-start mb-4 z-10">
+                        <div className="flex items-center gap-2">
+                            <div className="w-8 h-8 rounded-xl bg-blue-500/10 flex items-center justify-center text-blue-500 shadow-inner">
+                                <UserCheck size={14} />
+                            </div>
+                            <span className="text-blue-500 font-black uppercase text-[10px] tracking-widest leading-tight">Anwesenheit<br/>(Monat)</span>
+                        </div>
+                        <button onClick={() => toggleTile('attendance')} className="p-1.5 hover:bg-blue-500/10 rounded-lg text-blue-400 transition-colors">
+                            {collapsedTiles['attendance'] ? <ChevronDown size={12} /> : <ChevronUp size={12} />}
+                        </button>
+                    </div>
+
+                    {!collapsedTiles['attendance'] ? (
+                        <div className="relative z-10 flex flex-col h-full justify-between mt-2">
+                            <div className="mb-3">
+                                <div className="flex items-baseline gap-2">
+                                    <span className="text-4xl font-black tracking-tighter text-blue-400">
+                                        {formatDuration(monthlyAttendance)}
+                                    </span>
+                                    <span className="text-sm text-muted-foreground font-bold">h</span>
+                                </div>
+                                <div className="text-[9px] text-blue-300/50 font-black uppercase tracking-widest mt-1">
+                                    Netto-Arbeitszeit
+                                </div>
+                            </div>
+                            <div className="pt-4 border-t border-border/50">
+                                <div className="flex justify-between items-center bg-background/50 p-2 rounded-xl border border-border">
+                                    <span className="text-[10px] text-muted-foreground uppercase font-black tracking-wider">Basis</span>
+                                    <span className="text-[10px] text-foreground font-bold">Kommen/Gehen - Pause</span>
+                                </div>
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="flex items-baseline gap-2 pb-1 relative z-10 mt-4">
+                            <span className="text-3xl font-black tracking-tighter text-blue-400">
+                                {formatDuration(monthlyAttendance)}
+                            </span>
+                            <span className="text-sm text-muted-foreground font-bold">h</span>
+                        </div>
+                    )}
+                </SpotlightCard>
+
+                {/* NEW: MONTHLY BALANCE TILE */}
+                <SpotlightCard className={`md:col-span-1 order-6 bg-card border border-border p-5 rounded-2xl relative flex flex-col justify-between transition-all duration-500 shadow-lg hover:shadow-xl hover:border-teal-500/50`}>
+                    <div className="absolute -top-2 -right-2 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
+                        <Scale size={80} className="text-teal-500 rotate-12 group-hover:rotate-0 transition-transform duration-700" />
+                    </div>
+                    
+                    <div className="flex justify-between items-start mb-4 z-10">
+                        <div className="flex items-center gap-2">
+                            <div className="w-8 h-8 rounded-xl bg-teal-500/10 flex items-center justify-center text-teal-500 shadow-inner">
+                                <Scale size={14} />
+                            </div>
+                            <span className="text-teal-500 font-black uppercase text-[10px] tracking-widest leading-tight">Monatsbilanz<br/>(Laufend)</span>
+                        </div>
+                        <button onClick={() => toggleTile('monthly_balance')} className="p-1.5 hover:bg-teal-500/10 rounded-lg text-teal-400 transition-colors">
+                            {collapsedTiles['monthly_balance'] ? <ChevronDown size={12} /> : <ChevronUp size={12} />}
+                        </button>
+                    </div>
+
+                    {!collapsedTiles['monthly_balance'] ? (
+                        <div className="relative z-10 flex flex-col h-full justify-between mt-2">
+                            <div className="mb-3">
+                                <div className="flex items-baseline gap-2">
+                                    <span className={`text-4xl font-black tracking-tighter ${monthlyStats.diff >= 0 ? 'text-teal-400' : 'text-red-400'}`}>
+                                        {monthlyStats.diff > 0 ? '+' : ''}{monthlyStats.diff.toFixed(2)}
+                                    </span>
+                                    <span className="text-sm text-muted-foreground font-bold">h</span>
+                                </div>
+                                <div className={`text-[9px] uppercase font-black tracking-widest mt-1 flex items-center gap-1 ${monthlyStats.diff >= 0 ? 'text-teal-300/50' : 'text-red-300/50'}`}>
+                                    {monthlyStats.diff >= 0 ? <TrendingUp size={10} /> : <TrendingDown size={10} />}
+                                    Differenz (Soll/Ist)
+                                </div>
+                            </div>
+                            
+                            <div className="grid grid-cols-2 gap-2 pt-4 border-t border-border/50">
+                                <div className="bg-background/50 rounded-xl p-2 border border-border">
+                                    <span className="text-[10px] text-muted-foreground uppercase font-black tracking-wider block mb-0.5">Soll</span>
+                                    <span className="text-sm font-black text-foreground">{monthlyStats.target.toFixed(2)} <span className="text-[10px] text-muted-foreground font-bold">h</span></span>
+                                </div>
+                                <div className="bg-background/50 rounded-xl p-2 border border-border">
+                                    <span className="text-[10px] text-muted-foreground uppercase font-black tracking-wider block mb-0.5">Ist</span>
+                                    <span className="text-sm font-black text-foreground">{monthlyStats.actual.toFixed(2)} <span className="text-[10px] text-muted-foreground font-bold">h</span></span>
+                                </div>
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="flex items-baseline gap-2 pb-1 relative z-10 mt-4">
+                            <span className={`text-3xl font-black tracking-tighter ${monthlyStats.diff >= 0 ? 'text-teal-400' : 'text-red-400'}`}>
+                                {monthlyStats.diff > 0 ? '+' : ''}{monthlyStats.diff.toFixed(2)}
+                            </span>
+                            <span className="text-sm text-muted-foreground font-bold">h</span>
+                        </div>
+                    )}
+                </SpotlightCard>
+            </div >
+                </div>
+
+    

@@ -34,9 +34,9 @@ const BottomNav: React.FC = () => {
         };
 
         // Determine text color class
-        let textColorClass = 'text-white/50 group-hover:text-white/80'; // Default
+        let textColorClass = 'text-muted-foreground group-hover:text-foreground'; // Default
         if (isActive) {
-            textColorClass = 'text-teal-400';
+            textColorClass = 'text-primary';
         } else if (colorClass) {
             textColorClass = colorClass; // Use provided color directly if not active
         }
@@ -49,7 +49,7 @@ const BottomNav: React.FC = () => {
             ${/* Mobile Styles (unchanged) */ ''}
             flex-col w-full h-full md:flex-row md:h-12 md:rounded-xl md:px-3 md:gap-3
             ${/* Desktop Styles */ ''}
-            ${isActive ? 'bg-white/5' : 'hover:bg-white/5'}
+            ${isActive ? 'bg-primary/10 text-primary border border-primary/20 shadow-lg shadow-primary/5' : 'hover:bg-white/5 border border-transparent'}
             ${textColorClass}
             ${!isExpanded ? 'md:justify-center' : 'md:justify-start'}
         `}
@@ -58,7 +58,7 @@ const BottomNav: React.FC = () => {
                 <div className="relative">
                     <Icon size={24} strokeWidth={isActive ? 2.5 : 1.5} className="transition-transform group-hover:scale-110 flex-shrink-0" />
                     {!isExpanded && badgeCount !== undefined && badgeCount > 0 && (
-                        <div className="absolute -top-2 -right-2 min-w-[18px] h-[18px] bg-teal-500 text-white text-[10px] font-bold flex items-center justify-center rounded-full border-2 border-gray-900 z-10 px-1 shadow-sm">
+                        <div className="absolute -top-2 -right-2 min-w-[18px] h-[18px] bg-primary text-primary-foreground text-[10px] font-bold flex items-center justify-center rounded-full border-2 border-background z-10 px-1 shadow-sm">
                             {badgeCount > 99 ? '99+' : badgeCount}
                         </div>
                     )}
@@ -74,7 +74,7 @@ const BottomNav: React.FC = () => {
                             {label}
                         </span>
                         {(badgeCount !== undefined && badgeCount > 0) && (
-                            <span className="text-[10px] font-bold text-teal-400 leading-none mt-0.5">
+                            <span className="text-[10px] font-bold text-primary leading-none mt-0.5">
                                 {badgeCount} Aufgaben
                             </span>
                         )}
@@ -82,9 +82,9 @@ const BottomNav: React.FC = () => {
                 )}
 
                 {/* Desktop Tooltip / Indicator (Only if Collapsed) */}
-                {isActive && !isExpanded && <div className="hidden md:block absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-teal-400 rounded-r-full" />}
+                {isActive && !isExpanded && <div className="hidden md:block absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-primary rounded-r-full shadow-[2px_0_10px_rgba(16,185,129,0.4)]" />}
                 {/* Desktop Active Indicator (If Expanded) */}
-                {isActive && isExpanded && <div className="hidden md:block absolute right-2 w-2 h-2 bg-teal-400 rounded-full" />}
+                {isActive && isExpanded && <div className="hidden md:block absolute right-2 w-2 h-2 bg-primary rounded-full animate-pulse shadow-[0_0_10px_rgba(16,185,129,0.4)]" />}
             </button>
         );
     };
@@ -94,7 +94,7 @@ const BottomNav: React.FC = () => {
             {/* MOBILE: Bottom Navigation */}
             <div className="fixed bottom-0 left-0 w-full z-[100] flex justify-center pb-4 pointer-events-none md:hidden">
                 <div className="w-full pointer-events-auto">
-                    <div className="mx-4 mb-2 bg-gray-900/80 backdrop-blur-xl border border-white/10 rounded-2xl h-16 shadow-2xl flex justify-between items-center px-2">
+                    <div className="mx-4 mb-2 bg-card/60 backdrop-blur-xl border border-white/10 rounded-2xl h-16 shadow-2xl shadow-black/40 flex justify-between items-center px-2">
                         <NavItem path="/" icon={PlusCircle} label="Erfassen" />
                         <NavItem path="/history" icon={Calendar} label="Verlauf" />
 
@@ -115,23 +115,26 @@ const BottomNav: React.FC = () => {
             {/* DESKTOP: Sidebar Navigation */}
             <div className={`hidden md:flex fixed top-0 left-0 h-full flex-col z-50 pointer-events-auto transition-all duration-300 ease-in-out ${isExpanded ? 'w-64' : 'w-24'}`}>
                 {/* Glass Container for Sidebar */}
-                <div className={`absolute inset-y-4 left-4 bg-gray-900/40 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl flex flex-col py-6 gap-6 transition-all duration-300 ${isExpanded ? 'w-[calc(100%-1rem)] px-4 items-start' : 'w-16 items-center'}`}>
+                <div className={`absolute inset-y-4 left-4 bg-card/60 backdrop-blur-xl border border-white/10 rounded-3xl shadow-2xl shadow-black/40 flex flex-col py-6 gap-6 transition-all duration-300 overflow-hidden ${isExpanded ? 'w-[calc(100%-1rem)] px-4 items-start' : 'w-16 items-center'}`}>
+                    
+                    {/* Decorative ambient light */}
+                    <div className="absolute -top-24 -left-24 w-48 h-48 bg-primary/10 rounded-full blur-[60px] pointer-events-none" />
 
                     {/* Header / Logo / Toggle */}
-                    <div className={`w-full flex items-center mb-2 ${isExpanded ? 'justify-between' : 'justify-center flex-col gap-4'}`}>
-                        <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-emerald-500 to-teal-500 shadow-[0_0_15px_rgba(20,184,166,0.5)] flex-shrink-0" />
-                        {isExpanded && <span className="font-bold text-lg text-white tracking-wide">Stunden</span>}
+                    <div className={`w-full flex items-center mb-2 z-10 ${isExpanded ? 'justify-between' : 'justify-center flex-col gap-4'}`}>
+                        <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-primary to-emerald-600 shadow-lg shadow-primary/20 flex-shrink-0" />
+                        {isExpanded && <span className="font-black text-lg text-foreground tracking-tight">STUNDEN</span>}
 
                         <button
                             onClick={toggleSidebar}
-                            className="w-6 h-6 rounded-lg bg-white/5 hover:bg-white/10 flex items-center justify-center text-white/50 hover:text-white transition-colors"
+                            className="w-8 h-8 rounded-xl bg-white/5 hover:bg-white/10 border border-white/5 flex items-center justify-center text-muted-foreground hover:text-foreground transition-all duration-300"
                         >
                             {isExpanded ? <ChevronLeft size={16} /> : <ChevronRight size={16} />}
                         </button>
                     </div>
 
                     {/* Nav Items */}
-                    <div className="flex flex-col gap-2 w-full flex-1 overflow-y-auto overflow-x-hidden">
+                    <div className="flex flex-col gap-2 w-full flex-1 overflow-y-auto overflow-x-hidden z-10 pr-1 scrollbar-thin">
                         <NavItem path="/" icon={PlusCircle} label="Erfassen" />
                         <NavItem path="/history" icon={Calendar} label="Verlauf" />
                         <NavItem path="/analysis" icon={PieChart} label="Analyse" />
@@ -139,7 +142,7 @@ const BottomNav: React.FC = () => {
 
                         {/* Office Modules Desktop Separator */}
                         {isOfficeOrAdmin && (
-                            <div className="w-full h-px bg-white/10 my-2" />
+                            <div className="w-full h-px bg-white/5 my-2 mx-2" />
                         )}
 
                         {isOfficeOrAdmin && (
@@ -151,14 +154,14 @@ const BottomNav: React.FC = () => {
                         )}
                     </div>
 
-                    <div className="mt-auto w-full">
+                    <div className="mt-auto w-full z-10 pt-4 border-t border-white/5">
                         <button
                             onClick={logout}
-                            className={`flex items-center rounded-xl transition-all h-10 hover:text-red-400 hover:bg-red-500/10 text-white/30 ${isExpanded ? 'w-full px-3 gap-3 justify-start' : 'w-10 justify-center'}`}
+                            className={`flex items-center rounded-xl transition-all h-12 hover:text-red-400 hover:bg-red-500/10 text-muted-foreground group ${isExpanded ? 'w-full px-3 gap-3 justify-start' : 'w-10 justify-center'}`}
                             title="Abmelden"
                         >
-                            <LogOut size={20} />
-                            {isExpanded && <span className="text-sm font-medium">Abmelden</span>}
+                            <LogOut size={20} className="group-hover:-translate-x-1 transition-transform" />
+                            {isExpanded && <span className="text-sm font-bold">Abmelden</span>}
                         </button>
                     </div>
                 </div>

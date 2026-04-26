@@ -628,24 +628,24 @@ const AnalysisPage: React.FC = () => {
     };
 
     const getDayColor = (item: any) => {
-        if (item.type === 'pre-employment') return 'bg-gray-800/20 border-gray-700/20 text-white/10';
+        if (item.type === 'pre-employment') return 'bg-card border-border text-muted-foreground';
         
-        let color = item.isSchoolHoliday ? 'bg-blue-400/10 border-blue-400/20 text-white/50' : 'bg-white/5 border-white/10 text-white/50';
+        let color = item.isSchoolHoliday ? 'bg-blue-400/10 border-blue-400/20 text-muted-foreground' : 'bg-muted border-border text-muted-foreground';
         if (item.type === 'absence') {
             switch (item.absenceType) {
                 case 'vacation': color = 'bg-purple-500/20 border-purple-500/40 text-purple-200'; break;
                 case 'sick': color = 'bg-red-500/20 border-red-500/40 text-red-200'; break;
                 case 'holiday': color = 'bg-blue-500/20 border-blue-500/40 text-blue-200'; break;
                 case 'special_holiday': color = 'bg-teal-500/20 border-teal-500/40 text-teal-200'; break;
-                case 'unpaid': color = 'bg-gray-700/40 border-gray-500/40 text-gray-400'; break;
+                case 'unpaid': color = 'bg-gray-700/40 border-border text-muted-foreground'; break;
             }
         } else if (item.type === 'work') {
             switch (item.status) {
                 case 'full': color = 'bg-emerald-500/20 border-emerald-500/40 text-emerald-200'; break;
                 case 'partial': color = 'bg-yellow-500/20 border-yellow-500/40 text-yellow-200'; break;
                 case 'overtime_reduction': color = 'bg-pink-500/20 border-pink-500/40 text-pink-200'; break;
-                case 'weekend': color = 'bg-white/5 border-white/5 text-white/20'; break;
-                default: color = 'bg-white/5 border-white/10 text-white/50'; break;
+                case 'weekend': color = 'bg-muted border-border text-muted-foreground'; break;
+                default: color = 'bg-muted border-border text-muted-foreground'; break;
             }
         }
 
@@ -656,7 +656,7 @@ const AnalysisPage: React.FC = () => {
     };
 
     const getMonthColor = (m: any) => {
-        if (m.target === 0 && m.actual === 0) return 'bg-white/5 border-white/5 text-white/30';
+        if (m.target === 0 && m.actual === 0) return 'bg-muted border-border text-muted-foreground';
         if (m.diff >= 0) return 'bg-emerald-500/10 border-emerald-500/30 text-emerald-200';
         if (Math.abs(m.diff) < 2) return 'bg-yellow-500/10 border-yellow-500/30 text-yellow-200';
         return 'bg-red-500/10 border-red-500/30 text-red-200';
@@ -679,8 +679,8 @@ const AnalysisPage: React.FC = () => {
             <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-6">
                 <div className="flex justify-between items-start lg:items-center w-full lg:w-auto gap-4">
                     <div>
-                        <h2 className="text-2xl font-bold text-white">Analyse</h2>
-                        <p className="text-white/50 text-sm">
+                        <h2 className="text-2xl font-bold text-foreground">Analyse</h2>
+                        <p className="text-muted-foreground text-sm">
                             {viewMode === 'month' ? 'Monatsauswertung' : viewMode === 'year' ? 'Jahresbilanz' : viewMode === 'overtime' ? 'Überstundenkonto' : 'Notdienst Plan'}
                         </p>
                     </div>
@@ -691,28 +691,28 @@ const AnalysisPage: React.FC = () => {
                 </div>
 
                 <div className="flex w-full lg:w-auto overflow-x-auto pb-1 scrollbar-hide">
-                    <div className="bg-white/10 p-1 rounded-xl flex shrink-0">
+                    <div className="bg-card p-1 rounded-xl flex shrink-0">
                         <button
                             onClick={() => setViewMode('month')}
-                            className={`px-3 py-2 rounded-lg text-sm font-bold transition-all ${viewMode === 'month' ? 'bg-teal-500 text-white shadow-lg' : 'text-white/50 hover:text-white'}`}
+                            className={`px-3 py-2 rounded-lg text-sm font-bold transition-all ${viewMode === 'month' ? 'bg-teal-500 text-foreground shadow-lg' : 'text-muted-foreground hover:text-foreground'}`}
                         >
                             Monat
                         </button>
                         <button
                             onClick={() => setViewMode('year')}
-                            className={`px-3 py-2 rounded-lg text-sm font-bold transition-all ${viewMode === 'year' ? 'bg-teal-500 text-white shadow-lg' : 'text-white/50 hover:text-white'}`}
+                            className={`px-3 py-2 rounded-lg text-sm font-bold transition-all ${viewMode === 'year' ? 'bg-teal-500 text-foreground shadow-lg' : 'text-muted-foreground hover:text-foreground'}`}
                         >
                             Jahr
                         </button>
                         <button
                             onClick={() => setViewMode('overtime')}
-                            className={`px-3 py-2 rounded-lg text-sm font-bold transition-all ${viewMode === 'overtime' ? 'bg-teal-500 text-white shadow-lg' : 'text-white/50 hover:text-white'}`}
+                            className={`px-3 py-2 rounded-lg text-sm font-bold transition-all ${viewMode === 'overtime' ? 'bg-teal-500 text-foreground shadow-lg' : 'text-muted-foreground hover:text-foreground'}`}
                         >
                             Überstunden
                         </button>
                         <button
                             onClick={() => setViewMode('emergency')}
-                            className={`px-3 py-2 rounded-lg text-sm font-bold transition-all ${viewMode === 'emergency' ? 'bg-teal-500 text-white shadow-lg' : 'text-white/50 hover:text-white'}`}
+                            className={`px-3 py-2 rounded-lg text-sm font-bold transition-all ${viewMode === 'emergency' ? 'bg-teal-500 text-foreground shadow-lg' : 'text-muted-foreground hover:text-foreground'}`}
                         >
                             Notdienst
                         </button>
@@ -722,15 +722,15 @@ const AnalysisPage: React.FC = () => {
 
             {/* DATE NAV */}
             {viewMode !== 'overtime' && viewMode !== 'emergency' && (
-                <div className="flex items-center justify-between bg-white/5 p-2 rounded-xl border border-white/10 mb-6 max-w-md mx-auto md:mx-0">
-                    <button onClick={prev} className="p-2 hover:bg-white/10 rounded-lg text-white transition-colors"><ChevronLeft /></button>
-                    <span className="font-bold text-white text-lg">
+                <div className="flex items-center justify-between bg-muted p-2 rounded-xl border border-border mb-6 max-w-md mx-auto md:mx-0">
+                    <button onClick={prev} className="p-2 hover:bg-card rounded-lg text-foreground transition-colors"><ChevronLeft /></button>
+                    <span className="font-bold text-foreground text-lg">
                         {viewMode === 'month'
                             ? currentDate.toLocaleDateString('de-DE', { month: 'long', year: 'numeric' })
                             : currentDate.getFullYear()
                         }
                     </span>
-                    <button onClick={next} className="p-2 hover:bg-white/10 rounded-lg text-white transition-colors"><ChevronRight /></button>
+                    <button onClick={next} className="p-2 hover:bg-card rounded-lg text-foreground transition-colors"><ChevronRight /></button>
                 </div>
             )}
 
@@ -749,27 +749,27 @@ const AnalysisPage: React.FC = () => {
                                 <span className={`text-5xl font-bold font-mono ${totalBalanceStats.diff >= 0 ? 'text-emerald-300' : 'text-red-300'}`}>
                                     {totalBalanceStats.diff > 0 ? '+' : ''}{totalBalanceStats.diff.toFixed(2).replace('.', ',')}
                                 </span>
-                                <span className="text-lg text-white/40 font-bold">Std</span>
+                                <span className="text-lg text-muted-foreground font-bold">Std</span>
                             </div>
                             <div className={`text-sm font-bold flex items-center gap-1 ${totalBalanceStats.diff >= 0 ? 'text-emerald-400/70' : 'text-red-400/70'}`}>
                                 {totalBalanceStats.diff >= 0 ? <TrendingUp size={16} /> : <TrendingDown size={16} />}
                                 {totalBalanceStats.diff >= 0 ? 'Guthaben' : 'Minusstunden'}
                             </div>
                         </div>
-                        <div className="mt-6 pt-4 border-t border-white/5 space-y-2">
+                        <div className="mt-6 pt-4 border-t border-border space-y-2">
                             <div className="flex justify-between text-sm">
-                                <span className="text-white/50">Gesamt Ist:</span>
-                                <span className="text-white font-mono">{totalBalanceStats.actual.toFixed(2).replace('.', ',')} h</span>
+                                <span className="text-muted-foreground">Gesamt Ist:</span>
+                                <span className="text-foreground font-mono">{totalBalanceStats.actual.toFixed(2).replace('.', ',')} h</span>
                             </div>
                             <div className="flex justify-between text-sm">
-                                <span className="text-white/50">Gesamt Soll:</span>
-                                <span className="text-white font-mono">{totalBalanceStats.target.toFixed(2).replace('.', ',')} h</span>
+                                <span className="text-muted-foreground">Gesamt Soll:</span>
+                                <span className="text-foreground font-mono">{totalBalanceStats.target.toFixed(2).replace('.', ',')} h</span>
                             </div>
-                            <div className="flex justify-between text-xs mt-3 text-white/30 italic">
+                            <div className="flex justify-between text-xs mt-3 text-muted-foreground italic">
                                 <span>Seit:</span>
                                 <span>{totalBalanceStats.startStr ? new Date(totalBalanceStats.startStr).toLocaleDateString('de-DE') : '-'}</span>
                             </div>
-                            <div className="flex justify-between text-xs text-white/30 italic">
+                            <div className="flex justify-between text-xs text-muted-foreground italic">
                                 <span>Stand (Abgegeben / Abbau):</span>
                                 <span>{totalBalanceStats.cutoffStr ? new Date(totalBalanceStats.cutoffStr).toLocaleDateString('de-DE') : '-'}</span>
                             </div>
@@ -789,28 +789,28 @@ const AnalysisPage: React.FC = () => {
                             <div className="relative z-10">
                                 <div className="text-xs font-bold text-teal-400 uppercase tracking-wider mb-1">Projekt Stunden</div>
                                 <div className="flex items-end gap-3 mb-2">
-                                    <span className="text-4xl md:text-5xl font-bold text-white font-mono">{displayActual.toFixed(2).replace('.', ',')}</span>
-                                    <span className="text-white/40 font-bold mb-1.5">/ {displayTarget.toFixed(2)} Soll</span>
+                                    <span className="text-4xl md:text-5xl font-bold text-foreground font-mono">{displayActual.toFixed(2).replace('.', ',')}</span>
+                                    <span className="text-muted-foreground font-bold mb-1.5">/ {displayTarget.toFixed(2)} Soll</span>
                                 </div>
 
-                                <div className="h-3 w-full bg-white/10 rounded-full overflow-hidden mb-4">
+                                <div className="h-3 w-full bg-card rounded-full overflow-hidden mb-4">
                                     <div
                                         className={`h-full rounded-full transition-all duration-1000 ${displayActual >= displayTarget ? 'bg-gradient-to-r from-emerald-400 to-teal-500' : 'bg-gradient-to-r from-yellow-400 to-orange-500'}`}
                                         style={{ width: `${Math.min(100, (displayActual / (displayTarget || 1)) * 100)}%` }}
                                     />
                                 </div>
 
-                                <div className="grid grid-cols-2 gap-4 border-t border-white/5 pt-3">
+                                <div className="grid grid-cols-2 gap-4 border-t border-border pt-3">
                                     <div>
-                                        <span className="text-white/40 text-[10px] uppercase font-bold block mb-1">Prognose (Ende)</span>
-                                        <div className={`flex items-center gap-2 font-mono font-bold text-lg ${displayDiff >= 0 ? 'text-emerald-300' : 'text-white/70'}`}>
+                                        <span className="text-muted-foreground text-[10px] uppercase font-bold block mb-1">Prognose (Ende)</span>
+                                        <div className={`flex items-center gap-2 font-mono font-bold text-lg ${displayDiff >= 0 ? 'text-emerald-300' : 'text-muted-foreground'}`}>
                                             {displayDiff > 0 ? '+' : ''}{displayDiff.toFixed(2).replace('.', ',')} h
                                         </div>
                                     </div>
 
                                     {trendStats.show ? (
                                         <div className="text-right">
-                                            <span className="text-white/40 text-[10px] uppercase font-bold block mb-1">
+                                            <span className="text-muted-foreground text-[10px] uppercase font-bold block mb-1">
                                                 Status (bis {trendStats.limitDateStr ? new Date(trendStats.limitDateStr).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' }) : ''})
                                             </span>
                                             <div className={`flex items-center justify-end gap-2 font-mono font-bold text-lg ${trendStats.diff >= 0 ? 'text-emerald-300' : 'text-red-300'}`}>
@@ -819,7 +819,7 @@ const AnalysisPage: React.FC = () => {
                                             </div>
                                         </div>
                                     ) : (
-                                        <div className="text-right text-white/30 text-xs flex items-end justify-end pb-1">Keine Daten bis heute</div>
+                                        <div className="text-right text-muted-foreground text-xs flex items-end justify-end pb-1">Keine Daten bis heute</div>
                                     )}
                                 </div>
                             </div>
@@ -831,8 +831,8 @@ const AnalysisPage: React.FC = () => {
                             </div>
                             <div className="relative z-10">
                                 <div className="text-xs font-bold text-blue-400 uppercase tracking-wider mb-2">Anwesenheit (Total)</div>
-                                <div className="text-4xl font-bold text-white font-mono mb-2">{formatDuration(displayAttendance)} <span className="text-lg text-white/40">h</span></div>
-                                <p className="text-white/40 text-xs leading-relaxed">
+                                <div className="text-4xl font-bold text-foreground font-mono mb-2">{formatDuration(displayAttendance)} <span className="text-lg text-muted-foreground">h</span></div>
+                                <p className="text-muted-foreground text-xs leading-relaxed">
                                     Gemessene Zeit von "Kommen" bis "Gehen" abzüglich Pausen.
                                     <br />
                                     {viewMode === 'month' ? 'Im aktuellen Monat.' : 'Im gesamten Jahr.'}
@@ -852,11 +852,11 @@ const AnalysisPage: React.FC = () => {
                                         </div>
 
                                         <div className="space-y-3">
-                                            <div className="flex justify-between items-center bg-white/5 p-2 rounded-lg">
-                                                <span className="text-sm font-bold text-white/70 flex items-center gap-2"><Palmtree size={14} /> Urlaub</span>
+                                            <div className="flex justify-between items-center bg-muted p-2 rounded-lg">
+                                                <span className="text-sm font-bold text-muted-foreground flex items-center gap-2"><Palmtree size={14} /> Urlaub</span>
                                                 <div className="text-right">
                                                     <span className="text-purple-300 font-bold">{yearAbsenceStats.vacationDays}</span>
-                                                    <span className="text-white/30 text-xs"> / {yearAbsenceStats.yearlyAllowance}</span>
+                                                    <span className="text-muted-foreground text-xs"> / {yearAbsenceStats.yearlyAllowance}</span>
                                                     <div className="text-[10px] text-emerald-400/80 font-bold">Rest: {yearAbsenceStats.remainingVacation}</div>
                                                 </div>
                                             </div>
@@ -864,26 +864,26 @@ const AnalysisPage: React.FC = () => {
                                             <div className="flex flex-col bg-emerald-900/10 border border-emerald-500/10 p-2 rounded-lg">
                                                 <div className="flex justify-between items-center mb-1">
                                                     <span className="text-[10px] text-emerald-400 uppercase font-bold">Verdienter Urlaub</span>
-                                                    <span className="text-sm font-bold text-white">{yearAbsenceStats.earnedVacation.toFixed(2)} Tage</span>
+                                                    <span className="text-sm font-bold text-foreground">{yearAbsenceStats.earnedVacation.toFixed(2)} Tage</span>
                                                 </div>
                                                 <div className="flex justify-between items-center">
-                                                    <span className="text-[10px] text-white/40 uppercase font-bold">Jahresurlaub gesamt</span>
-                                                    <span className="text-xs font-bold text-white/60">{yearAbsenceStats.baseAllowance.toFixed(1)} Tage</span>
+                                                    <span className="text-[10px] text-muted-foreground uppercase font-bold">Jahresurlaub gesamt</span>
+                                                    <span className="text-xs font-bold text-muted-foreground">{yearAbsenceStats.baseAllowance.toFixed(1)} Tage</span>
                                                 </div>
                                             </div>
 
-                                            <div className="flex justify-between items-center bg-white/5 p-2 rounded-lg">
-                                                <span className="text-sm font-bold text-white/70 flex items-center gap-2"><Stethoscope size={14} /> Krank</span>
+                                            <div className="flex justify-between items-center bg-muted p-2 rounded-lg">
+                                                <span className="text-sm font-bold text-muted-foreground flex items-center gap-2"><Stethoscope size={14} /> Krank</span>
                                                 <span className="text-red-300 font-bold">{yearAbsenceStats.sickDays} T</span>
                                             </div>
 
-                                            <div className="flex justify-between items-start bg-white/5 p-2 rounded-lg flex-col">
+                                            <div className="flex justify-between items-start bg-muted p-2 rounded-lg flex-col">
                                                 <div className="flex justify-between w-full mb-1">
-                                                    <span className="text-sm font-bold text-white/70 flex items-center gap-2"><Ban size={14} /> Fehltage (unbezahlt)</span>
-                                                    <span className="text-gray-300 font-bold">{yearAbsenceStats.unpaidDays} T</span>
+                                                    <span className="text-sm font-bold text-muted-foreground flex items-center gap-2"><Ban size={14} /> Fehltage (unbezahlt)</span>
+                                                    <span className="text-muted-foreground font-bold">{yearAbsenceStats.unpaidDays} T</span>
                                                 </div>
                                                 {yearAbsenceStats.uniqueNotes.length > 0 && (
-                                                    <div className="w-full text-[10px] text-white/40 italic pl-6">
+                                                    <div className="w-full text-[10px] text-muted-foreground italic pl-6">
                                                         {yearAbsenceStats.uniqueNotes.map((note, i) => (
                                                             <div key={i}>• {note}</div>
                                                         ))}
@@ -899,7 +899,7 @@ const AnalysisPage: React.FC = () => {
 
                     <GlassCard className="mb-8 p-4 md:p-6">
                         <div className="flex items-center justify-between mb-4">
-                            <h3 className="font-bold text-white flex items-center gap-2">
+                            <h3 className="font-bold text-foreground flex items-center gap-2">
                                 {viewMode === 'month' ? <CalendarDays size={18} className="text-teal-300" /> : <Grid3X3 size={18} className="text-teal-300" />}
                                 {viewMode === 'month' ? 'Monatsübersicht' : 'Jahresübersicht'}
                             </h3>
@@ -920,7 +920,7 @@ const AnalysisPage: React.FC = () => {
 
                         {viewMode === 'month' ? (
                             <div className="grid grid-cols-7 gap-1">
-                                {['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'].map(d => <div key={d} className="text-center text-xs text-white/30 font-bold uppercase py-1">{d}</div>)}
+                                {['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'].map(d => <div key={d} className="text-center text-xs text-muted-foreground font-bold uppercase py-1">{d}</div>)}
 
                                 {dailyData.map((item, idx) => {
                                     if (item.day === 0) return <div key={`empty-${idx}`} />;
@@ -972,14 +972,14 @@ const AnalysisPage: React.FC = () => {
                                     const isFuture = new Date(year, m.monthIndex, 1) > new Date();
 
                                     return (
-                                        <div key={m.monthIndex} className={`p-2 rounded-lg border flex flex-col items-center justify-center h-20 ${isFuture ? 'bg-white/5 border-white/5 opacity-50' : getMonthColor(m)}`}>
+                                        <div key={m.monthIndex} className={`p-2 rounded-lg border flex flex-col items-center justify-center h-20 ${isFuture ? 'bg-muted border-border opacity-50' : getMonthColor(m)}`}>
                                             <span className="text-xs font-bold uppercase tracking-wide opacity-70 mb-1">{monthName}</span>
                                             {m.diff !== 0 && !isFuture ? (
                                                 <span className={`text-xl font-mono font-bold ${m.diff > 0 ? 'text-emerald-300' : 'text-red-300'}`}>
                                                     {m.diff > 0 ? '+' : ''}{m.diff.toFixed(2).replace('.', ',')}
                                                 </span>
                                             ) : (
-                                                <span className="text-white/20 font-mono">-</span>
+                                                <span className="text-muted-foreground font-mono">-</span>
                                             )}
                                         </div>
                                     );
@@ -997,13 +997,13 @@ const AnalysisPage: React.FC = () => {
                         <List size={16} /> Meine Anträge ({year})
                     </div>
                     {displayedRequests.length === 0 ? (
-                        <div className="text-center py-6 text-white/30 italic">Keine Anträge in diesem Jahr.</div>
+                        <div className="text-center py-6 text-muted-foreground italic">Keine Anträge in diesem Jahr.</div>
                     ) : (
                         <div className="space-y-3">
                             {displayedRequests.map(req => (
-                                <div key={req.id} className="bg-white/5 rounded-xl p-3 flex justify-between items-center border border-white/5">
+                                <div key={req.id} className="bg-muted rounded-xl p-3 flex justify-between items-center border border-border">
                                     <div>
-                                        <div className="font-bold text-white text-sm">
+                                        <div className="font-bold text-foreground text-sm">
                                             {new Date(req.start_date).toLocaleDateString('de-DE')} - {new Date(req.end_date).toLocaleDateString('de-DE')}
                                         </div>
                                         <div className="flex items-center gap-2 mt-1">
@@ -1025,7 +1025,7 @@ const AnalysisPage: React.FC = () => {
                                     </div>
                                     {
                                         req.status === 'pending' && (
-                                            <button onClick={() => deleteRequest(req.id)} className="p-2 bg-white/5 hover:bg-red-500/20 text-white/50 hover:text-red-300 rounded-lg transition-colors">
+                                            <button onClick={() => deleteRequest(req.id)} className="p-2 bg-muted hover:bg-red-500/20 text-muted-foreground hover:text-red-300 rounded-lg transition-colors">
                                                 <X size={16} />
                                             </button>
                                         )
@@ -1041,28 +1041,28 @@ const AnalysisPage: React.FC = () => {
             {/* REQUEST MODAL */}
             {
                 showRequestModal && (
-                    <div className="fixed inset-0 z-[200] flex items-center justify-center p-6 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
+                    <div className="fixed inset-0 z-[200] flex items-center justify-center p-6 bg-input backdrop-blur-sm animate-in fade-in duration-200">
                         <GlassCard className="w-full max-w-sm relative shadow-2xl border-purple-500/30">
-                            <button onClick={() => setShowRequestModal(false)} className="absolute top-4 right-4 text-white/50 hover:text-white"><X size={20} /></button>
+                            <button onClick={() => setShowRequestModal(false)} className="absolute top-4 right-4 text-muted-foreground hover:text-foreground"><X size={20} /></button>
                             <div className="flex items-center gap-3 text-purple-300 mb-6"><Palmtree size={24} /><h3 className="text-xl font-bold">Urlaub beantragen</h3></div>
 
                             <div className="space-y-4">
                                 <div>
-                                    <label className="text-xs uppercase font-bold text-white/50 mb-1 block">Erster Urlaubstag</label>
-                                    <div onClick={() => setShowStartPicker(true)} className="flex items-center justify-between w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white cursor-pointer hover:bg-white/10">
+                                    <label className="text-xs uppercase font-bold text-muted-foreground mb-1 block">Erster Urlaubstag</label>
+                                    <div onClick={() => setShowStartPicker(true)} className="flex items-center justify-between w-full bg-muted border border-border rounded-xl px-4 py-3 text-foreground cursor-pointer hover:bg-card">
                                         <span>{reqStart ? new Date(reqStart).toLocaleDateString('de-DE') : 'Bitte wählen...'}</span>
-                                        <Calendar size={18} className="text-white/50" />
+                                        <Calendar size={18} className="text-muted-foreground" />
                                     </div>
                                 </div>
                                 <div>
-                                    <label className="text-xs uppercase font-bold text-white/50 mb-1 block">Letzter Urlaubstag</label>
-                                    <div onClick={() => setShowEndPicker(true)} className="flex items-center justify-between w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white cursor-pointer hover:bg-white/10">
+                                    <label className="text-xs uppercase font-bold text-muted-foreground mb-1 block">Letzter Urlaubstag</label>
+                                    <div onClick={() => setShowEndPicker(true)} className="flex items-center justify-between w-full bg-muted border border-border rounded-xl px-4 py-3 text-foreground cursor-pointer hover:bg-card">
                                         <span>{reqEnd ? new Date(reqEnd).toLocaleDateString('de-DE') : 'Bitte wählen...'}</span>
-                                        <Calendar size={18} className="text-white/50" />
+                                        <Calendar size={18} className="text-muted-foreground" />
                                     </div>
                                 </div>
                                 <div>
-                                    <label className="text-xs uppercase font-bold text-white/50 mb-1 block">Bemerkung (Optional)</label>
+                                    <label className="text-xs uppercase font-bold text-muted-foreground mb-1 block">Bemerkung (Optional)</label>
                                     <GlassInput
                                         value={reqNote}
                                         onChange={(e) => setReqNote(e.target.value)}

@@ -1,19 +1,36 @@
 import React, { useEffect, useState, useMemo } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useOfficeService, getLocalISOString, useDepartments } from '../services/dataService';
 import { supabase } from '../services/supabaseClient';
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from '../services/supabaseClient';
 import { GlassCard, GlassInput } from '../components/GlassCard';
+import { SpotlightCard } from '../components/SpotlightCard';
+import { MotionNumber } from '../components/MotionNumber';
 import ConfirmDialog from '../components/ConfirmDialog';
 import { useToast } from '../components/Toast';
 import { useNavigate } from 'react-router-dom';
-import { ChevronLeft, ChevronRight, CheckCircle, AlertTriangle, CalendarClock, Shield, X, Save, Edit2, Clock, StickyNote, Briefcase, FileDown, Palmtree, Power, ChevronDown, ChevronUp, Settings2, KeyRound, Trash2, Eye, EyeOff } from 'lucide-react';
+import { ChevronLeft, ChevronRight, CheckCircle, AlertTriangle, CalendarClock, Shield, X, Save, Edit2, Clock, StickyNote, Briefcase, FileDown, Palmtree, Power, ChevronDown, ChevronUp, Settings2, KeyRound, Trash2, Eye, EyeOff, ArrowRight, Activity, Users, Building, Wrench, HardHat, GraduationCap, Archive, HelpCircle } from 'lucide-react';
 import { TimeEntry, UserSettings, UserAbsence, Department } from '../types';
 import BatchExportModal from '../components/BatchExportModal';
+import { DragScrollContainer } from '../components/DragScrollContainer';
 
 const OfficeUserListPage: React.FC = () => {
     const { users, fetchAllUsers, updateOfficeUserSettings } = useOfficeService();
     const { departments, updateDepartment } = useDepartments();
     const navigate = useNavigate();
+    const getDepartmentIcon = (dept: Department, size = 20, className = "") => {
+        if (dept.id === 'unassigned') return <AlertTriangle className={`text-amber-500 ${className}`} size={size} />;
+        
+        const label = (dept.label || '').toLowerCase();
+        if (label.includes('büro')) return <Building className={`text-blue-500 ${className}`} size={size} />;
+        if (label.includes('kundendienst') || label.includes('monteur')) return <Wrench className={`text-emerald-500 ${className}`} size={size} />;
+        if (label.includes('baustelle') || label.includes('montage')) return <HardHat className={`text-orange-500 ${className}`} size={size} />;
+        if (label.includes('azubi') || label.includes('lehrling')) return <GraduationCap className={`text-purple-500 ${className}`} size={size} />;
+        if (label.includes('archiv')) return <Archive className={`text-slate-500 ${className}`} size={size} />;
+        
+        return <Briefcase className={`text-teal-500 ${className}`} size={size} />;
+    };
+
 
     const [selectedDate, setSelectedDate] = useState(new Date());
     const [monthlyEntries, setMonthlyEntries] = useState<TimeEntry[]>([]);
@@ -540,39 +557,152 @@ const OfficeUserListPage: React.FC = () => {
         });
     }, [users, monthlyEntries, monthlyAbsences, pendingRequests]);
 
+
+    // --- BENTO GRID STATS ---
+    const totalUsers = sortedUsers.length;
+    const totalPendingEntries = sortedUsers.reduce((sum, u) => sum + getUserStats(u).pendingCount, 0);
+    const totalPendingVacations = sortedUsers.reduce((sum, u) => sum + getUserStats(u).pendingRequestsCount, 0);
+    
+    const todayStr = getLocalISOString();
+    const absentToday = sortedUsers.reduce((sum, u) => {
+        const isAbsent = monthlyAbsences.some(a => a.user_id === u.user_id && a.start_date <= todayStr && a.end_date >= todayStr);
+        return sum + (isAbsent ? 1 : 0);
+    }, 0);
+
+    const pageVariants: any = {
+        initial: { opacity: 0 },
+        animate: { 
+            opacity: 1, 
+            transition: { duration: 0.6, ease: 'easeOut', staggerChildren: 0.1, when: "beforeChildren" } 
+        },
+        exit: { opacity: 0, transition: { duration: 0.3 } }
+    };
+
+    const containerVariants = {
+        hidden: { opacity: 0 },
+        show: {
+            opacity: 1,
+            transition: { staggerChildren: 0.1, delayChildren: 0.2 }
+        }
+    };
+
     return (
-        <div className="p-6 h-full overflow-y-auto md:max-w-7xl md:mx-auto w-full pb-24">
-
-            {/* Header Area */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
-                <div>
-                    <h1 className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-teal-200 to-emerald-400">
-                        Mitarbeiter Übersicht
-                    </h1>
-                    <p className="text-white/50 text-sm mt-1">Status & Leistungen aller Mitarbeiter</p>
-                </div>
-
-                {/* Controls Group */}
-                <div className="flex flex-col md:flex-row gap-4 w-full md:w-auto">
-                    {/* Month Selector */}
-                    <div className="flex items-center justify-between bg-white/5 border border-white/10 rounded-xl p-1 backdrop-blur-md w-full md:w-auto min-w-[250px]">
-                        <button onClick={prevMonth} className="p-2 hover:bg-white/10 rounded-lg text-white transition-colors">
-                            <ChevronLeft size={20} />
-                        </button>
-                        <span className="font-bold text-white text-lg">
-                            {selectedDate.toLocaleDateString('de-DE', { month: 'long', year: 'numeric' })}
-                        </span>
-                        <button onClick={nextMonth} className="p-2 hover:bg-white/10 rounded-lg text-white transition-colors">
-                            <ChevronRight size={20} />
-                        </button>
-                    </div>
-                </div>
+        <motion.div 
+            className="h-full relative flex flex-col overflow-hidden bg-background"
+            variants={pageVariants}
+            initial="initial"
+            animate="animate"
+            exit="exit"
+        >
+            {/* Animated Background Blobs */}
+            <div className="absolute inset-0 z-0 pointer-events-none overflow-hidden">
+                <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-teal-500/10 rounded-full blur-[120px] animate-blob" />
+                <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-blue-500/10 rounded-full blur-[120px] animate-blob animation-delay-2000" />
             </div>
+
+            <div className="relative z-10 flex-1 overflow-y-auto w-full scrollbar-thin pb-24">
+                <div className="p-4 md:p-6 lg:p-8 max-w-[1600px] mx-auto space-y-8">
+                    
+                    {/* Header Area */}
+                    <div className="relative overflow-hidden bg-card/50 backdrop-blur-sm border border-border rounded-3xl shadow-2xl p-6 md:p-10 flex flex-col md:flex-row gap-6 justify-between items-start md:items-center">
+                        <div className="absolute inset-0 bg-gradient-to-br from-teal-500/10 via-transparent to-transparent pointer-events-none" />
+                        <div className="relative z-10 space-y-1">
+                            <motion.div 
+                                initial={{ opacity: 0, x: -20 }}
+                                animate={{ opacity: 1, x: 0 }}
+                                transition={{ duration: 0.5 }}
+                                className="flex items-center gap-2 text-teal-400 font-bold text-sm uppercase tracking-[0.2em]"
+                            >
+                                <Activity size={16} /> Office Dashboard
+                            </motion.div>
+                            <h1 className="text-3xl md:text-5xl font-black tracking-tight text-foreground">
+                                Mitarbeiter Übersicht
+                            </h1>
+                            <p className="text-muted-foreground text-lg font-medium opacity-80">
+                                Status, Zeiten und Urlaube verwalten.
+                            </p>
+                        </div>
+                        
+                        <div className="relative z-10 flex items-center bg-muted border border-border rounded-2xl p-1.5 backdrop-blur-md">
+                            <button onClick={prevMonth} className="p-3 hover:bg-card rounded-xl text-foreground transition-colors"><ChevronLeft size={24} /></button>
+                            <span className="font-black text-foreground text-xl px-4 min-w-[160px] text-center">
+                                {selectedDate.toLocaleDateString('de-DE', { month: 'long', year: 'numeric' })}
+                            </span>
+                            <button onClick={nextMonth} className="p-3 hover:bg-card rounded-xl text-foreground transition-colors"><ChevronRight size={24} /></button>
+                        </div>
+                    </div>
+
+                    {/* Bento Grid Stats */}
+                    <motion.div variants={containerVariants} initial="hidden" animate="show" className="grid grid-cols-1 md:grid-cols-4 grid-rows-2 gap-4 h-auto md:h-[240px]">
+                        <motion.div 
+                            variants={pageVariants} 
+                            className="md:col-span-2 md:row-span-2 bg-card border border-border rounded-3xl shadow-xl p-8 flex flex-col justify-between group hover:border-teal-500/50 transition-all duration-500 overflow-hidden relative"
+                        >
+                            <div className="absolute top-0 right-0 p-8 opacity-5 group-hover:opacity-10 transition-opacity">
+                                <Users size={120} className="text-teal-400 rotate-12 group-hover:rotate-0 transition-transform duration-700" />
+                            </div>
+                            <div className="relative z-10">
+                                <div className="w-14 h-14 rounded-2xl bg-teal-500/10 flex items-center justify-center text-teal-400 mb-4 shadow-inner">
+                                    <Users size={32} />
+                                </div>
+                                <p className="text-sm text-muted-foreground uppercase tracking-widest font-black">Mitarbeiter gesamt</p>
+                            </div>
+                            <div className="relative z-10 text-7xl font-black text-foreground tracking-tighter">
+                                <MotionNumber value={totalUsers} />
+                            </div>
+                        </motion.div>
+
+                        <motion.div 
+                            variants={pageVariants} 
+                            className="md:col-span-1 bg-card border border-border rounded-3xl shadow-lg p-6 flex flex-col justify-between group hover:border-orange-500/50 transition-all duration-500"
+                        >
+                            <div className="flex items-center justify-between">
+                                <div className="w-12 h-12 rounded-xl bg-orange-500/10 flex items-center justify-center text-orange-400 group-hover:scale-110 transition-transform">
+                                    <AlertTriangle size={24} />
+                                </div>
+                                <div className="text-3xl font-black text-foreground">
+                                    <MotionNumber value={totalPendingEntries} />
+                                </div>
+                            </div>
+                            <p className="text-xs text-muted-foreground uppercase tracking-widest font-black">Zu Bestätigen</p>
+                        </motion.div>
+
+                        <motion.div 
+                            variants={pageVariants} 
+                            className="md:col-span-1 bg-card border border-border rounded-3xl shadow-lg p-6 flex flex-col justify-between group hover:border-purple-500/50 transition-all duration-500"
+                        >
+                            <div className="flex items-center justify-between">
+                                <div className="w-12 h-12 rounded-xl bg-purple-500/10 flex items-center justify-center text-purple-400 group-hover:scale-110 transition-transform">
+                                    <Palmtree size={24} />
+                                </div>
+                                <div className="text-3xl font-black text-foreground">
+                                    <MotionNumber value={totalPendingVacations} />
+                                </div>
+                            </div>
+                            <p className="text-xs text-muted-foreground uppercase tracking-widest font-black">Urlaubsanträge</p>
+                        </motion.div>
+
+                        <motion.div 
+                            variants={pageVariants} 
+                            className="md:col-span-2 bg-card border border-border rounded-3xl shadow-lg p-6 flex items-center gap-6 group hover:border-blue-500/50 transition-all duration-500 overflow-hidden relative"
+                        >
+                            <div className="w-16 h-16 rounded-2xl bg-blue-500/10 flex items-center justify-center text-blue-400 shrink-0 group-hover:rotate-12 transition-transform shadow-inner">
+                                <Shield size={32} />
+                            </div>
+                            <div className="min-w-0 relative z-10">
+                                <div className="text-4xl font-black text-foreground">
+                                    <MotionNumber value={absentToday} />
+                                </div>
+                                <p className="text-xs text-muted-foreground uppercase tracking-widest font-black">Mitarbeiter abwesend heute</p>
+                            </div>
+                        </motion.div>
+                    </motion.div>
+
 
             {/* DEPARTMENT MANAGEMENT (Admin & Responsible) */}
             {(isAdmin || responsibleDepartments.length > 0) && isDeptMgmtOpen && (
                 <div className="mb-8 animate-in slide-in-from-top-4">
-                    <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
+                    <h2 className="text-xl font-bold text-foreground mb-4 flex items-center gap-2">
                         <Briefcase size={20} className="text-teal-400" /> Abteilungs-Verwaltung
                     </h2>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -592,15 +722,15 @@ const OfficeUserListPage: React.FC = () => {
                             return (
                                 <GlassCard key={dept.id} className="!p-0 flex flex-col overflow-hidden border-teal-500/20 bg-teal-900/10 h-full">
                                     {/* Card Header */}
-                                    <div className="bg-white/5 px-4 py-3 border-b border-white/10 flex items-center justify-between">
+                                    <div className="bg-muted px-4 py-3 border-b border-border flex items-center justify-between">
                                         <div className="font-bold text-teal-300 uppercase tracking-wider text-sm flex items-center gap-2">
                                             <Briefcase size={14} />
                                             {dept.label}
                                         </div>
                                         {/* Status Indicators (Mini dots) */}
                                         <div className="flex gap-1.5">
-                                            <div className={`w-2 h-2 rounded-full ${dept.is_substitute_active ? 'bg-teal-500 shadow-[0_0_8px_rgba(20,184,166,0.6)]' : 'bg-white/10'}`} title="Vertretung Status" />
-                                            <div className={`w-2 h-2 rounded-full ${dept.is_retro_substitute_active ? 'bg-orange-500 shadow-[0_0_8px_rgba(249,115,22,0.6)]' : 'bg-white/10'}`} title="Rückwirkend Status" />
+                                            <div className={`w-2 h-2 rounded-full ${dept.is_substitute_active ? 'bg-teal-500 shadow-[0_0_8px_rgba(20,184,166,0.6)]' : 'bg-card'}`} title="Vertretung Status" />
+                                            <div className={`w-2 h-2 rounded-full ${dept.is_retro_substitute_active ? 'bg-orange-500 shadow-[0_0_8px_rgba(249,115,22,0.6)]' : 'bg-card'}`} title="Rückwirkend Status" />
                                         </div>
                                     </div>
 
@@ -609,11 +739,11 @@ const OfficeUserListPage: React.FC = () => {
                                         {/* SECTION 1: MAIN RESPONSIBILITY */}
                                         <div className="space-y-3">
                                             <div>
-                                                <label className="text-[10px] text-white/50 uppercase font-bold block mb-1.5 pl-1">Haupt-Zuständigkeit</label>
+                                                <label className="text-[10px] text-muted-foreground uppercase font-bold block mb-1.5 pl-1">Haupt-Zuständigkeit</label>
                                                 {isAdmin ? (
                                                     <div className="relative">
                                                         <select
-                                                            className="w-full bg-slate-950/40 text-white text-sm rounded-lg border border-white/10 px-3 py-2.5 focus:border-teal-500 focus:bg-slate-950/60 outline-none appearance-none cursor-pointer transition-colors"
+                                                            className="w-full bg-slate-950/40 text-foreground text-sm rounded-lg border border-border px-3 py-2.5 focus:border-teal-500 focus:bg-slate-950/60 outline-none appearance-none cursor-pointer transition-colors"
                                                             value={dept.responsible_user_id || ''}
                                                             onChange={(e) => updateDepartment(dept.id, { responsible_user_id: e.target.value })}
                                                         >
@@ -622,10 +752,10 @@ const OfficeUserListPage: React.FC = () => {
                                                                 <option key={u.user_id} value={u.user_id} className="bg-slate-900 text-slate-200">{u.display_name}</option>
                                                             ))}
                                                         </select>
-                                                        <ChevronDown size={14} className="absolute right-3 top-3 text-white/30 pointer-events-none" />
+                                                        <ChevronDown size={14} className="absolute right-3 top-3 text-muted-foreground pointer-events-none" />
                                                     </div>
                                                 ) : (
-                                                    <div className="text-sm text-white font-medium bg-white/5 px-3 py-2.5 rounded-lg border border-white/5">
+                                                    <div className="text-sm text-foreground font-medium bg-muted px-3 py-2.5 rounded-lg border border-border">
                                                         {users.find(u => u.user_id === dept.responsible_user_id)?.display_name || '-'}
                                                     </div>
                                                 )}
@@ -634,7 +764,7 @@ const OfficeUserListPage: React.FC = () => {
                                             {/* Additional Responsible Users */}
                                             <div>
                                                 <label className="text-[10px] text-teal-300/50 uppercase font-bold block mb-1.5 pl-1">Weitere Zuständige</label>
-                                                <div className="bg-black/20 rounded-lg p-2 border border-white/5 space-y-2">
+                                                <div className="bg-input rounded-lg p-2 border border-border space-y-2">
                                                     {isAdmin ? (
                                                         <>
                                                             <div className="flex flex-wrap gap-2">
@@ -648,7 +778,7 @@ const OfficeUserListPage: React.FC = () => {
                                                                                     const newIds = (dept.additional_responsible_ids || []).filter(existingId => existingId !== id);
                                                                                     updateDepartment(dept.id, { additional_responsible_ids: newIds });
                                                                                 }}
-                                                                                className="hover:bg-teal-500/20 rounded p-0.5 text-teal-400 hover:text-white transition-colors"
+                                                                                className="hover:bg-teal-500/20 rounded p-0.5 text-teal-400 hover:text-foreground transition-colors"
                                                                             >
                                                                                 <X size={12} />
                                                                             </button>
@@ -656,7 +786,7 @@ const OfficeUserListPage: React.FC = () => {
                                                                     );
                                                                 })}
                                                                 {(dept.additional_responsible_ids || []).length === 0 && (
-                                                                    <span className="text-white/20 text-xs italic px-1 py-0.5">Keine weiteren Zuständigen</span>
+                                                                    <span className="text-muted-foreground text-xs italic px-1 py-0.5">Keine weiteren Zuständigen</span>
                                                                 )}
                                                             </div>
                                                             <div className="relative mt-2">
@@ -683,15 +813,15 @@ const OfficeUserListPage: React.FC = () => {
                                                             </div>
                                                         </>
                                                     ) : (
-                                                        <div className="text-xs text-white/80 font-medium flex flex-wrap gap-2">
+                                                        <div className="text-xs text-muted-foreground font-medium flex flex-wrap gap-2">
                                                             {(dept.additional_responsible_ids || []).length > 0 ? (
                                                                 (dept.additional_responsible_ids || []).map(id => (
-                                                                    <span key={id} className="bg-white/10 px-2 py-1 rounded text-xs border border-white/5">
+                                                                    <span key={id} className="bg-card px-2 py-1 rounded text-xs border border-border">
                                                                         {users.find(u => u.user_id === id)?.display_name || '-'}
                                                                     </span>
                                                                 ))
                                                             ) : (
-                                                                <span className="text-white/30 italic px-1">- Keine -</span>
+                                                                <span className="text-muted-foreground italic px-1">- Keine -</span>
                                                             )}
                                                         </div>
                                                     )}
@@ -713,10 +843,10 @@ const OfficeUserListPage: React.FC = () => {
                                                         onClick={() => updateDepartment(dept.id, { is_substitute_active: !dept.is_substitute_active })}
                                                         className={`flex items-center gap-2 px-2 py-1 rounded-full text-[10px] font-bold transition-all border ${dept.is_substitute_active
                                                             ? 'bg-teal-500/20 text-teal-300 border-teal-500/30 hover:bg-teal-500/30'
-                                                            : 'bg-white/5 text-white/40 border-white/5 hover:bg-white/10'}`}
+                                                            : 'bg-muted text-muted-foreground border-border hover:bg-card'}`}
                                                     >
                                                         <span>{dept.is_substitute_active ? 'AKTIV' : 'INAKTIV'}</span>
-                                                        <div className={`w-2 h-2 rounded-full ${dept.is_substitute_active ? 'bg-teal-400 shadow-[0_0_5px_currentColor]' : 'bg-white/20'}`} />
+                                                        <div className={`w-2 h-2 rounded-full ${dept.is_substitute_active ? 'bg-teal-400 shadow-[0_0_5px_currentColor]' : 'bg-accent'}`} />
                                                     </button>
                                                 )}
                                             </div>
@@ -724,7 +854,7 @@ const OfficeUserListPage: React.FC = () => {
                                             {canManageSubstitute ? (
                                                 <div className="relative">
                                                     <select
-                                                        className="w-full bg-slate-950/40 text-white text-xs rounded-lg border border-teal-500/10 px-2 py-2 focus:border-teal-500 focus:bg-slate-950/60 outline-none appearance-none cursor-pointer transition-colors"
+                                                        className="w-full bg-slate-950/40 text-foreground text-xs rounded-lg border border-teal-500/10 px-2 py-2 focus:border-teal-500 focus:bg-slate-950/60 outline-none appearance-none cursor-pointer transition-colors"
                                                         value={dept.substitute_user_id || ''}
                                                         onChange={(e) => updateDepartment(dept.id, { substitute_user_id: e.target.value })}
                                                     >
@@ -733,11 +863,11 @@ const OfficeUserListPage: React.FC = () => {
                                                             <option key={u.user_id} value={u.user_id} className="bg-slate-900 text-slate-200">{u.display_name}</option>
                                                         ))}
                                                     </select>
-                                                    <ChevronDown size={12} className="absolute right-2.5 top-2.5 text-white/30 pointer-events-none" />
+                                                    <ChevronDown size={12} className="absolute right-2.5 top-2.5 text-muted-foreground pointer-events-none" />
                                                 </div>
                                             ) : (
-                                                <div className="text-xs text-white bg-black/20 px-2 py-2 rounded-lg border border-white/5">
-                                                    {users.find(u => u.user_id === dept.substitute_user_id)?.display_name || <span className="text-white/30 italic">- Keine -</span>}
+                                                <div className="text-xs text-foreground bg-input px-2 py-2 rounded-lg border border-border">
+                                                    {users.find(u => u.user_id === dept.substitute_user_id)?.display_name || <span className="text-muted-foreground italic">- Keine -</span>}
                                                 </div>
                                             )}
                                         </div>
@@ -753,10 +883,10 @@ const OfficeUserListPage: React.FC = () => {
                                                         onClick={() => updateDepartment(dept.id, { is_retro_substitute_active: !dept.is_retro_substitute_active })}
                                                         className={`flex items-center gap-2 px-2 py-1 rounded-full text-[10px] font-bold transition-all border ${dept.is_retro_substitute_active
                                                             ? 'bg-orange-500/20 text-orange-300 border-orange-500/30 hover:bg-orange-500/30'
-                                                            : 'bg-white/5 text-white/40 border-white/5 hover:bg-white/10'}`}
+                                                            : 'bg-muted text-muted-foreground border-border hover:bg-card'}`}
                                                     >
                                                         <span>{dept.is_retro_substitute_active ? 'AKTIV' : 'INAKTIV'}</span>
-                                                        <div className={`w-2 h-2 rounded-full ${dept.is_retro_substitute_active ? 'bg-orange-400 shadow-[0_0_5px_currentColor]' : 'bg-white/20'}`} />
+                                                        <div className={`w-2 h-2 rounded-full ${dept.is_retro_substitute_active ? 'bg-orange-400 shadow-[0_0_5px_currentColor]' : 'bg-accent'}`} />
                                                     </button>
                                                 )}
                                             </div>
@@ -764,7 +894,7 @@ const OfficeUserListPage: React.FC = () => {
                                             <div className="grid grid-cols-2 gap-2">
                                                 {/* Chef Retro */}
                                                 <div>
-                                                    <label className="text-[9px] text-white/30 uppercase font-bold block mb-1 ml-1">Chef</label>
+                                                    <label className="text-[9px] text-muted-foreground uppercase font-bold block mb-1 ml-1">Chef</label>
                                                     {canManageRetro ? (
                                                         <div className="relative">
                                                             <select
@@ -779,7 +909,7 @@ const OfficeUserListPage: React.FC = () => {
                                                             </select>
                                                         </div>
                                                     ) : (
-                                                        <div className="text-[11px] text-orange-200 bg-black/20 p-1.5 rounded-lg border border-white/5 truncate">
+                                                        <div className="text-[11px] text-orange-200 bg-input p-1.5 rounded-lg border border-border truncate">
                                                             {users.find(u => u.user_id === dept.retro_responsible_user_id)?.display_name || '(Std)'}
                                                         </div>
                                                     )}
@@ -787,7 +917,7 @@ const OfficeUserListPage: React.FC = () => {
 
                                                 {/* Substitute Retro */}
                                                 <div>
-                                                    <label className="text-[9px] text-white/30 uppercase font-bold block mb-1 ml-1">Vertr.</label>
+                                                    <label className="text-[9px] text-muted-foreground uppercase font-bold block mb-1 ml-1">Vertr.</label>
                                                     {canManageRetro ? (
                                                         <div className="relative">
                                                             <select
@@ -802,7 +932,7 @@ const OfficeUserListPage: React.FC = () => {
                                                             </select>
                                                         </div>
                                                     ) : (
-                                                        <div className="text-[11px] text-orange-200 bg-black/20 p-1.5 rounded-lg border border-white/5 truncate">
+                                                        <div className="text-[11px] text-orange-200 bg-input p-1.5 rounded-lg border border-border truncate">
                                                             {users.find(u => u.user_id === dept.retro_substitute_user_id)?.display_name || '(Std)'}
                                                         </div>
                                                     )}
@@ -824,7 +954,7 @@ const OfficeUserListPage: React.FC = () => {
                     <div className="w-8 h-8 border-2 border-teal-500 border-t-transparent rounded-full animate-spin"></div>
                 </div>
             ) : (
-                <div className="space-y-8 pb-12">
+                <DragScrollContainer className="flex gap-6 pb-12 pt-4 overflow-x-auto min-h-[60vh] snap-x snap-mandatory items-start scrollbar-thin scrollbar-thumb-teal-500/20 scrollbar-track-transparent">
                     {[...departments, { id: 'unassigned', label: 'Nicht zugewiesen' } as Department].map(dept => {
                         const deptUsers = sortedUsers.filter(u => {
                             if (dept.id === 'unassigned') return !u.department_id;
@@ -835,26 +965,45 @@ const OfficeUserListPage: React.FC = () => {
                         const isOpen = openGroups.includes(dept.id);
 
                         return (
-                            <div key={dept.id} className="animate-in fade-in slide-in-from-bottom-4">
+                            <div key={dept.id} className={`animate-in fade-in slide-in-from-bottom-4 flex flex-col shrink-0 transition-all duration-500 ease-in-out snap-start h-full ${isOpen ? 'w-[400px]' : 'w-[72px]'}`}>
                                 {/* Group Header */}
                                 <div
                                     onClick={() => toggleGroup(dept.id)}
-                                    className="flex items-center gap-3 mb-4 cursor-pointer group select-none"
+                                    title={!isOpen ? dept.label : undefined}
+                                    className={`flex cursor-pointer group select-none rounded-2xl border transition-all duration-500 ease-in-out sticky top-0 z-20 backdrop-blur-md shadow-sm overflow-hidden ${isOpen ? 'items-center justify-between p-4 bg-card/80 border-teal-500/30 mb-4' : 'flex-col items-center py-4 px-2 gap-3 bg-muted/80 border-border hover:bg-muted hover:border-teal-500/30'}`}
                                 >
-                                    <div className={`p-2 rounded-lg transition-colors ${isOpen ? 'bg-teal-500/20 text-teal-400' : 'bg-white/5 text-white/50 group-hover:bg-white/10 group-hover:text-white'}`}>
-                                        {isOpen ? <ChevronDown size={20} /> : <ChevronRight size={20} />}
-                                    </div>
-                                    <span className="text-xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-white to-white/60 group-hover:to-teal-200 transition-all">
-                                        {dept.label}
-                                    </span>
-                                    <span className="text-xs font-bold text-white/30 bg-white/5 px-2 py-0.5 rounded-full">
-                                        {deptUsers.length}
-                                    </span>
-                                    <div className="h-px flex-1 bg-gradient-to-r from-white/10 to-transparent ml-4" />
+                                    {isOpen ? (
+                                        <>
+                                            <h2 className={`text-lg font-black flex items-center gap-2 transition-colors text-teal-400 min-w-0`}>
+                                                <div className={`transition-transform duration-200 rotate-90 text-teal-400 shrink-0`}>
+                                                    <ChevronRight size={20} />
+                                                </div>
+                                                <div className="shrink-0">
+                                                    {getDepartmentIcon(dept)}
+                                                </div>
+                                                <span className="truncate">{dept.label}</span>
+                                            </h2>
+                                            <div className="text-sm font-black px-3 py-1 rounded-xl border bg-teal-500/20 text-teal-400 border-teal-500/30 shrink-0">
+                                                {deptUsers.length}
+                                            </div>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <div className="transition-transform duration-200 text-muted-foreground group-hover:text-teal-400 shrink-0">
+                                                <ChevronRight size={20} />
+                                            </div>
+                                            <div className="shrink-0 text-muted-foreground group-hover:text-teal-500 transition-colors">
+                                                {getDepartmentIcon(dept, 20, "group-hover:opacity-80 transition-opacity")}
+                                            </div>
+                                            <div className="text-xs font-black px-2 py-0.5 rounded-lg border bg-background text-muted-foreground border-border group-hover:border-teal-500/30 group-hover:text-teal-400 transition-colors mt-1 shrink-0">
+                                                {deptUsers.length}
+                                            </div>
+                                        </>
+                                    )}
                                 </div>
 
                                 {isOpen && (
-                                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                                    <DragScrollContainer className="flex flex-col gap-4 overflow-y-auto h-full scrollbar-thin scrollbar-thumb-teal-500/10 scrollbar-track-transparent pb-4 pr-1">
                                         {deptUsers.map(user => {
                                             const stats = getUserStats(user);
                                             const progressPercent = Math.min(100, (stats.actualHours / (stats.targetHours || 1)) * 100);
@@ -868,10 +1017,10 @@ const OfficeUserListPage: React.FC = () => {
                                             const cardOpacity = isResponsibleForUser ? 'opacity-100' : 'opacity-50 hover:opacity-100';
 
                                             return (
-                                                <GlassCard
+                                                <SpotlightCard
                                                     key={user.user_id}
                                                     onClick={() => navigate(`/office/user/${user.user_id}`)}
-                                                    className={`group cursor-pointer hover:border-teal-500/30 transition-all duration-300 relative overflow-hidden flex flex-col pt-4 ${cardOpacity}`}
+                                                    className={`bg-card border border-border rounded-xl shadow-sm cursor-pointer hover:shadow-md hover:border-teal-500/30 transition-all duration-300 relative flex flex-col pt-4 ${cardOpacity}`}
                                                 >
                                                     {/* Card Header (Dept & Role) */}
                                                     <div className="flex justify-between items-start mb-4 relative z-10">
@@ -879,7 +1028,7 @@ const OfficeUserListPage: React.FC = () => {
                                                         <div onClick={e => e.stopPropagation()}>
                                                             {isAdmin && (
                                                                 <select
-                                                                    className="bg-black/40 text-white/70 hover:text-white text-[10px] rounded border border-white/10 p-1 backdrop-blur-sm outline-none focus:border-teal-500 uppercase font-bold tracking-wider max-w-[100px]"
+                                                                    className="bg-input text-muted-foreground hover:text-foreground text-[10px] rounded border border-border p-1 backdrop-blur-sm outline-none focus:border-teal-500 uppercase font-bold tracking-wider max-w-[100px]"
                                                                     value={user.department_id || ''}
                                                                     onChange={(e) => updateOfficeUserSettings(user.user_id!, { department_id: e.target.value })}
                                                                     title="Abteilung zuweisen"
@@ -951,18 +1100,18 @@ const OfficeUserListPage: React.FC = () => {
                                                     </div>
 
                                                     <div className="flex items-center gap-4 mb-6">
-                                                        <div className="w-14 h-14 rounded-full bg-gradient-to-br from-gray-700 to-gray-900 border border-white/10 flex items-center justify-center text-xl font-bold text-white shadow-lg group-hover:scale-105 transition-transform">
+                                                        <div className="w-14 h-14 rounded-full bg-gradient-to-br from-gray-700 to-gray-900 border border-border flex items-center justify-center text-xl font-bold text-foreground shadow-lg group-hover:scale-105 transition-transform">
                                                             {user.display_name.charAt(0)}
                                                         </div>
                                                         <div>
-                                                            <h3 className="font-bold text-white text-lg leading-tight">{user.display_name}</h3>
+                                                            <h3 className="font-bold text-foreground text-lg leading-tight">{user.display_name}</h3>
                                                             <div className="flex items-center gap-2 mt-1">
                                                                 {stats.lastSubmittedDate ? (
                                                                     <span className="text-xs text-emerald-400 flex items-center gap-1 bg-emerald-900/20 px-1.5 py-0.5 rounded">
                                                                         <CheckCircle size={10} /> Abgabe: {stats.lastSubmittedDate}
                                                                     </span>
                                                                 ) : (
-                                                                    <span className="text-xs text-white/30 flex items-center gap-1">
+                                                                    <span className="text-xs text-muted-foreground flex items-center gap-1">
                                                                         <CalendarClock size={10} /> Keine Abgabe
                                                                     </span>
                                                                 )}
@@ -994,16 +1143,16 @@ const OfficeUserListPage: React.FC = () => {
                                                         ) : (
                                                             <>
                                                                 <div className="flex justify-between items-end mb-2">
-                                                                    <span className="text-xs text-white/50 font-bold uppercase tracking-wider">Monatsziel</span>
+                                                                    <span className="text-xs text-muted-foreground font-bold uppercase tracking-wider">Monatsziel</span>
                                                                     <div className="text-right">
-                                                                        <span className={`font-mono font-bold text-lg ${stats.actualHours >= stats.targetHours ? 'text-emerald-300' : 'text-white'}`}>
+                                                                        <span className={`font-mono font-bold text-lg ${stats.actualHours >= stats.targetHours ? 'text-emerald-300' : 'text-foreground'}`}>
                                                                             {stats.actualHours.toFixed(2)}
                                                                         </span>
-                                                                        <span className="text-white/40 text-sm font-mono"> / {stats.targetHours.toFixed(0)} h</span>
+                                                                        <span className="text-muted-foreground text-sm font-mono"> / {stats.targetHours.toFixed(0)} h</span>
                                                                     </div>
                                                                 </div>
 
-                                                                <div className="h-2 w-full bg-white/5 rounded-full overflow-hidden">
+                                                                <div className="h-2 w-full bg-muted rounded-full overflow-hidden">
                                                                     <div
                                                                         className={`h-full rounded-full transition-all duration-1000 ease-out ${progressPercent >= 100 ? 'bg-gradient-to-r from-emerald-500 to-teal-400' : 'bg-gradient-to-r from-blue-500 to-cyan-400'
                                                                             }`}
@@ -1015,7 +1164,7 @@ const OfficeUserListPage: React.FC = () => {
                                                     </div>
 
                                                     {/* Footer Stats / Alerts */}
-                                                    <div className="flex items-center justify-between border-t border-white/5 pt-4 mt-auto">
+                                                    <div className="border-t border-border p-3 bg-muted/30 flex items-center justify-between gap-2 mt-auto rounded-b-xl relative z-20">
                                                         {stats.pendingCount > 0 ? (
                                                             <div className="w-full space-y-2">
                                                                 <div className="flex items-center gap-2 text-orange-400 text-xs font-bold uppercase tracking-wider mb-1">
@@ -1045,7 +1194,7 @@ const OfficeUserListPage: React.FC = () => {
                                                                                     </div>
                                                                                 )}
                                                                                 {entry.note && (
-                                                                                    <div className="text-[10px] text-white/50 truncate italic mt-0.5" title={entry.note}>
+                                                                                    <div className="text-[10px] text-muted-foreground truncate italic mt-0.5" title={entry.note}>
                                                                                         {entry.note}
                                                                                     </div>
                                                                                 )}
@@ -1055,7 +1204,7 @@ const OfficeUserListPage: React.FC = () => {
                                                                                     e.stopPropagation();
                                                                                     handleConfirmEntry(entry.id);
                                                                                 }}
-                                                                                className="p-1.5 bg-emerald-500/20 hover:bg-emerald-500 text-emerald-400 hover:text-white rounded transition-colors"
+                                                                                className="p-1.5 bg-emerald-500/20 hover:bg-emerald-500 text-emerald-400 hover:text-foreground rounded transition-colors"
                                                                                 title="Bestätigen"
                                                                             >
                                                                                 <CheckCircle size={14} />
@@ -1073,45 +1222,45 @@ const OfficeUserListPage: React.FC = () => {
                                                                 </div>
                                                             </div>
                                                         ) : (
-                                                            <div className="flex items-center gap-2 text-white/30">
+                                                            <div className="flex items-center gap-2 text-muted-foreground">
                                                                 <CheckCircle size={18} />
                                                                 <span className="text-sm">Alles erledigt</span>
                                                             </div>
                                                         )}
 
-                                                        <div className="text-xs text-teal-400 font-bold uppercase tracking-wider group-hover:underline">
-                                                            Details &rarr;
+                                                        <div className="text-xs text-teal-400 font-bold uppercase tracking-wider group-hover:translate-x-1 transition-transform">
+                                                            Details <ArrowRight size={14} className="inline ml-1" />
                                                         </div>
                                                     </div>
-                                                </GlassCard>
+                                                </SpotlightCard>
                                             );
                                         })}
-                                    </div>
+                                    </DragScrollContainer>
                                 )}
                             </div>
                         );
                     })}
-                </div>
+                </DragScrollContainer>
             )}
 
             {/* QUICK REVIEW MODAL */}
             {reviewingUser && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
-                    <GlassCard className="w-full max-w-2xl max-h-[90vh] flex flex-col !p-0 overflow-hidden shadow-2xl border-white/20">
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-input backdrop-blur-md animate-in fade-in duration-200">
+                    <GlassCard className="w-full max-w-2xl max-h-[90vh] flex flex-col !p-0 overflow-hidden shadow-2xl border-border">
                         {/* Modal Header */}
-                        <div className="p-4 bg-gradient-to-r from-gray-900 to-gray-800 border-b border-white/10 flex justify-between items-center">
+                        <div className="p-4 bg-gradient-to-r from-gray-900 to-gray-800 border-b border-border flex justify-between items-center">
                             <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-teal-500 to-emerald-600 flex items-center justify-center font-bold text-white shadow-lg">
+                                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-teal-500 to-emerald-600 flex items-center justify-center font-bold text-foreground shadow-lg">
                                     {reviewingUser.display_name.charAt(0)}
                                 </div>
                                 <div>
-                                    <h3 className="font-bold text-white text-lg">{reviewingUser.display_name}</h3>
+                                    <h3 className="font-bold text-foreground text-lg">{reviewingUser.display_name}</h3>
                                     <p className="text-orange-300 text-xs font-bold uppercase tracking-wider">
                                         {entriesToReview.length} Bestätigungen offen
                                     </p>
                                 </div>
                             </div>
-                            <button onClick={() => setReviewingUser(null)} className="p-2 hover:bg-white/10 rounded-full text-white/50 hover:text-white transition-colors">
+                            <button onClick={() => setReviewingUser(null)} className="p-2 hover:bg-card rounded-full text-muted-foreground hover:text-foreground transition-colors">
                                 <X size={24} />
                             </button>
                         </div>
@@ -1123,29 +1272,29 @@ const OfficeUserListPage: React.FC = () => {
                                 const dateObj = new Date(entry.date);
 
                                 return (
-                                    <div key={entry.id} className="bg-white/5 border border-white/10 rounded-xl p-3 hover:bg-white/10 transition-colors">
+                                    <div key={entry.id} className="bg-muted border border-border rounded-xl p-3 hover:bg-card transition-colors">
                                         {isEditing ? (
                                             <div className="space-y-3">
-                                                <div className="flex justify-between items-center border-b border-white/5 pb-2 mb-2">
-                                                    <span className="text-sm font-bold text-white/70">{dateObj.toLocaleDateString('de-DE')}</span>
+                                                <div className="flex justify-between items-center border-b border-border pb-2 mb-2">
+                                                    <span className="text-sm font-bold text-muted-foreground">{dateObj.toLocaleDateString('de-DE')}</span>
                                                     <span className="text-xs uppercase font-bold text-teal-400">{entry.type}</span>
                                                 </div>
                                                 <div className="grid grid-cols-3 gap-2">
                                                     <div>
-                                                        <label className="text-[10px] uppercase font-bold text-white/40 block mb-1">Von</label>
+                                                        <label className="text-[10px] uppercase font-bold text-muted-foreground block mb-1">Von</label>
                                                         <GlassInput type="time" value={editForm.start} onChange={e => setEditForm({ ...editForm, start: e.target.value })} className="!py-1.5 !text-sm text-center" />
                                                     </div>
                                                     <div>
-                                                        <label className="text-[10px] uppercase font-bold text-white/40 block mb-1">Bis</label>
+                                                        <label className="text-[10px] uppercase font-bold text-muted-foreground block mb-1">Bis</label>
                                                         <GlassInput type="time" value={editForm.end} onChange={e => setEditForm({ ...editForm, end: e.target.value })} className="!py-1.5 !text-sm text-center" />
                                                     </div>
                                                     <div>
-                                                        <label className="text-[10px] uppercase font-bold text-white/40 block mb-1">Stunden</label>
+                                                        <label className="text-[10px] uppercase font-bold text-muted-foreground block mb-1">Stunden</label>
                                                         <GlassInput type="number" value={editForm.hours} onChange={e => setEditForm({ ...editForm, hours: e.target.value })} className="!py-1.5 !text-sm text-center" />
                                                     </div>
                                                 </div>
                                                 <div>
-                                                    <label className="text-[10px] uppercase font-bold text-white/40 block mb-1">Notiz</label>
+                                                    <label className="text-[10px] uppercase font-bold text-muted-foreground block mb-1">Notiz</label>
                                                     <GlassInput type="text" value={editForm.note} onChange={e => setEditForm({ ...editForm, note: e.target.value })} className="!py-1.5 !text-sm" />
                                                 </div>
                                                 <div>
@@ -1153,30 +1302,30 @@ const OfficeUserListPage: React.FC = () => {
                                                     <GlassInput type="text" value={editForm.reason} onChange={e => setEditForm({ ...editForm, reason: e.target.value })} className="!py-1.5 !text-sm border-orange-500/30 bg-orange-500/10 placeholder-orange-300/30" placeholder="Warum wird geändert?" />
                                                 </div>
                                                 <div className="flex justify-end gap-2 pt-1">
-                                                    <button onClick={() => setEditingEntryId(null)} className="px-3 py-1.5 rounded text-xs font-bold text-white/50 hover:text-white hover:bg-white/10">Abbrechen</button>
-                                                    <button onClick={() => handleSaveEdit(entry.id)} className="px-3 py-1.5 rounded bg-teal-500 text-white text-xs font-bold flex items-center gap-1 hover:bg-teal-400"><Save size={14} /> Speichern</button>
+                                                    <button onClick={() => setEditingEntryId(null)} className="px-3 py-1.5 rounded text-xs font-bold text-muted-foreground hover:text-foreground hover:bg-card">Abbrechen</button>
+                                                    <button onClick={() => handleSaveEdit(entry.id)} className="px-3 py-1.5 rounded bg-teal-500 text-foreground text-xs font-bold flex items-center gap-1 hover:bg-teal-400"><Save size={14} /> Speichern</button>
                                                 </div>
                                             </div>
                                         ) : (
                                             <div className="flex justify-between items-center gap-2">
                                                 <div className="flex-1 min-w-0">
                                                     <div className="flex items-center gap-2 mb-1">
-                                                        <span className="text-sm font-bold text-white">{dateObj.toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit' })}</span>
-                                                        <span className="text-[10px] bg-white/10 px-1.5 py-0.5 rounded text-white/60 uppercase font-bold">{entry.type === 'company' ? 'Firma' : entry.type === 'car' ? 'Auto' : entry.type === 'office' ? 'Büro' : entry.type === 'overtime_reduction' ? 'Abbau' : 'Lager'}</span>
+                                                        <span className="text-sm font-bold text-foreground">{dateObj.toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit' })}</span>
+                                                        <span className="text-[10px] bg-card px-1.5 py-0.5 rounded text-muted-foreground uppercase font-bold">{entry.type === 'company' ? 'Firma' : entry.type === 'car' ? 'Auto' : entry.type === 'office' ? 'Büro' : entry.type === 'overtime_reduction' ? 'Abbau' : 'Lager'}</span>
                                                     </div>
-                                                    <div className="flex items-center gap-2 text-xs text-white/50">
+                                                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
                                                         <Clock size={12} />
                                                         <span>{entry.start_time} - {entry.end_time}</span>
                                                         <span className="font-bold text-teal-300">({entry.hours}h)</span>
                                                     </div>
                                                     {entry.note && (
-                                                        <div className="flex items-center gap-1 text-[10px] text-white/30 mt-1 truncate">
+                                                        <div className="flex items-center gap-1 text-[10px] text-muted-foreground mt-1 truncate">
                                                             <StickyNote size={10} /> {entry.note}
                                                         </div>
                                                     )}
                                                 </div>
                                                 <div className="flex items-center gap-1">
-                                                    <button onClick={() => handleEditClick(entry)} className="p-2 hover:bg-white/10 rounded-lg text-white/50 hover:text-white transition-colors"><Edit2 size={16} /></button>
+                                                    <button onClick={() => handleEditClick(entry)} className="p-2 hover:bg-card rounded-lg text-muted-foreground hover:text-foreground transition-colors"><Edit2 size={16} /></button>
                                                     <button onClick={() => handleConfirmEntry(entry.id)} className="p-2 bg-teal-500/20 hover:bg-teal-500/40 text-teal-400 rounded-lg transition-colors" title="Bestätigen">
                                                         <CheckCircle size={20} />
                                                     </button>
@@ -1209,24 +1358,24 @@ const OfficeUserListPage: React.FC = () => {
 
             {/* ADMIN USER MANAGEMENT MODAL */}
             {managingUser && adminAction && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-input backdrop-blur-md animate-in fade-in duration-200">
                     <GlassCard className="w-full max-w-md !p-0 overflow-hidden shadow-2xl ring-1 ring-white/20">
                         {/* Header */}
-                        <div className={`p-5 border-b border-white/10 ${adminAction === 'delete' ? 'bg-gradient-to-b from-red-900/30 to-transparent' : 'bg-gradient-to-b from-amber-900/20 to-transparent'}`}>
+                        <div className={`p-5 border-b border-border ${adminAction === 'delete' ? 'bg-gradient-to-b from-red-900/30 to-transparent' : 'bg-gradient-to-b from-amber-900/20 to-transparent'}`}>
                             <div className="flex justify-between items-start">
                                 <div className="flex items-center gap-3">
-                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center text-lg font-bold text-white shadow-lg ${adminAction === 'delete' ? 'bg-gradient-to-br from-red-600 to-red-800' : 'bg-gradient-to-br from-amber-500 to-amber-700'
+                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center text-lg font-bold text-foreground shadow-lg ${adminAction === 'delete' ? 'bg-gradient-to-br from-red-600 to-red-800' : 'bg-gradient-to-br from-amber-500 to-amber-700'
                                         }`}>
                                         {managingUser.display_name.charAt(0)}
                                     </div>
                                     <div>
-                                        <h3 className="text-lg font-bold text-white">{managingUser.display_name}</h3>
+                                        <h3 className="text-lg font-bold text-foreground">{managingUser.display_name}</h3>
                                         <p className={`text-xs font-bold uppercase tracking-wider ${adminAction === 'delete' ? 'text-red-300' : 'text-amber-300'}`}>
                                             {adminAction === 'password' ? 'Passwort ändern' : 'Benutzer löschen'}
                                         </p>
                                     </div>
                                 </div>
-                                <button onClick={closeUserManagement} className="text-white/50 hover:text-white p-1 hover:bg-white/10 rounded-full transition-colors">
+                                <button onClick={closeUserManagement} className="text-muted-foreground hover:text-foreground p-1 hover:bg-card rounded-full transition-colors">
                                     <X size={20} />
                                 </button>
                             </div>
@@ -1236,11 +1385,11 @@ const OfficeUserListPage: React.FC = () => {
                         <div className="p-5">
                             {adminAction === 'password' && (
                                 <div className="space-y-4">
-                                    <p className="text-sm text-white/60">
-                                        Setze ein neues Passwort für <span className="font-bold text-white">{managingUser.display_name}</span>.
+                                    <p className="text-sm text-muted-foreground">
+                                        Setze ein neues Passwort für <span className="font-bold text-foreground">{managingUser.display_name}</span>.
                                     </p>
                                     <div>
-                                        <label className="text-xs font-bold text-white/50 uppercase tracking-wider block mb-2">Neues Passwort</label>
+                                        <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider block mb-2">Neues Passwort</label>
                                         <div className="relative">
                                             <GlassInput
                                                 type={showPassword ? 'text' : 'password'}
@@ -1252,7 +1401,7 @@ const OfficeUserListPage: React.FC = () => {
                                             <button
                                                 type="button"
                                                 onClick={() => setShowPassword(!showPassword)}
-                                                className="absolute right-3 top-1/2 -translate-y-1/2 text-white/30 hover:text-white transition-colors"
+                                                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
                                             >
                                                 {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                                             </button>
@@ -1266,7 +1415,7 @@ const OfficeUserListPage: React.FC = () => {
                                     <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4">
                                         <p className="text-sm text-red-200 font-bold mb-2">⚠️ Achtung:</p>
                                         <p className="text-sm text-red-200/80">
-                                            Diese Aktion löscht den Benutzer <span className="font-bold text-white">{managingUser.display_name}</span> <strong>unwiderruflich</strong> aus dem System.
+                                            Diese Aktion löscht den Benutzer <span className="font-bold text-foreground">{managingUser.display_name}</span> <strong>unwiderruflich</strong> aus dem System.
                                             Alle Anmeldedaten werden entfernt.
                                         </p>
                                     </div>
@@ -1306,10 +1455,10 @@ const OfficeUserListPage: React.FC = () => {
                         </div>
 
                         {/* Footer */}
-                        <div className="p-4 bg-black/20 flex justify-end gap-3 border-t border-white/5">
+                        <div className="p-4 bg-input flex justify-end gap-3 border-t border-border">
                             <button
                                 onClick={closeUserManagement}
-                                className="px-4 py-2 rounded-xl text-sm font-bold text-white/50 hover:text-white hover:bg-white/5 transition-colors"
+                                className="px-4 py-2 rounded-xl text-sm font-bold text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
                             >
                                 Abbrechen
                             </button>
@@ -1336,6 +1485,9 @@ const OfficeUserListPage: React.FC = () => {
                 </div>
             )}
 
+                </div>
+            </div>
+            
             <ConfirmDialog
                 isOpen={confirmDialog.isOpen}
                 title={confirmDialog.title}
@@ -1344,7 +1496,7 @@ const OfficeUserListPage: React.FC = () => {
                 onCancel={() => setConfirmDialog(p => ({ ...p, isOpen: false }))}
                 variant="warning"
             />
-        </div>
+        </motion.div>
     );
 };
 
