@@ -698,7 +698,7 @@ const OfficeDashboard: React.FC = () => {
                                                                         <span className="text-xs text-muted-foreground">Antrag vom {new Date(req.created_at).toLocaleDateString('de-DE')}</span>
                                                                         <div className="flex gap-3">
                                                                             <button
-                                                                                onClick={() => generateVacationRequestPDF(req, requester || null, [], currentUser)}
+                                                                                onClick={() => generateVacationRequestPDF(req, requester || null, undefined, currentUser)}
                                                                                 className="text-xs text-blue-400 font-bold hover:underline flex items-center gap-1"
                                                                             >
                                                                                 <Printer size={12} /> Drucken

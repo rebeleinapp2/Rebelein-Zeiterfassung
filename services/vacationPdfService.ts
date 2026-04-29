@@ -36,24 +36,30 @@ export const generateVacationRequestPDF = async (
     const reqDate = new Date(request.start_date);
     const reqYear = reqDate.getFullYear();
 
-    // Fetch user settings if not provided
-    let settings = viewerSettings;
-    if (!settings) {
+    // Fetch employee settings
+    let employeeSettings: any = userProfile; // Try to use provided userProfile if it contains settings
+    if (!employeeSettings || !('vacation_days_yearly' in employeeSettings)) {
         const { data } = await supabase.from('user_settings').select('*').eq('user_id', request.user_id).maybeSingle();
-        settings = data || { vacation_days_yearly: 30, vacation_days_carryover: 0 };
+        employeeSettings = data || { vacation_days_yearly: 30, vacation_days_carryover: 0 };
     }
 
-    let yearlyQuota = settings.vacation_days_yearly || 30;
+    let yearlyQuota = employeeSettings.vacation_days_yearly || 30;
     // Fetch specific year quota (async)
-    const { data: qData } = await supabase.from('yearly_vacation_quotas').select('total_days').eq('user_id', request.user_id).eq('year', reqYear).maybeSingle();
-    if (qData) yearlyQuota = qData.total_days;
+    const { data: qData } = await supabase.from('yearly_vacation_quotas').select('total_days, manual_carryover').eq('user_id', request.user_id).eq('year', reqYear).maybeSingle();
+    
+    let carryOver = employeeSettings.vacation_days_carryover || 0;
+    if (qData) {
+        yearlyQuota = qData.total_days;
+        if (qData.manual_carryover !== undefined && qData.manual_carryover !== null) {
+            carryOver = qData.manual_carryover;
+        }
+    }
 
-    const carryOver = settings.vacation_days_carryover || 0;
     const totalAvailable = yearlyQuota + carryOver;
 
     // Fetch all requests for this year if not provided
     let yearRequests = allUserRequests;
-    if (!yearRequests) {
+    if (!yearRequests || yearRequests.length === 0) {
         const { data } = await supabase.from('vacation_requests').select('*').eq('user_id', request.user_id).neq('status', 'rejected');
         yearRequests = data || [];
     }
