@@ -59,7 +59,7 @@ export default defineConfig({
     }
   },
   define: {
-    'process.env.APP_VERSION': JSON.stringify("1.1.41"),
+    'process.env.APP_VERSION': JSON.stringify("1.1.43"),
   },
   server: {
     port: 3002,

@@ -7,9 +7,10 @@ import { useNavigate } from 'react-router-dom';
 import {
     Activity, ArrowRight, CheckCircle, Clock, FileText,
     LayoutDashboard, UserCheck, Shield, ChevronRight, AlertTriangle,
-    Palmtree, Briefcase, Truck, Home, Calculator, X, MessageCircle, Hash, ChevronDown, Search, Download, Settings
+    Palmtree, Briefcase, Truck, Home, Calculator, X, MessageCircle, Hash, ChevronDown, Search, Download, Settings, Printer
 } from 'lucide-react';
 import { generateSearchReport } from '../services/pdfExportService';
+import { generateVacationRequestPDF } from '../services/vacationPdfService';
 import { TimeEntry, UserSettings, UserAbsence, VacationRequest } from '../types';
 import EmergencyCalendar from '../components/EmergencyCalendar';
 import { useToast } from '../components/Toast';
@@ -695,12 +696,20 @@ const OfficeDashboard: React.FC = () => {
                                                                 <div key={req.id} className="bg-input rounded-lg p-3 hover:bg-input transition-colors cursor-default" onClick={(e) => e.stopPropagation()}>
                                                                     <div className="flex justify-between items-center mb-2">
                                                                         <span className="text-xs text-muted-foreground">Antrag vom {new Date(req.created_at).toLocaleDateString('de-DE')}</span>
-                                                                        <button
-                                                                            onClick={() => navigate(`/office/user/${req.user_id}`)}
-                                                                            className="text-xs text-purple-400 font-bold hover:underline flex items-center gap-1"
-                                                                        >
-                                                                            Bearbeiten <ChevronRight size={12} />
-                                                                        </button>
+                                                                        <div className="flex gap-3">
+                                                                            <button
+                                                                                onClick={() => generateVacationRequestPDF(req, requester || null, [], currentUser)}
+                                                                                className="text-xs text-blue-400 font-bold hover:underline flex items-center gap-1"
+                                                                            >
+                                                                                <Printer size={12} /> Drucken
+                                                                            </button>
+                                                                            <button
+                                                                                onClick={() => navigate(`/office/user/${req.user_id}`)}
+                                                                                className="text-xs text-purple-400 font-bold hover:underline flex items-center gap-1"
+                                                                            >
+                                                                                Bearbeiten <ChevronRight size={12} />
+                                                                            </button>
+                                                                        </div>
                                                                     </div>
                                                                     <div className="flex justify-between items-center">
                                                                         <div>
